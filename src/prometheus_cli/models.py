@@ -72,10 +72,18 @@ class ToolCall(BaseModel):
     reason: str = ""
 
 
+class Criterion(BaseModel):
+    description: str
+    weight: int = Field(default=1, ge=1, le=100)
+    critical: bool = False
+
+
 class AgentTurn(BaseModel):
     thought_summary: str = ""
     status: Literal["working", "needs_user", "complete", "blocked"] = "working"
     message: str = ""
     completion_percent: int = Field(default=0, ge=0, le=100)
     calls: list[ToolCall] = Field(default_factory=list)
+    criteria_proposed: list[Criterion] = Field(default_factory=list)
+    criteria_met: list[str] = Field(default_factory=list)
 

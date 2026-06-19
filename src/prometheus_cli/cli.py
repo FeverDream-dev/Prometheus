@@ -7,7 +7,7 @@ from rich.console import Console
 from rich.panel import Panel
 from rich.prompt import Confirm, Prompt
 
-from .config import load_bundle, load_settings, save_settings
+from .config import ensure_home, load_bundle, load_settings, save_settings
 from .hardware import detect_hardware, recommended_profile
 from .models import AutonomyMode, Risk, ToolCall
 from .onboarding import (
@@ -19,6 +19,7 @@ from .onboarding import (
 )
 from .orchestrator import Orchestrator
 from .policy import mode_description
+from .session import SessionStore
 
 CONFIG_DIR = Path(__file__).resolve().parent.parent.parent / "config"
 BUNDLES_DIR = CONFIG_DIR / "bundles"
@@ -172,15 +173,56 @@ def run(
     bundle: Path = typer.Option(..., exists=True, readable=True),
     workspace: Path = typer.Option(Path.cwd(), exists=True, file_okay=False),
     mode: AutonomyMode | None = typer.Option(None),
+    resume: str | None = typer.Option(None, "--resume", help="Session ID to resume"),
 ) -> None:
     """Run an evidence-driven coding session."""
     settings = load_settings()
     settings.workspace = workspace.resolve()
     if mode:
         settings.mode = mode
-    orchestrator = Orchestrator(settings, load_bundle(bundle), approve=_approval)
+    if not settings.bundle_file:
+        settings.bundle_file = bundle
+    home = ensure_home()
+    store = SessionStore(home / "sessions" / "prometheus.db")
+    orchestrator = Orchestrator(settings, load_bundle(bundle), approve=_approval, session_store=store)
     result = orchestrator.run(objective, on_update=lambda line: console.print(f"[cyan]{line}[/cyan]"))
+    store.close()
     console.print(Panel(result.message, title=f"{result.status} — {result.completion_percent}%"))
+
+
+@app.command()
+def sessions(limit: int = typer.Option(20, "--limit")) -> None:
+    """List recent coding sessions and their completion."""
+    home = ensure_home()
+    store = SessionStore(home / "sessions" / "prometheus.db")
+    for s in store.list_sessions(limit=limit):
+        console.print(f"[bold]{s.id[:12]}[/bold]  {s.completion_percent:>5.1f}%  {s.status:<10}  {s.objective[:60]}")
+    store.close()
+
+
+@app.command()
+def resume(session_id: str) -> None:
+    """Show the state of a session for manual continuation."""
+    home = ensure_home()
+    store = SessionStore(home / "sessions" / "prometheus.db")
+    session = store.get_session(session_id)
+    if session is None:
+        console.print(f"[red]Session {session_id} not found.[/red]")
+        raise typer.Exit(code=1)
+    console.print(Panel(f"Session {session_id}"))
+    console.print(f"Objective: {session['objective']}")
+    console.print(f"Status: {session['status']}")
+    console.print(f"Mode: {session['mode']}")
+    console.print(f"Completion: {store.completion_percent(session_id)}%")
+    console.print(f"Critical criteria met: {'yes' if store.all_critical_passed(session_id) else 'no'}")
+    console.print(f"Tasks: {store.task_count(session_id)}")
+    console.print(f"Last event seq: {store.last_event_seq(session_id)}")
+    checkpoints = store.list_checkpoints(session_id)
+    if checkpoints:
+        console.print(f"\nCheckpoints ({len(checkpoints)}):")
+        for cp in checkpoints[:5]:
+            console.print(f"  {cp['commit_sha'][:12]}  {cp['message'][:60]}")
+    store.close()
 
 
 @app.command()
