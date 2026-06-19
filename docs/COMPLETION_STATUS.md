@@ -43,14 +43,14 @@ Criticality: C5=critical safety/core, C3=important, C2=standard, C1=nice.
 | 3 | Rich bundle schema + validation (reject unknown/missing-license/non-https/unsafe-id) | C3 | `bundles.py` | unit | — | done |
 | 3 | Hardware-fit classification + "why recommended" | C3 | `bundles.py` | unit | `prometheus bundles` | done |
 | 3 | Qualification harness (chat/json/tool/code) + "verified" gate | C5 | `qualification.py` | 7 unit | `prometheus qualify` 4/4 real | done |
-| 4 | `/settings` + slash commands + Model Packages surface | C5 | `tui.py`, `tui_commands.py` | 8 unit | headless TUI launches | done(slice) |
+| 4 | `/settings` + slash commands + Model Packages surface | C5 | `tui.py`, `tui_commands.py` | 14 unit | headless TUI launches | done |
 | 4 | Full navigable bundle CRUD screens (install/compare/edit/export) | C3 | partial (`bundles`/`qualify` CLI) | — | — | partial |
-| 5 | Model router by capability + real-time RAM/VRAM + hot-swap | C5 | `orchestrator.py` (single-controller) | — | — | partial |
-| 6 | MCP product (stdio + Streamable HTTP, trust, injection boundary) | C3 | `mcp_client.py` (stdio) | unit | fixture server | partial |
-| 7 | Typed tool broker (file/patch/process/Git/browser/web) | C5 | `tools/`, `browser.py` | unit | real-Ollama repair E2E | done(core) |
+| 5 | Model router by capability + real-time RAM/VRAM + hot-swap | C5 | `router.py` | 15 unit | capability+memory rules | done |
+| 6 | MCP product (stdio + Streamable HTTP, trust, injection boundary) | C3 | `mcp_client.py` (stdio) + fixture | 7 e2e | real fixture server | done(stdio) |
+| 7 | Typed tool broker (file/patch/process/Git/browser/web) | C5 | `tools/`, `browser.py`, `tools/web.py` | unit+e2e | real repair + real Chromium + web fetch | done(core) |
 | 8 | Aggressive Ollama test matrix + disposable repair E2E | C5 | `test_e2e_ollama.py` | opt-in | granite4.1:3b 4/4 + repair | done |
 | 9 | Repo organization + .gitignore rejecting models/secrets/artifacts | C3 | `.gitignore`, `test_repo_hygiene.py` | 5 unit | `git ls-files` clean | done |
-| 10 | Professional Pages site (SEO, JSON-LD, sitemap, Lighthouse 95+) | C3 | `website/` (basic) | `test_website.py` | local preview | partial |
+| 10 | Professional Pages site (SEO, JSON-LD, sitemap, Lighthouse 95+) | C3 | `website/` | `test_website.py` | local preview | in progress(redesign) |
 | 11 | 18 acceptance gates | C5 | — | — | — | see below |
 
 ## Acceptance gates (§11) — current state
@@ -59,12 +59,12 @@ Criticality: C5=critical safety/core, C3=important, C2=standard, C1=nice.
 2. One small package pulled/qualified — **done** (Spark/granite4.1:3b pulled + QUALIFIED 4/4)
 3. Local sessions have no artificial quota — **done** (Settings.unlimited_local_sessions default True; 0=unlimited)
 4. Cloud marked metered/provider-limited — **done** (`/settings` + bundles show "metered" when not unlimited)
-5. Router uses capability + memory rules — **partial** (hardware-fit routing; per-step live memory not yet)
-6. Sequential hot-swap without losing task state — **partial** (declarative sequential_loading; live unload/swap not yet)
-7. VibeThinker cannot call tools — **done** (add-on, no controller; prohibited_capabilities enforced)
-8. MCP fixture server E2E (not just config parsing) — **partial** (stdio client + unit; fixture E2E planned)
+5. Router uses capability + memory rules — **done** (`router.py`: capability refusal + live /proc/meminfo free-RAM + KV estimate)
+6. Sequential hot-swap without losing task state — **done** (unload→load with handoff preserved; all real bundles sequential by design)
+7. VibeThinker cannot call tools — **done** (add-on, no controller; prohibited_capabilities enforced in router)
+8. MCP fixture server E2E (not just config parsing) — **done** (real stdio fixture server: handshake, tool discovery, call, injection boundary, error surfacing, reconnect)
 9. File/patch/process/Git tools complete a real repair — **done** (real-Ollama repair E2E, granite4.1:3b)
-10. Playwright real browser test for a web fixture — **partial** (browser module; web-fixture test planned)
+10. Playwright real browser test for a web fixture — **done** (real headless Chromium: navigate/click/fill/console-evidence/screenshot)
 11. Local Ollama real-model smoke + tool tests — **done** (qualify 4/4 + inference smoke)
 12. Sessions resume after restart — **done**
 13. Git checkpoints + safe rollback — **done**
@@ -72,14 +72,17 @@ Criticality: C5=critical safety/core, C3=important, C2=standard, C1=nice.
 15. One-line install works outside a clone — **done** (on `main`)
 16. Pages builds + install command tested — **done** (on `main`)
 17. Website uses only factual claims + real captures — **partial** (terminal recording still placeholder)
-18. Full automated suite passes — **done** (287 + 2 opt-in)
+18. Full automated suite passes — **done** (330 + 2 opt-in)
 
 ## Test counts (reality)
 
-- `pytest -q` → **287 passed, 2 skipped** (the 2 skips = opt-in real-Ollama; both pass when enabled).
-- New this branch: 20 bundles + 7 qualification + 8 tui_commands + 5 hygiene = 40 new tests.
+- `pytest -q` → **330 passed, 2 skipped** (the 2 skips = opt-in real-Ollama; both pass when enabled).
+- New this branch: 20 bundles + 7 qualification + 14 tui_commands + 5 hygiene + 7 MCP e2e + 6 browser e2e + 15 router + 10 web tool = 84 new tests.
 - Real-model evidence: `granite4.1:3b` (Spark controller, pulled ~2 GB) QUALIFIED 4/4 and drove
   the opt-in repair E2E (2 passed in 2.65s). `llama3.2:latest` also QUALIFIED 4/4.
+- Real browser evidence: 6 Playwright tests pass against headless Chromium (navigate, click,
+  fill, console-error evidence, screenshot, summary).
+- Real MCP evidence: 7 fixture-server E2E tests pass over real stdio JSON-RPC.
 
 ## Remaining (honest, no inflated %)
 
