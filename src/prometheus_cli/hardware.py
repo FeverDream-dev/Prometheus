@@ -64,10 +64,16 @@ def detect_hardware() -> HardwareReport:
 
 
 def recommended_profile(report: HardwareReport) -> str:
-    capacity = report.vram_gb or report.ram_gb
-    if capacity >= 24:
+    """Pick a bundle that actually fits the host.
+
+    GPU bundles (forge-*) require both VRAM (a GPU is present) and the RAM
+    minimums declared in their manifests. A CPU-only host must never receive
+    a forge bundle, regardless of how much system RAM it has — its VRAM is 0
+    and the bundle's models assume GPU acceleration.
+    """
+    if report.vram_gb >= 24 and report.ram_gb >= 32:
         return "forge-24gb"
-    if capacity >= 12:
+    if report.vram_gb >= 12 and report.ram_gb >= 16:
         return "forge-12gb"
     return "ember-8gb"
 
