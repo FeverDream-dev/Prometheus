@@ -1,3 +1,4 @@
+from .context import ContextPacket, build_context_packet
 from .schemas import (
     MAX_WORKING_WORDS,
     Constraint,
@@ -14,6 +15,7 @@ from .store import ProjectMemoryStore, WorkingMemoryTooLarge
 
 __all__ = [
     "Constraint",
+    "ContextPacket",
     "Decision",
     "Fact",
     "FactConfidence",
@@ -25,4 +27,5 @@ __all__ = [
     "Provenance",
     "TaskNode",
     "WorkingMemoryTooLarge",
+    "build_context_packet",
 ]
