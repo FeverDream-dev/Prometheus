@@ -1,0 +1,19 @@
+version: 1
+project:
+  name: example
+  workspace: .
+rules:
+  imports:
+    - AGENTS.md
+    - CLAUDE.md
+    - .cursorrules
+  generated_file: .prometheus/context.md
+verification:
+  commands:
+    - ["pytest", "-q"]
+  required_completion: 95
+permissions:
+  mode: pilot
+  sandbox: true
+  network_allowlist: []
+

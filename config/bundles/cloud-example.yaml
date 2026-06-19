@@ -1,0 +1,19 @@
+name: cloud-example
+description: Example only; users select models and provide secrets through environment variables
+minimum_ram_gb: 8
+minimum_vram_gb: 0
+sequential_loading: false
+models:
+  - provider: openrouter
+    base_url: https://openrouter.ai/api/v1
+    api_key_env: OPENROUTER_API_KEY
+    model: anthropic/claude-sonnet-4
+    role: controller
+    tool_capable: true
+  - provider: zai-coding
+    base_url: https://api.z.ai/api/coding/paas/v4
+    api_key_env: ZAI_API_KEY
+    model: GLM-5.1
+    role: reviewer
+    tool_capable: true
+

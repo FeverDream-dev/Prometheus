@@ -1,0 +1,19 @@
+name: ember-8gb
+description: CPU/8 GB baseline; sequential controller and compact reviewer
+minimum_ram_gb: 8
+minimum_vram_gb: 0
+sequential_loading: true
+models:
+  - provider: ollama
+    model: gemma3:4b
+    role: controller
+    context_window: 16384
+    keep_alive: 2m
+    tool_capable: true
+  - provider: ollama
+    model: hf.co/prithivMLmods/VibeThinker-3B-GGUF:Q4_K_M
+    role: reviewer
+    context_window: 16384
+    keep_alive: 0
+    tool_capable: false
+

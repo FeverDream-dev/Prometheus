@@ -1,0 +1,11 @@
+{
+  "app.name": "PROMETHEUS",
+  "mode.copilot": "Copiloto",
+  "mode.pilot": "Piloto",
+  "mode.astronaut": "Astronauta",
+  "approval.allow": "Permitir esta ação?",
+  "status.checkpoint": "Checkpoint criado",
+  "status.complete": "Objetivo concluído",
+  "status.question": "É necessária uma resposta do usuário"
+}
+
