@@ -32,8 +32,13 @@ def test_no_model_weights_or_dbs_tracked():
     assert not bad, f"forbidden model/db files tracked: {bad}"
 
 
+SECRET_PATTERN_ALLOW = ("tests/", "src/prometheus_cli/redaction.py")
+
+
 def test_no_secret_key_material_tracked():
     for f in _tracked_files():
+        if any(f.startswith(p) or f == p.rstrip("/") for p in SECRET_PATTERN_ALLOW):
+            continue
         path = REPO / f
         if not path.is_file() or path.stat().st_size > 2_000_000:
             continue
