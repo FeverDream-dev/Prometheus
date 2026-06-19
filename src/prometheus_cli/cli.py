@@ -226,6 +226,26 @@ def resume(session_id: str) -> None:
 
 
 @app.command()
+def tui(
+    bundle: Path | None = typer.Option(None, "--bundle", exists=True, readable=True),
+    workspace: Path = typer.Option(Path.cwd(), exists=True, file_okay=False),
+) -> None:
+    """Launch the interactive Textual TUI."""
+    try:
+        from .tui import launch_tui
+    except ImportError:
+        console.print("[red]Textual is not installed. Install with: pip install 'prometheus-local-agent[tui]'[/red]")
+        raise typer.Exit(code=1)
+    settings = load_settings()
+    bundle_path = bundle or settings.bundle_file
+    if not bundle_path:
+        console.print("[yellow]No bundle configured. Run 'prometheus setup' first.[/yellow]")
+        console.print("Or pass --bundle <path>")
+        raise typer.Exit(code=1)
+    launch_tui(bundle_path=bundle_path, workspace=workspace)
+
+
+@app.command()
 def modes() -> None:
     """Explain autonomy levels."""
     for mode in AutonomyMode:
