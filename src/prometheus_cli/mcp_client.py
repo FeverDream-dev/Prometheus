@@ -13,6 +13,16 @@ UNTRUSTED_DELIMITER_START = "--- UNTRUSTED MCP OUTPUT START ---"
 UNTRUSTED_DELIMITER_END = "--- UNTRUSTED MCP OUTPUT END ---"
 
 
+class MCPError(RuntimeError):
+    def __init__(self, error: dict | str):
+        if isinstance(error, dict):
+            super().__init__(f"MCP error {error.get('code')}: {error.get('message', '')}")
+            self.code = error.get("code")
+        else:
+            super().__init__(str(error))
+            self.code = None
+
+
 @dataclass
 class MCPServerConfig:
     name: str
@@ -71,7 +81,10 @@ class MCPClient:
         response_line = self._proc.stdout.readline()
         if not response_line:
             raise RuntimeError("MCP server closed the connection")
-        return json.loads(response_line)
+        response = json.loads(response_line)
+        if "error" in response:
+            raise MCPError(response["error"])
+        return response
 
     def _notify(self, method: str, params: dict | None = None) -> None:
         self._ensure_process()
