@@ -1,0 +1,49 @@
+schema_version: 2
+id: titan-24gb
+name: Titan — 24 GB quality
+description: High-quality multimodal controller with sequential specialist review.
+recommended_for: [large repositories, long tasks, architecture, complex debugging]
+hardware:
+  minimum_ram_gb: 32
+  recommended_ram_gb: 48
+  minimum_vram_gb: 22
+  recommended_vram_gb: 24
+  minimum_free_disk_gb: 28
+runtime:
+  provider: ollama
+  minimum_version: 0.13.3
+  sequential_loading: true
+  maximum_loaded_models: 1
+  default_context: 16384
+  context_ceiling: 65536
+  unlimited_local_sessions: true
+roles:
+  controller:
+    model: qwen3.5:27b
+    approximate_download_gb: 17
+    capabilities: [text, image, tools, thinking, coding, json]
+    keep_alive: 10m
+  reviewer:
+    model: granite4.1:8b
+    approximate_download_gb: 5.3
+    capabilities: [text, tools, coding, json]
+    keep_alive: 0
+  embedding:
+    model: qwen3-embedding:0.6b
+    approximate_download_gb: 0.7
+    capabilities: [embeddings]
+    optional: true
+    keep_alive: 0
+licenses:
+  - model: qwen3.5:27b
+    license: verify-at-install
+    source: https://ollama.com/library/qwen3.5
+  - model: granite4.1:8b
+    license: Apache-2.0
+    source: https://ollama.com/library/granite4.1
+  - model: qwen3-embedding:0.6b
+    license: verify-at-install
+    source: https://ollama.com/library/qwen3-embedding
+qualification:
+  required: [chat, image, structured_output, single_tool, parallel_tool, multi_turn_tool, code_patch, repository_navigation, test_repair, long_session]
+experimental: true

@@ -1,0 +1,35 @@
+schema_version: 2
+id: vibethinker-review-addon
+name: VibeThinker — optional review add-on
+description: Compact verifiable reasoning specialist. Never use it as the tool controller.
+recommended_for: [algorithm review, failure diagnosis, verifiable reasoning, test criticism]
+hardware:
+  minimum_ram_gb: 8
+  recommended_ram_gb: 12
+  minimum_vram_gb: 0
+  minimum_free_disk_gb: 4
+runtime:
+  provider: ollama-huggingface-gguf
+  minimum_version: latest-qualified
+  sequential_loading: true
+  maximum_loaded_models: 1
+  default_context: 16384
+  context_ceiling: 65536
+  unlimited_local_sessions: true
+roles:
+  reviewer:
+    model: hf.co/prithivMLmods/VibeThinker-3B-GGUF:Q4_K_M
+    approximate_download_gb: 1.93
+    capabilities: [text, reasoning, coding_review]
+    prohibited_capabilities: [tools, autonomous_controller]
+    keep_alive: 0
+licenses:
+  - model: WeiboAI/VibeThinker-3B
+    license: MIT
+    source: https://huggingface.co/WeiboAI/VibeThinker-3B
+  - model: prithivMLmods/VibeThinker-3B-GGUF
+    license: verify-community-quantization
+    source: https://huggingface.co/prithivMLmods/VibeThinker-3B-GGUF
+qualification:
+  required: [reasoning, failure_diagnosis, patch_review, no_tool_call_enforcement]
+experimental: true

@@ -1,0 +1,41 @@
+schema_version: 2
+id: oracle-gemma4-12gb
+name: Oracle — Gemma 4 multimodal
+description: Google Gemma 4 package for text, code, screenshots, documents, and function calling.
+recommended_for: [multimodal work, UI review, document interpretation, coding]
+hardware:
+  minimum_ram_gb: 16
+  recommended_ram_gb: 24
+  minimum_vram_gb: 10
+  recommended_vram_gb: 12
+  minimum_free_disk_gb: 12
+runtime:
+  provider: ollama
+  minimum_version: latest-qualified
+  sequential_loading: true
+  maximum_loaded_models: 1
+  default_context: 16384
+  context_ceiling: 32768
+  unlimited_local_sessions: true
+roles:
+  controller:
+    model: gemma4:12b
+    approximate_download_gb: 7.6
+    capabilities: [text, image, tools, thinking, coding, json]
+    keep_alive: 10m
+  reviewer:
+    model: granite4.1:3b
+    approximate_download_gb: 2.1
+    capabilities: [text, tools, json, coding]
+    optional: true
+    keep_alive: 0
+licenses:
+  - model: gemma4:12b
+    license: Gemma-Terms
+    source: https://ai.google.dev/gemma/terms
+  - model: granite4.1:3b
+    license: Apache-2.0
+    source: https://ollama.com/library/granite4.1
+qualification:
+  required: [chat, image, screenshot_ocr, structured_output, single_tool, multi_turn_tool, code_patch, test_repair]
+experimental: true

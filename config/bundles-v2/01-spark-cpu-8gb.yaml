@@ -1,0 +1,41 @@
+schema_version: 2
+id: spark-cpu-8gb
+name: Spark — CPU / 8 GB
+description: Smallest practical quota-free local setup for CPU-only and 8 GB systems.
+recommended_for: [small repositories, scripts, learning, slow CPU fallback]
+hardware:
+  minimum_ram_gb: 8
+  recommended_ram_gb: 12
+  minimum_vram_gb: 0
+  minimum_free_disk_gb: 8
+runtime:
+  provider: ollama
+  minimum_version: 0.13.3
+  sequential_loading: true
+  maximum_loaded_models: 1
+  default_context: 8192
+  context_ceiling: 16384
+  unlimited_local_sessions: true
+roles:
+  controller:
+    model: granite4.1:3b
+    approximate_download_gb: 2.1
+    capabilities: [text, tools, json, coding]
+    keep_alive: 5m
+  vision:
+    model: qwen3.5:2b
+    approximate_download_gb: 2.7
+    capabilities: [text, image, tools, thinking]
+    optional: true
+    keep_alive: 0
+licenses:
+  - model: granite4.1:3b
+    license: Apache-2.0
+    source: https://ollama.com/library/granite4.1
+  - model: qwen3.5:2b
+    license: verify-at-install
+    source: https://ollama.com/library/qwen3.5
+qualification:
+  required: [chat, structured_output, single_tool, multi_turn_tool, code_patch]
+  vision_required_when_installed: [image_description, screenshot_error_detection]
+experimental: false

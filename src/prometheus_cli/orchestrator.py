@@ -147,8 +147,11 @@ class Orchestrator:
         last_turn = AgentTurn(message="Not started")
         schema = AgentTurn.model_json_schema()
 
-        for step in range(1, self.settings.max_steps + 1):
-            if time.monotonic() - started > self.settings.max_runtime_minutes * 60:
+        step_limit = self.settings.step_limit()
+        step_ceiling = step_limit if step_limit is not None else 500
+        runtime_limit = self.settings.runtime_limit_minutes()
+        for step in range(1, step_ceiling + 1):
+            if runtime_limit is not None and time.monotonic() - started > runtime_limit * 60:
                 return AgentTurn(status="blocked", message="Runtime limit reached")
             raw = self.controller.complete(messages, schema=schema)
             try:

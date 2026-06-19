@@ -7,6 +7,7 @@ from rich.console import Console
 from rich.panel import Panel
 from rich.prompt import Confirm, Prompt
 
+from .bundles import classify_registry, load_registry
 from .config import ensure_home, load_bundle, load_settings, save_settings
 from .hardware import detect_hardware, recommended_profile
 from .installer import (
@@ -356,6 +357,67 @@ def modes() -> None:
     """Explain autonomy levels."""
     for mode in AutonomyMode:
         console.print(f"[bold]{mode.value}[/bold]: {mode_description(mode)}")
+
+
+@app.command()
+def bundles(
+    json_output: bool = typer.Option(False, "--json"),
+    installed: bool = typer.Option(False, "--installed", help="Show only bundles whose models are already pulled"),
+) -> None:
+    """List selectable model packages with hardware fit and status."""
+    from .hardware import detect_hardware
+    from .onboarding import check_ollama
+
+    registry = load_registry()
+    if not registry:
+        console.print("[red]No model packages found.[/red]")
+        raise typer.Exit(code=1)
+    report = detect_hardware()
+    ollama = check_ollama()
+    classified = classify_registry(registry, report, ollama.models)
+    if installed:
+        classified = [c for c in classified if c.bundle.installed_fraction(ollama.models) > 0]
+    if json_output:
+        import json as _json
+
+        console.print(_json.dumps([
+            {
+                "id": c.bundle.id,
+                "name": c.bundle.name,
+                "status": c.status,
+                "fits_hardware": c.fits_hardware,
+                "download_gb": c.bundle.total_download_gb(),
+                "add_on": c.bundle.is_add_on,
+                "experimental": c.bundle.experimental,
+                "unlimited_local_sessions": c.bundle.runtime.unlimited_local_sessions,
+                "reasons": c.reasons,
+                "roles": {r: s.model for r, s in c.bundle.roles.items()},
+            }
+            for c in classified
+        ], indent=2))
+        return
+    console.print(Panel.fit(f"PROMETHEUS model packages — {report.ram_gb:.0f} GB RAM, "
+                            f"{report.vram_gb:.0f} GB VRAM, Ollama "
+                            f"{'ready' if ollama.running else 'down'}"))
+    for c in classified:
+        tag = {
+            "recommended": "[green]recommended[/green]",
+            "installed": "[bold green]installed[/bold]",
+            "available": "available",
+            "experimental": "[yellow]experimental[/yellow]",
+            "incompatible": "[red]incompatible[/red]",
+        }[c.status]
+        marker = " (add-on)" if c.bundle.is_add_on else ""
+        console.print(f"\n[bold]{c.bundle.name}[/bold]{marker} — {tag}")
+        console.print(f"  {c.bundle.description}")
+        console.print(f"  download ~{c.bundle.total_download_gb():.1f} GB · "
+                      f"local sessions {'unlimited' if c.bundle.runtime.unlimited_local_sessions else 'metered'}")
+        for role, spec in c.bundle.roles.items():
+            opt = " (optional)" if spec.optional else ""
+            pulled = " [installed]" if spec.model in ollama.models else ""
+            console.print(f"    {role}: {spec.model}{opt}{pulled}")
+        for reason in c.reasons:
+            console.print(f"  [dim]• {reason}[/dim]")
 
 
 @app.command()
