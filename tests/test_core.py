@@ -89,6 +89,57 @@ class CoreTests(unittest.TestCase):
             tools.write_file("nested/example.txt", "hello")
             self.assertEqual(tools.read_file("nested/example.txt"), "hello")
 
+    def test_git_checkpoint_and_rollback(self):
+        with TemporaryDirectory() as directory:
+            tools = WorkspaceTools(Path(directory))
+            tools.write_file("file.txt", "version 1")
+            tools.git_checkpoint("initial")
+            sha1 = tools.git_current_sha()
+            self.assertIsNotNone(sha1)
+            tools.write_file("file.txt", "version 2")
+            tools.git_checkpoint("second")
+            sha2 = tools.git_current_sha()
+            self.assertNotEqual(sha1, sha2)
+            self.assertIn("version 2", tools.read_file("file.txt"))
+            tools.git_rollback(sha1)
+            self.assertIn("version 1", tools.read_file("file.txt"))
+            self.assertNotIn("version 2", tools.read_file("file.txt"))
+
+    def test_git_log_shows_history(self):
+        with TemporaryDirectory() as directory:
+            tools = WorkspaceTools(Path(directory))
+            tools.write_file("a.txt", "a")
+            tools.git_checkpoint("first commit")
+            tools.write_file("b.txt", "b")
+            tools.git_checkpoint("second commit")
+            log = tools.git_log()
+            self.assertIn("first commit", log)
+            self.assertIn("second commit", log)
+
+    def test_git_rollback_rejects_invalid_sha(self):
+        with TemporaryDirectory() as directory:
+            tools = WorkspaceTools(Path(directory))
+            with self.assertRaises(ValueError):
+                tools.git_rollback("rm -rf /")
+
+    def test_atomic_write_no_partial_file_on_crash(self):
+        with TemporaryDirectory() as directory:
+            tools = WorkspaceTools(Path(directory))
+            tools.write_file("safe.txt", "original")
+            self.assertEqual(tools.read_file("safe.txt"), "original")
+            tools.write_file("safe.txt", "updated content")
+            self.assertEqual(tools.read_file("safe.txt"), "updated content")
+
+    def test_symlink_escape_blocked(self):
+        with TemporaryDirectory() as directory:
+            tools = WorkspaceTools(Path(directory))
+            target = Path(directory).parent / "outside_secret"
+            target.write_text("secret")
+            link = Path(directory) / "escape"
+            link.symlink_to(target)
+            with self.assertRaises(PermissionError):
+                tools.read_file("escape")
+
 
 
 if __name__ == "__main__":
