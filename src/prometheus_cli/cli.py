@@ -331,9 +331,11 @@ def resume(session_id: str) -> None:
 def tui(
     bundle: Path | None = typer.Option(None, "--bundle", exists=True, readable=True),
     workspace: Path = typer.Option(Path.cwd(), exists=True, file_okay=False),
+    no_animation: bool = typer.Option(False, "--no-animation", help="Skip the startup splash animation"),
 ) -> None:
     """Launch the interactive Textual TUI."""
     try:
+        from .splash import pick_size_for_terminal, play as play_splash, should_animate
         from .tui import launch_tui
     except ImportError:
         console.print("[red]Textual is not installed. Install with: pip install 'prometheus-local-agent[tui]'[/red]")
@@ -344,6 +346,8 @@ def tui(
         console.print("[yellow]No bundle configured. Run 'prometheus setup' first.[/yellow]")
         console.print("Or pass --bundle <path>")
         raise typer.Exit(code=1)
+    if should_animate(no_animation=no_animation):
+        play_splash(pick_size_for_terminal(), duration_s=1.0, fps=12)
     launch_tui(bundle_path=bundle_path, workspace=workspace)
 
 
