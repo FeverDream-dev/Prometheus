@@ -11,3 +11,34 @@ build/
 *.log
 .env
 
+
+# PROMETHEUS hygiene (completion §9): never commit models, secrets, artifacts, or local state.
+*.gguf
+*.safetensors
+*.bin
+*.pt
+*.ckpt
+*.onnx
+*.weights
+config/*.env
+*.env.*
+!.env.example
+**/.env
+*.sqlite
+*.sqlite3
+*.db
+prometheus.db*
+.local-test/
+.prometheus-test/
+.artifacts/
+.traces/
+.recordings/
+*.trace
+*.har
+*.webm
+*.gif
+*.mp4
+playwright-report/
+test-results/
+.browser-data/
+PROMETHEUS-Completion-Kit/
