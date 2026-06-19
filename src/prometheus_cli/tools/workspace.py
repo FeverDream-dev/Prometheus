@@ -5,10 +5,13 @@ import subprocess
 import tempfile
 from pathlib import Path
 
+from ..sandbox import SandboxBroker
+
 
 class WorkspaceTools:
-    def __init__(self, root: Path):
+    def __init__(self, root: Path, sandbox: SandboxBroker | None = None):
         self.root = root.resolve()
+        self.sandbox = sandbox or SandboxBroker(self.root, enabled=False)
 
     def _resolve(self, relative: str) -> Path:
         candidate = (self.root / relative).resolve()
@@ -44,16 +47,19 @@ class WorkspaceTools:
     def run_command(self, command: list[str], timeout: int = 120) -> str:
         if not command:
             raise ValueError("command cannot be empty")
+        wrapped = self.sandbox.wrap(command)
         result = subprocess.run(
-            command,
+            wrapped,
             cwd=self.root,
             capture_output=True,
             text=True,
             timeout=timeout,
             check=False,
         )
+        sandbox_note = f"[sandbox:{self.sandbox.tier}]\n" if self.sandbox.active else ""
         return (
-            f"exit_code={result.returncode}\nSTDOUT:\n{result.stdout}\nSTDERR:\n{result.stderr}"
+            f"{sandbox_note}exit_code={result.returncode}\n"
+            f"STDOUT:\n{result.stdout}\nSTDERR:\n{result.stderr}"
         )[-100_000:]
 
     def _git(self, args: list[str], timeout: int = 60) -> subprocess.CompletedProcess[str]:
