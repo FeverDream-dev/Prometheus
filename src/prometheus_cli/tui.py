@@ -218,7 +218,36 @@ class PrometheusApp(App):
                 return
             self.run_worker(self._run_use, parts[1])
             return
+        if cmd == "/memory":
+            self.run_worker(self._run_memory, parts[1] if len(parts) > 1 else "status",
+                            parts[2] if len(parts) > 2 else None)
+            return
         _emit([f"[yellow]Unknown command:[/yellow] {cmd}. Try [bold]/help[/bold]."])
+
+    def _run_memory(self, action: str, arg: str | None) -> None:
+        from .memory import ProjectMemoryStore
+
+        def emit(line: str) -> None:
+            self.call_from_thread(self._log, line)
+
+        store = ProjectMemoryStore(self.workspace)
+        if action == "status":
+            st = store.status()
+            emit(f"Working memory: {'OK' if st.ok else 'NOT OK'} — {st.word_count}/{st.limit} words "
+                 f"(v{st.version}){' [recovered]' if st.recovered else ''}")
+        elif action == "inspect":
+            facts = store.list_facts()
+            emit(f"Tasks: {len(store.get_tasks())} · Decisions: {len(store.list_decisions())} · Facts: {len(facts)}")
+            for f in facts[-8:]:
+                emit(f"  ({f.confidence.value}/{f.provenance.source}) {f.summary}")
+        elif action == "why" and arg:
+            fact = store.why(arg)
+            emit(f"{fact.summary} — {fact.confidence.value}/{fact.provenance.source}" if fact else f"no fact '{arg}'")
+        elif action == "rebuild":
+            st = store.rebuild()
+            emit(f"Rebuilt: v{st.version}, {st.word_count} words")
+        else:
+            emit(f"/memory {action} — use: status|inspect|why <id>|rebuild|export|reset")
 
     def _run_use(self, bundle_id: str) -> None:
         import yaml

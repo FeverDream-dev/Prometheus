@@ -394,6 +394,67 @@ def modes() -> None:
 
 
 @app.command()
+def memory(
+    action: str = typer.Argument("status", help="status|inspect|why|rebuild|export|reset"),
+    arg: str | None = typer.Argument(None, help="fact id (for 'why') or export path (for 'export')"),
+    workspace: Path = typer.Option(Path.cwd(), "--workspace", exists=True, file_okay=False),
+) -> None:
+    """Inspect or manage PROMETHEUS bounded project memory (.prometheus/)."""
+    from .memory import ProjectMemoryStore
+
+    store = ProjectMemoryStore(workspace)
+    if action == "status":
+        st = store.status()
+        intent = store.get_intent()
+        console.print(Panel.fit("PROMETHEUS memory"))
+        console.print(f"Working memory: {'OK' if st.ok else 'NOT OK'} — {st.word_count}/{st.limit} words "
+                      f"(v{st.version}){' [recovered]' if st.recovered else ''}")
+        if st.error:
+            console.print(f"[yellow]{st.error}[/yellow]")
+        console.print(f"Intent: {intent.objective if intent else '(none)'}")
+        console.print(f"Tasks: {len(store.get_tasks())} · Decisions: {len(store.list_decisions())} · "
+                      f"Facts: {len(store.list_facts())} · Revisions: {len(store.list_revisions())}")
+    elif action == "inspect":
+        intent = store.get_intent()
+        console.print("[bold]Intent:[/bold]", intent.objective if intent else "(none)")
+        console.print("[bold]Tasks:[/bold]")
+        for t in store.get_tasks():
+            console.print(f"  [{t.status}] {t.id}: {t.description}")
+        console.print("[bold]Recent decisions:[/bold]")
+        for d in store.list_decisions()[-8:]:
+            console.print(f"  {d.choice}")
+        console.print("[bold]Verified facts:[/bold]")
+        for f in store.list_facts()[-12:]:
+            console.print(f"  ({f.confidence.value}/{f.provenance.source}) {f.summary}")
+    elif action == "why":
+        if not arg:
+            console.print("[red]'why' needs a fact id.[/red]")
+            raise typer.Exit(code=1)
+        fact = store.why(arg)
+        if fact is None:
+            console.print(f"[red]No fact '{arg}'.[/red]")
+            raise typer.Exit(code=1)
+        console.print(f"[bold]{fact.summary}[/bold]")
+        console.print(f"confidence: {fact.confidence.value} · source: {fact.provenance.source} · "
+                      f"event: {fact.provenance.event_id}")
+    elif action == "rebuild":
+        st = store.rebuild()
+        console.print(f"[green]Rebuilt working memory:[/green] v{st.version}, {st.word_count} words")
+    elif action == "export":
+        dest = Path(arg) if arg else workspace / "prometheus-memory-export.json"
+        out = store.export(dest)
+        console.print(f"[green]Sanitized export:[/green] {out}")
+    elif action == "reset":
+        if not Confirm.ask("Checkpoint then clear project memory?", default=False):
+            raise typer.Exit(code=0)
+        store.reset()
+        console.print("[green]Project memory reset.[/green]")
+    else:
+        console.print(f"[red]Unknown memory action '{action}'.[/red] Try: status|inspect|why|rebuild|export|reset")
+        raise typer.Exit(code=1)
+
+
+@app.command()
 def bundles(
     json_output: bool = typer.Option(False, "--json"),
     installed: bool = typer.Option(False, "--installed", help="Show only bundles whose models are already pulled"),
