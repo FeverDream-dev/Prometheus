@@ -353,6 +353,40 @@ def tui(
 
 
 @app.command()
+def qualify(
+    model: str | None = typer.Option(None, "--model", help="Qualify a specific model tag instead of a bundle"),
+    bundle_id: str | None = typer.Option(None, "--bundle", help="Bundle id to qualify (e.g. spark-cpu-8gb)"),
+    base_url: str = typer.Option("http://127.0.0.1:11434", "--base-url"),
+) -> None:
+    """Run capability tests against a real model (chat, structured output, tool, code patch)."""
+    from .onboarding import check_ollama
+    from .qualification import qualify_bundle, qualify_model
+
+    status = check_ollama(base_url)
+    if not status.running:
+        console.print(f"[red]Ollama service not responding at {base_url}.[/red]")
+        raise typer.Exit(code=1)
+    if model:
+        console.print(Panel.fit(f"Qualifying model [bold]{model}[/bold]"))
+        report = qualify_model(model, base_url)
+    else:
+        registry = load_registry()
+        target = next((b for b in registry if b.id == (bundle_id or "")), None)
+        if target is None:
+            console.print(f"[red]No bundle '{bundle_id}'. Available: {', '.join(b.id for b in registry)}[/red]")
+            raise typer.Exit(code=1)
+        console.print(Panel.fit(f"Qualifying bundle [bold]{target.id}[/bold] (controller {target.controller_spec().model})"))
+        report = qualify_bundle(target, base_url)
+    for r in report.results:
+        mark = "[green]PASS[/green]" if r.passed else "[red]FAIL[/red]"
+        console.print(f"  {mark} {r.name} — {r.detail}")
+    verdict = "[green]QUALIFIED[/green]" if report.passed else "[yellow]PARTIAL[/yellow]"
+    console.print(f"\n{verdict}: {report.passed_count}/{len(report.results)} capability tests passed.")
+    if not report.passed:
+        raise typer.Exit(code=1)
+
+
+@app.command()
 def modes() -> None:
     """Explain autonomy levels."""
     for mode in AutonomyMode:
