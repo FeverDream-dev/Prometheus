@@ -79,3 +79,36 @@ def test_settings_lines_tags_incompatible_and_experimental():
     assert "incompatible" in joined
     assert "experimental" in joined
     assert "add-on" in joined
+
+
+def test_tools_lines_lists_categories():
+    joined = "\n".join(tui_commands.tools_lines())
+    for cat in ("Repository", "Process", "Git", "Browser", "Web", "MCP"):
+        assert cat in joined
+
+
+def test_mcp_lines_marks_output_untrusted():
+    joined = "\n".join(tui_commands.mcp_lines())
+    assert "untrusted" in joined
+
+
+def test_providers_lines_local_only_disables_cloud():
+    lines = tui_commands.providers_lines(Settings(local_only=True))
+    joined = "\n".join(lines)
+    assert "ollama" in joined
+    assert "disabled" in joined
+
+
+def test_permissions_lines_shows_limits_and_unlimited():
+    lines = tui_commands.permissions_lines(Settings())
+    joined = "\n".join(lines)
+    assert "Autonomy mode" in joined
+    assert "unlimited" in joined
+    assert "Sandbox" in joined
+
+
+def test_sessions_lines_handles_empty(tmp_path, monkeypatch):
+    monkeypatch.setattr("prometheus_cli.config.CONFIG_HOME", tmp_path)
+    monkeypatch.setattr("prometheus_cli.tui_commands.ensure_home", lambda: tmp_path)
+    lines = tui_commands.sessions_lines()
+    assert len(lines) >= 1

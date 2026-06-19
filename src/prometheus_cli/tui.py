@@ -186,14 +186,23 @@ class PrometheusApp(App):
         if cmd == "/clear":
             log.clear()
             return
-        if cmd in ("/doctor", "/models", "/modes"):
-            ollama = check_ollama()
+        if cmd in ("/doctor", "/models", "/modes", "/tools", "/mcp", "/providers", "/permissions", "/sessions"):
             if cmd == "/doctor":
-                _emit(tui_commands.doctor_lines(detect_hardware(), ollama))
+                _emit(tui_commands.doctor_lines(detect_hardware(), check_ollama()))
             elif cmd == "/models":
-                _emit(tui_commands.models_lines(ollama))
-            else:
+                _emit(tui_commands.models_lines(check_ollama()))
+            elif cmd == "/modes":
                 _emit(tui_commands.modes_lines())
+            elif cmd == "/tools":
+                _emit(tui_commands.tools_lines())
+            elif cmd == "/mcp":
+                _emit(tui_commands.mcp_lines())
+            elif cmd == "/providers":
+                _emit(tui_commands.providers_lines(load_settings()))
+            elif cmd == "/permissions":
+                _emit(tui_commands.permissions_lines(load_settings()))
+            else:
+                _emit(tui_commands.sessions_lines())
             return
         if cmd in ("/settings", "/bundles"):
             ollama = check_ollama()

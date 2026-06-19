@@ -5,7 +5,12 @@ SLASH_COMMANDS = {
     "/settings": "show model packages and active config",
     "/bundles": "alias for /settings",
     "/models": "show installed Ollama models",
+    "/providers": "show configured providers",
+    "/mcp": "show MCP server status",
+    "/tools": "list built-in tools",
+    "/permissions": "show autonomy mode and policy",
     "/doctor": "hardware + Ollama service report",
+    "/sessions": "list recent coding sessions",
     "/qualify": "qualify the first installed model or a bundle (/qualify <id>)",
     "/modes": "autonomy modes",
     "/clear": "clear the log",
@@ -41,6 +46,71 @@ def modes_lines() -> list[str]:
     from .models import AutonomyMode
 
     return [f"[bold]{mode.value}[/bold]: {mode_description(mode)}" for mode in AutonomyMode]
+
+
+def sessions_lines(limit: int = 10) -> list[str]:
+    from .config import ensure_home
+    from .session import SessionStore
+
+    home = ensure_home()
+    store = SessionStore(home / "sessions" / "prometheus.db")
+    try:
+        rows = store.list_sessions(limit=limit)
+    finally:
+        store.close()
+    if not rows:
+        return ["[dim]No sessions yet. Run an objective to create one.[/dim]"]
+    out = [f"[bold]Recent sessions ({len(rows)}):[/bold]"]
+    for s in rows:
+        out.append(f"  {s.id[:12]}  {s.completion_percent:>5.1f}%  {s.status:<10}  {s.objective[:50]}")
+    return out
+
+
+def permissions_lines(settings) -> list[str]:
+    from .policy import mode_description
+
+    out = [
+        f"[bold]Autonomy mode:[/bold] {settings.mode.value} — {mode_description(settings.mode)}",
+        f"Sandbox: {'on' if settings.sandbox else 'off'}",
+        f"Network: {'allowed' if settings.allow_network else 'denied'}",
+        f"Package install: {'allowed' if settings.allow_package_install else 'requires approval'}",
+        f"Multi-model review: {'on' if settings.multi_agent_review else 'off'}",
+        f"Local-only (no cloud fallback): {'on' if settings.local_only else 'off'}",
+        f"Step limit: {'unlimited' if settings.step_limit() is None else settings.step_limit()}",
+        f"Runtime limit: {'unlimited' if settings.runtime_limit_minutes() is None else str(settings.runtime_limit_minutes()) + ' min'}",
+    ]
+    return out
+
+
+def tools_lines() -> list[str]:
+    return [
+        "[bold]Built-in tools:[/bold]",
+        "  Repository  list_files, read_file (bounded), write_file (atomic), apply_patch, diff, search",
+        "  Process     run_command (argv array), supervised, streaming, timeouts, exit codes",
+        "  Git         status, diff, log, checkpoint, rollback, branch",
+        "  Browser     navigate, click, fill, text, screenshot, evidence (Playwright)",
+        "  Web         fetch (bounded, domain-permitted, untrusted, cited)",
+        "  MCP         per-server namespaced tools (untrusted output)",
+    ]
+
+
+def mcp_lines() -> list[str]:
+    return [
+        "[bold]MCP servers:[/bold]",
+        "[dim]None configured globally. MCP servers are added per-project and run out-of-process.[/dim]",
+        "[dim]Output is delimited as untrusted data; prompt injection cannot alter system policy.[/dim]",
+        "[dim]Use 'prometheus' with a project .prometheus.yaml to register stdio/HTTP MCP servers.[/dim]",
+    ]
+
+
+def providers_lines(settings) -> list[str]:
+    out = ["[bold]Providers:[/bold]", "  ollama (default, local, quota-free) — http://127.0.0.1:11434"]
+    if not settings.local_only:
+        out.append("  openai-compatible (cloud, metered) — configured per-bundle")
+        out.append("  [dim]Cloud use requires explicit configuration and is provider-metered.[/dim]")
+    else:
+        out.append("  [dim]Cloud providers disabled (local_only mode).[/dim]")
+    return out
 
 
 _STATUS_TAG = {
