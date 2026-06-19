@@ -116,7 +116,7 @@ class WebsiteTests(unittest.TestCase):
         cls.website_dir = cls.root_dir / "website"
         cls.index_path = cls.website_dir / "index.html"
         cls.css_path = cls.website_dir / "assets" / "css" / "styles.css"
-        cls.js_path = cls.website_dir / "assets" / "js" / "install.js"
+        cls.js_path = cls.website_dir / "assets" / "js" / "main.js"
         cls.commands_path = cls.website_dir / "commands.json"
         cls.pages_wf_path = cls.root_dir / ".github" / "workflows" / "pages.yml"
         cls.index_html = cls.index_path.read_text(encoding="utf-8")
@@ -225,23 +225,33 @@ class WebsiteTests(unittest.TestCase):
         for text in (self.index_html, self.css, self.js):
             self.assertNotIn(insecure_scheme, text)
 
-    def test_external_urls_are_only_the_project_repo(self):
+    def test_external_urls_are_only_allowed_origins(self):
+        # Allowlist: the project repo plus the GitHub Pages host used for the
+        # canonical URL and Open Graph / Twitter card (self-hosted brand asset).
+        allowed = (
+            f"https://github.com/{REPO}",
+            "https://feverdream-dev.github.io",
+        )
         for node in walk(self.dom):
             for key in ("href", "src"):
                 value = node.attrs.get(key)
                 if value and "://" in value:
                     self.assertTrue(
-                        value.startswith(f"https://github.com/{REPO}"),
+                        value.startswith(allowed),
                         f"unexpected external origin: {value}",
                     )
 
     def test_only_local_script_and_stylesheet(self):
         scripts = [n.attrs.get("src", "") for n in find_all(self.dom, tag="script")]
         scripts = [s for s in scripts if s]
-        self.assertEqual(scripts, ["assets/js/install.js"])
+        self.assertTrue(scripts, "expected at least one local script")
+        for s in scripts:
+            self.assertTrue(s.startswith("assets/js/"), f"non-local script: {s}")
         styles = [n.attrs.get("href", "") for n in find_all(self.dom, tag="link")
                   if n.attrs.get("rel") == "stylesheet"]
-        self.assertEqual(styles, ["assets/css/styles.css"])
+        self.assertTrue(styles, "expected a local stylesheet")
+        for s in styles:
+            self.assertTrue(s.startswith("assets/css/"), f"non-local stylesheet: {s}")
 
     # -- accessibility --------------------------------------------------------
 
@@ -340,6 +350,151 @@ class WebsiteTests(unittest.TestCase):
         wf = self.pages_wf
         self.assertIn("branches: [main]", wf)
         self.assertIn("workflow_dispatch", wf)
+
+
+    # -- SEO and discoverability (section 10) -------------------------------
+
+    def test_canonical_link_present(self):
+        canon = [n for n in find_all(self.dom, tag="link")
+                 if n.attrs.get("rel") == "canonical"]
+        self.assertEqual(len(canon), 1)
+        href = canon[0].attrs.get("href", "")
+        self.assertTrue(href.startswith("https://"), canon)
+
+    def test_title_and_meta_description_present(self):
+        titles = [n for n in find_all(self.dom, tag="title")]
+        self.assertEqual(len(titles), 1)
+        self.assertGreater(len(text_of(titles[0]).strip()), 8)
+        desc = [n for n in find_all(self.dom, tag="meta")
+                if n.attrs.get("name") == "description"]
+        self.assertEqual(len(desc), 1)
+        self.assertGreater(len(desc[0].attrs.get("content", "").strip()), 40)
+
+    def test_og_and_twitter_metadata_present(self):
+        og = {n.attrs.get("property"): n.attrs.get("content", "")
+              for n in find_all(self.dom, tag="meta")
+              if n.attrs.get("property", "").startswith("og:")}
+        for prop in ("og:type", "og:title", "og:description", "og:url", "og:image"):
+            self.assertIn(prop, og, prop)
+            self.assertTrue(og[prop], prop)
+        tw = {n.attrs.get("name"): n.attrs.get("content", "")
+              for n in find_all(self.dom, tag="meta")
+              if n.attrs.get("name", "").startswith("twitter:")}
+        for prop in ("twitter:card", "twitter:title", "twitter:description", "twitter:image"):
+            self.assertIn(prop, tw, prop)
+            self.assertTrue(tw[prop], prop)
+
+    def test_json_ld_software_application_and_source_code(self):
+        ld = [n for n in find_all(self.dom, tag="script")
+              if n.attrs.get("type") == "application/ld+json"]
+        self.assertEqual(len(ld), 1)
+        blob = text_of(ld[0])
+        self.assertIn("schema.org", blob)
+        self.assertIn("SoftwareApplication", blob)
+        self.assertIn("SoftwareSourceCode", blob)
+        self.assertIn(REPO, blob)
+        self.assertIn("codeRepository", blob)
+
+    def test_seo_asset_files_exist(self):
+        for name in ("robots.txt", "sitemap.xml", "site.webmanifest", "favicon.svg"):
+            self.assertTrue((self.website_dir / name).exists(), name)
+
+    def test_robots_txt_references_sitemap(self):
+        robots = (self.website_dir / "robots.txt").read_text(encoding="utf-8")
+        self.assertIn("User-agent", robots)
+        self.assertIn("Sitemap:", robots)
+
+    def test_sitemap_is_valid_xml_with_home_url(self):
+        sitemap = (self.website_dir / "sitemap.xml").read_text(encoding="utf-8")
+        self.assertIn("http://www.sitemaps.org/schemas/sitemap/0.9", sitemap)
+        self.assertIn("feverdream-dev.github.io/Prometheus/", sitemap)
+        self.assertIn("<urlset", sitemap)
+
+    def test_manifest_has_name_icons_and_theme_color(self):
+        manifest = json.loads((self.website_dir / "site.webmanifest").read_text("utf-8"))
+        self.assertIn("PROMETHEUS", manifest["name"])
+        self.assertIn("theme_color", manifest)
+        icons = manifest.get("icons", [])
+        self.assertTrue(any(i.get("src") == "favicon.svg" for i in icons), icons)
+
+    def test_theme_color_meta_present(self):
+        tc = [n for n in find_all(self.dom, tag="meta")
+              if n.attrs.get("name") == "theme-color"]
+        self.assertGreaterEqual(len(tc), 1)
+
+    def test_favicon_and_manifest_linked(self):
+        rels = {n.attrs.get("rel"): n for n in find_all(self.dom, tag="link")}
+        self.assertIn("icon", rels)
+        self.assertEqual(rels["icon"].attrs.get("href"), "favicon.svg")
+        self.assertEqual(rels["manifest"].attrs.get("href"), "site.webmanifest")
+
+    # -- theme + accessibility (section 4) -----------------------------------
+
+    def test_theme_toggle_button_present(self):
+        toggles = find_all(self.dom, attrs={"class": "theme-toggle"}, tag="button")
+        self.assertEqual(len(toggles), 1)
+        self.assertIn("aria-pressed", toggles[0].attrs)
+
+    def test_light_theme_tokens_defined(self):
+        self.assertIn('[data-theme="light"]', self.css)
+        self.assertIn("prefers-color-scheme: light", self.css)
+
+    # -- new required content sections (section 10) -------------------------
+
+    def test_packages_section_present_with_static_fallback(self):
+        sec = find_all(self.dom, attrs={"id": "packages"})
+        self.assertTrue(sec)
+        text = text_of(sec[0])
+        for needle in ("Spark", "Ember", "Forge", "Oracle", "Titan",
+                       "Hephaestus", "VibeThinker", "packages.json"):
+            self.assertIn(needle, text)
+
+    def test_quota_section_distinguishes_local_and_cloud(self):
+        sec = find_all(self.dom, attrs={"id": "quota"})
+        self.assertTrue(sec)
+        text = text_of(sec[0]).lower()
+        self.assertIn("quota-free", text)
+        self.assertIn("metered", text)
+
+    def test_features_section_lists_verified_capabilities(self):
+        sec = find_all(self.dom, attrs={"id": "features"})
+        self.assertTrue(sec)
+        text = text_of(sec[0]).lower()
+        for needle in ("hardware", "completion", "sessions", "ollama"):
+            self.assertIn(needle, text)
+
+    def test_mcp_and_tools_section_present(self):
+        sec = find_all(self.dom, attrs={"id": "mcp"})
+        self.assertTrue(sec)
+        text = text_of(sec[0]).lower()
+        self.assertIn("mcp", text)
+        self.assertIn("tools", text)
+
+    def test_security_section_covers_autonomy_modes(self):
+        sec = find_all(self.dom, attrs={"id": "security"})
+        self.assertTrue(sec)
+        text = text_of(sec[0])
+        for mode in ("Copilot", "Pilot", "Astronaut"):
+            self.assertIn(mode, text)
+
+    def test_docs_releases_license_sections_present(self):
+        ids = {n.attrs.get("id") for n in walk(self.dom) if n.attrs.get("id")}
+        for sid in ("docs", "releases", "license"):
+            self.assertIn(sid, ids, sid)
+
+    def test_nav_links_to_key_sections(self):
+        nav = find_all(self.dom, attrs={"class": "top-nav"})
+        self.assertTrue(nav)
+        hrefs = {a.attrs.get("href") for a in find_all(nav[0], tag="a")}
+        for target in ("#packages", "#quota", "#features", "#security", "#install"):
+            self.assertIn(target, hrefs, target)
+
+    def test_copy_targets_target_real_panel_ids(self):
+        for btn in find_all(self.dom, class_="copy-btn"):
+            target_id = btn.attrs.get("data-copy-target")
+            self.assertTrue(target_id)
+            self.assertTrue(find_all(self.dom, attrs={"id": target_id}),
+                            f"copy target {target_id} does not exist")
 
 
 if __name__ == "__main__":
