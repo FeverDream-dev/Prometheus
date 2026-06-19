@@ -26,11 +26,33 @@ def doctor(json_output: bool = typer.Option(False, "--json")) -> None:
         console.print(report.as_json())
         return
     console.print(Panel.fit("PROMETHEUS hardware report"))
-    console.print(f"OS: {report.os} {report.architecture}")
+    console.print(f"OS: {report.os} {report.architecture}" + (" (WSL)" if report.wsl else ""))
     console.print(f"RAM: {report.ram_gb} GB")
-    console.print(f"GPU: {report.gpu_name or 'CPU mode'} ({report.vram_gb} GB VRAM)")
+    if report.cpu_brand:
+        console.print(f"CPU: {report.cpu_brand}")
+    if report.cpu_features:
+        notable = [f for f in ("avx2", "avx512f", "neon", "fma", "sse4_2") if f in report.cpu_features]
+        if notable:
+            console.print(f"CPU features: {', '.join(notable)}")
+    if report.gpu_vendor:
+        gpu_label = report.gpu_name or report.gpu_vendor
+        extras = []
+        if report.vram_gb:
+            extras.append(f"{report.vram_gb} GB VRAM")
+        if report.metal:
+            extras.append("Metal")
+        if report.unified_memory:
+            extras.append("unified memory")
+        suffix = f" ({', '.join(extras)})" if extras else ""
+        console.print(f"GPU: {gpu_label}{suffix}")
+    else:
+        console.print("GPU: CPU mode")
+    console.print(f"Disk free: {report.disk_free_gb} GB")
     console.print(f"Ollama: {'ready' if report.ollama_installed else 'not installed'}")
+    console.print(f"Docker: {'ready' if report.docker_installed else 'not installed'}")
     console.print(f"Recommended bundle: [bold]{recommended_profile(report)}[/bold]")
+    for note in report.notes:
+        console.print(f"[dim]• {note}[/dim]")
 
 
 @app.command("init")
