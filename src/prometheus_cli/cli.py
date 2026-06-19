@@ -9,6 +9,16 @@ from rich.prompt import Confirm, Prompt
 
 from .config import ensure_home, load_bundle, load_settings, save_settings
 from .hardware import detect_hardware, recommended_profile
+from .installer import (
+    DEFAULT_REPO,
+    current_version,
+    install_version,
+    installed_versions,
+    path_needs_bindir,
+    resolve_latest_version,
+    uninstall as uninstall_prometheus,
+    user_data_home,
+)
 from .models import AutonomyMode, Risk, ToolCall
 from .onboarding import (
     check_ollama,
@@ -250,6 +260,84 @@ def modes() -> None:
     """Explain autonomy levels."""
     for mode in AutonomyMode:
         console.print(f"[bold]{mode.value}[/bold]: {mode_description(mode)}")
+
+
+@app.command()
+def update(
+    version: str | None = typer.Option(None, "--version", help="Pin a version tag (e.g. v0.1.0) or 'main'"),
+    check: bool = typer.Option(False, "--check", help="Only show current vs latest; do not install"),
+    dry_run: bool = typer.Option(False, "--dry-run", help="Show what would happen; change nothing"),
+    yes: bool = typer.Option(False, "--yes", help="Noninteractive confirmation"),
+    no_tui: bool = typer.Option(False, "--no-tui", help="Do not install the TUI extra"),
+) -> None:
+    """Update PROMETHEUS to the latest (or a pinned) release."""
+    latest = resolve_latest_version(DEFAULT_REPO)
+    target = version or latest.version
+    here = current_version() or "unknown"
+    console.print(Panel.fit("PROMETHEUS update"))
+    console.print(f"Installed: {here}")
+    console.print(f"Latest   : {latest}")
+    console.print(f"Target   : [bold]{target}[/bold]")
+    if check:
+        if here == target:
+            console.print("[green]Already up to date.[/green]")
+            raise typer.Exit(code=0)
+        console.print("[yellow]Update available.[/yellow]")
+        raise typer.Exit(code=0)
+    if here == target and not version:
+        console.print("[green]Already up to date.[/green]")
+        raise typer.Exit(code=0)
+    if dry_run:
+        console.print("[yellow]DRY RUN[/yellow] — would download, verify, and install.")
+        raise typer.Exit(code=0)
+    if not yes:
+        if not Confirm.ask(f"Install PROMETHEUS {target}?", default=True):
+            raise typer.Exit(code=1)
+    try:
+        result = install_version(target, DEFAULT_REPO, install_tui=not no_tui)
+    except Exception as exc:
+        console.print(f"[red]Update failed:[/red] {exc}")
+        raise typer.Exit(code=1)
+    console.print(f"[green]Updated to {result.version}.[/green]")
+    console.print(f"Verified: {'yes' if result.verified else 'no (unreleased build)'}")
+    console.print(f"Launcher: {result.wrapper}")
+    if path_needs_bindir():
+        console.print(f"[yellow]Add {result.wrapper.parent} to your PATH to run 'prometheus'.[/yellow]")
+
+
+@app.command()
+def uninstall(
+    yes: bool = typer.Option(False, "--yes", help="Skip confirmation prompt"),
+    purge: bool = typer.Option(False, "--purge", help="Also remove user config, sessions, and bundles"),
+    version: str | None = typer.Option(None, "--version", help="Remove a single version only"),
+) -> None:
+    """Remove PROMETHEUS. Preserves your config/sessions/models unless --purge."""
+    console.print(Panel.fit("PROMETHEUS uninstall"))
+    versions = installed_versions()
+    here = current_version() or "unknown"
+    if not versions and not version:
+        console.print("[yellow]No PROMETHEUS versions found under the install root.[/yellow]")
+        raise typer.Exit(code=0)
+    console.print(f"Installed version(s): {', '.join(versions) or '(none)'}")
+    console.print(f"Current: {here}")
+    if purge:
+        console.print("[red]--purge: will ALSO delete config, sessions, and bundles under "
+                      f"{user_data_home()}[/red]")
+        console.print("[red]Shared Ollama models are never touched.[/red]")
+    else:
+        console.print("[green]Default: keeping your config, sessions, and bundles "
+                      "(use --purge to remove them too).[/green]")
+        console.print("[green]Shared Ollama models are never touched.[/green]")
+    if not yes and not Confirm.ask("Proceed with uninstall?", default=False):
+        raise typer.Exit(code=1)
+    result = uninstall_prometheus(version=version, purge=purge)
+    if result.removed_versions:
+        console.print(f"Removed versions: {', '.join(result.removed_versions)}")
+    if result.removed_wrapper:
+        console.print("Removed launcher.")
+    if result.removed_user_data:
+        console.print("[red]Removed user data (config/sessions/bundles).[/red]")
+    console.print("[bold]PROMETHEUS uninstalled.[/bold]")
 
 
 if __name__ == "__main__":

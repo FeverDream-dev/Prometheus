@@ -1,0 +1,118 @@
+name: release
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Install dependencies
+        run: python -m pip install -e ".[dev,tui]"
+      - name: Lint
+        run: ruff check src tests
+      - name: Test
+        run: pytest -q
+
+  build:
+    needs: test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Install build tooling
+        run: python -m pip install --upgrade build cyclonedx-py
+      - name: Build sdist + wheel
+        run: python -m build
+      - name: Generate SHA256SUMS
+        run: |
+          cd dist
+          sha256sum * > SHA256SUMS
+          # Also publish per-asset sidecars the installer verifies against.
+          for f in *; do
+            [ "$f" = "SHA256SUMS" ] && continue
+            sha256sum "$f" | awk '{print $1}' > "$f.sha256"
+          done
+          cat SHA256SUMS
+      - name: Generate SBOM (CycloneDX)
+        run: |
+          cyclonedx-py environment -o dist/sbom.cyclonedx.json --schema-version 1.5 || \
+            echo "::warning::SBOM generation skipped (cyclonedx-py unavailable)"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: dist
+          path: dist/*
+
+  release:
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          name: dist
+          path: dist
+      - name: Create or update GitHub Release
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@v2
+        with:
+          generate_release_notes: true
+          files: |
+            dist/*.tar.gz
+            dist/*.whl
+            dist/SHA256SUMS
+            dist/*.sha256
+            dist/sbom.cyclonedx.json
+
+  smoke:
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Install the just-built wheel in a clean venv
+        uses: actions/download-artifact@v4
+        with:
+          name: dist
+          path: dist
+      - name: Verify checksums, then install from wheel (no PyPI)
+        run: |
+          set -eu
+          cd dist
+          sha256sum -c SHA256SUMS
+          cd ..
+          python -m venv /tmp/clean
+          /tmp/clean/bin/python -m pip install --upgrade pip --quiet
+          /tmp/clean/bin/python -m pip install "$(ls dist/*.whl)[tui]"
+      - name: Smoke test the installed entry point
+        run: |
+          /tmp/clean/bin/prometheus --help
+          /tmp/clean/bin/prometheus doctor
+      - name: Bootstrap smoke test (public install.sh against this tag)
+        run: |
+          set -eu
+          TAG="${GITHUB_REF_NAME:-$(python -c 'import re,sys; print(re.search(r"refs/tags/(v[^ ]+)", open("/dev/stdin").read()) and "")' 2>/dev/null || echo main)}"
+          # If triggered by a tag, run the public one-liner pointed at this tag.
+          if [ "${GITHUB_REF_TYPE:-}" = "tag" ]; then
+            PROMETHEUS_VERSION="$GITHUB_REF_NAME" PROMETHEUS_INSTALL_ROOT=/tmp/bs PROMETHEUS_BIN=/tmp/bsbin \
+              sh install.sh --yes --no-ollama
+            /tmp/bsbin/prometheus --help
+          else
+            echo "workflow_dispatch: skipping bootstrap smoke (no tag)."
+          fi

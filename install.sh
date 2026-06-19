@@ -14,15 +14,18 @@
 #        --yes (noninteractive/CI)  --no-color  --help
 #
 # Environment overrides:
-#   PROMETHEUS_VERSION   pin a version tag (e.g. v0.1.0) or "main"
-#   PROMETHEUS_HOME      install root (default ~/.local/share/prometheus)
-#   PROMETHEUS_BIN       wrapper dir    (default ~/.local/bin)
-#   PROMETHEUS_REPO      owner/repo     (default FeverDream-dev/Prometheus)
+#   PROMETHEUS_VERSION     pin a version tag (e.g. v0.1.0) or "main"
+#   PROMETHEUS_INSTALL_ROOT install root (default ~/.local/share/prometheus)
+#   PROMETHEUS_BIN         wrapper dir    (default ~/.local/bin)
+#   PROMETHEUS_REPO        owner/repo     (default FeverDream-dev/Prometheus)
+#
+# User data (config, sessions, bundles) lives separately under PROMETHEUS_HOME
+# (default ~/.prometheus) and is preserved by 'prometheus uninstall' unless --purge.
 set -eu
 
 REPO="FeverDream-dev/Prometheus"
 VERSION="${PROMETHEUS_VERSION:-}"
-PREFIX="${PROMETHEUS_HOME:-$HOME/.local/share/prometheus}"
+PREFIX="${PROMETHEUS_INSTALL_ROOT:-$HOME/.local/share/prometheus}"
 BIN_DIR="${PROMETHEUS_BIN:-$HOME/.local/bin}"
 INSTALL_TUI=1
 RUN_OLLAMA_DOC=1
@@ -50,7 +53,7 @@ Flags (must follow `--` when piping):
   -h, --help      show this help
 
 Environment:
-  PROMETHEUS_VERSION, PROMETHEUS_HOME, PROMETHEUS_BIN, PROMETHEUS_REPO
+  PROMETHEUS_VERSION, PROMETHEUS_INSTALL_ROOT, PROMETHEUS_BIN, PROMETHEUS_REPO
 EOF
 }
 
