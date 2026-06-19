@@ -21,6 +21,7 @@ dependencies = [
 [project.optional-dependencies]
 dev = ["pytest>=8,<9", "pytest-cov>=5,<7", "ruff>=0.9"]
 tui = ["textual>=1.0,<2"]
+browser = ["playwright>=1.40,<2"]
 
 [project.scripts]
 prometheus = "prometheus_cli.cli:app"

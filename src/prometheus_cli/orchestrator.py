@@ -27,6 +27,9 @@ tool-result evidence in the same or a prior turn.
 Available tools: list_files(pattern), read_file(path), write_file(path, content),
 run_command(command: string array, timeout), git_checkpoint(message),
 git_log(limit), git_diff(path), git_current_sha(), git_rollback(commit_sha).
+Browser tools (when available): browser_navigate(url), browser_screenshot(),
+browser_click(selector), browser_fill(selector, value), browser_text(selector),
+browser_evaluate(expression), browser_evidence().
 git_rollback is destructive and always requires user approval.
 Do not put shell syntax in command arrays. Do not escape the workspace.
 Placeholders are allowed only for explicit prototypes, must be labeled PLACEHOLDER,
@@ -44,6 +47,13 @@ TOOL_RISK = {
     "git_diff": Risk.READ,
     "git_current_sha": Risk.READ,
     "git_rollback": Risk.DESTRUCTIVE,
+    "browser_navigate": Risk.NETWORK,
+    "browser_screenshot": Risk.READ,
+    "browser_click": Risk.EXECUTE,
+    "browser_fill": Risk.WRITE,
+    "browser_text": Risk.READ,
+    "browser_evaluate": Risk.EXECUTE,
+    "browser_evidence": Risk.READ,
 }
 
 
@@ -66,6 +76,16 @@ class Orchestrator:
         self.approve = approve or (lambda _call, _risk: False)
         self.store = session_store
         self._criterion_tasks: dict[str, str] = {}
+        self._browser = None
+
+    def _get_browser(self):
+        if self._browser is None:
+            try:
+                from .browser import BrowserTools
+                self._browser = BrowserTools()
+            except ImportError:
+                return None
+        return self._browser
 
     def _execute(self, call: ToolCall) -> str:
         if call.tool not in TOOL_RISK:
@@ -73,7 +93,18 @@ class Orchestrator:
         risk = TOOL_RISK[call.tool]
         if requires_approval(self.settings, risk) and not self.approve(call, risk):
             return "DENIED: user approval required"
-        method = getattr(self.workspace, call.tool)
+        if call.tool.startswith("browser_"):
+            browser = self._get_browser()
+            if browser is None:
+                return "ERROR: Playwright not installed. Install with: pip install 'prometheus-local-agent[browser]'"
+            method_name = call.tool.replace("browser_", "")
+            method = getattr(browser, method_name, None)
+            if method_name == "evidence":
+                return browser.collect_evidence().summary()
+            if method is None:
+                return f"ERROR: unknown browser tool {call.tool}"
+        else:
+            method = getattr(self.workspace, call.tool)
         try:
             return str(method(**call.arguments))
         except Exception as exc:
