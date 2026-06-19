@@ -267,7 +267,8 @@ def _approval(call: ToolCall, risk: Risk) -> bool:
 @app.command()
 def run(
     objective: str = typer.Argument(..., help="Outcome PROMETHEUS must achieve"),
-    bundle: Path = typer.Option(..., exists=True, readable=True),
+    bundle: Path | None = typer.Option(None, "--bundle", exists=True, readable=True,
+                                       help="Model bundle YAML (defaults to the one saved by 'prometheus setup')"),
     workspace: Path = typer.Option(Path.cwd(), exists=True, file_okay=False),
     mode: AutonomyMode | None = typer.Option(None),
     resume: str | None = typer.Option(None, "--resume", help="Session ID to resume"),
@@ -277,11 +278,15 @@ def run(
     settings.workspace = workspace.resolve()
     if mode:
         settings.mode = mode
+    bundle_path = bundle or settings.bundle_file
+    if not bundle_path:
+        console.print("[red]No bundle specified and none saved.[/red] Run 'prometheus setup' or pass --bundle.")
+        raise typer.Exit(code=1)
     if not settings.bundle_file:
-        settings.bundle_file = bundle
+        settings.bundle_file = bundle_path
     home = ensure_home()
     store = SessionStore(home / "sessions" / "prometheus.db")
-    orchestrator = Orchestrator(settings, load_bundle(bundle), approve=_approval, session_store=store)
+    orchestrator = Orchestrator(settings, load_bundle(bundle_path), approve=_approval, session_store=store)
     result = orchestrator.run(objective, on_update=lambda line: console.print(f"[cyan]{line}[/cyan]"))
     store.close()
     console.print(Panel(result.message, title=f"{result.status} — {result.completion_percent}%"))
