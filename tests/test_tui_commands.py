@@ -108,7 +108,8 @@ def test_permissions_lines_shows_limits_and_unlimited():
 
 
 def test_sessions_lines_handles_empty(tmp_path, monkeypatch):
-    monkeypatch.setattr("prometheus_cli.config.CONFIG_HOME", tmp_path)
-    monkeypatch.setattr("prometheus_cli.tui_commands.ensure_home", lambda: tmp_path)
+    import prometheus_cli.config as cfg
+    monkeypatch.setattr(cfg, "CONFIG_HOME", tmp_path)
+    monkeypatch.setattr("prometheus_cli.config.ensure_home", lambda: tmp_path)
     lines = tui_commands.sessions_lines()
     assert len(lines) >= 1
