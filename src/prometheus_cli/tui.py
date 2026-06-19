@@ -83,8 +83,8 @@ class PrometheusApp(App):
     #approval-panel {
         height: auto;
         padding: 0 1;
-        background: $warning-background;
-        border: solid $warning;
+        background: #3a2a00;
+        border: solid #ffcf5c;
     }
     #input-bar {
         height: 3;
@@ -117,7 +117,7 @@ class PrometheusApp(App):
         yield Header()
         yield Static(id="hardware-panel")
         with Vertical(id="main-area"):
-            yield Log(id="log-panel", highlight=True, markup=True)
+            yield Log(id="log-panel")
             yield self._approval
         yield Input(placeholder="Enter an objective and press Enter…", id="input-bar")
         yield StatusBar()
@@ -158,8 +158,85 @@ class PrometheusApp(App):
             self._log("[red]Denied[/red]")
             return
 
+        if text.startswith("/"):
+            event.input.value = ""
+            self._handle_slash(text)
+            return
+
         self._run_objective(text)
         event.input.value = ""
+
+    def _handle_slash(self, text: str) -> None:
+        from . import tui_commands
+        from .bundles import classify_registry, load_registry
+        from .hardware import detect_hardware
+        from .onboarding import check_ollama
+
+        parts = text.split()
+        cmd = parts[0].lower()
+        log = self.query_one("#log-panel", Log)
+
+        def _emit(lines):
+            for line in lines:
+                log.write_line(line)
+
+        if cmd in ("/help", "/?"):
+            _emit(tui_commands.help_lines())
+            return
+        if cmd == "/clear":
+            log.clear()
+            return
+        if cmd in ("/doctor", "/models", "/modes"):
+            ollama = check_ollama()
+            if cmd == "/doctor":
+                _emit(tui_commands.doctor_lines(detect_hardware(), ollama))
+            elif cmd == "/models":
+                _emit(tui_commands.models_lines(ollama))
+            else:
+                _emit(tui_commands.modes_lines())
+            return
+        if cmd in ("/settings", "/bundles"):
+            ollama = check_ollama()
+            classified = classify_registry(load_registry(), detect_hardware(), ollama.models)
+            _emit(tui_commands.settings_lines(load_settings(), classified, ollama.models))
+            return
+        if cmd == "/qualify":
+            self.run_worker(self._run_qualify, parts[1] if len(parts) > 1 else None)
+            return
+        _emit([f"[yellow]Unknown command:[/yellow] {cmd}. Try [bold]/help[/bold]."])
+
+    def _run_qualify(self, bundle_id: str | None) -> None:
+        from .bundles import load_registry
+        from .onboarding import check_ollama
+        from .qualification import qualify_bundle, qualify_model
+
+        def emit(line: str) -> None:
+            self.call_from_thread(self._log, line)
+
+        if not check_ollama().running:
+            emit("[red]Ollama service is not running.[/red]")
+            return
+        if bundle_id:
+            registry = load_registry()
+            target = next((b for b in registry if b.id == bundle_id), None)
+            if target is None:
+                emit(f"[red]No bundle '{bundle_id}'.[/red]")
+                return
+            emit(f"Qualifying [bold]{target.id}[/bold] (controller {target.controller_spec().model})…")
+            report = qualify_bundle(target)
+        else:
+            ollama = check_ollama()
+            if not ollama.models:
+                emit("[red]No installed models to qualify.[/red]")
+                return
+            model = ollama.models[0]
+            emit(f"Qualifying model [bold]{model}[/bold]…")
+            report = qualify_model(model)
+        for r in report.results:
+            mark = "[green]PASS[/green]" if r.passed else "[red]FAIL[/red]"
+            emit(f"  {mark} {r.name} — {r.detail}")
+        verdict = "QUALIFIED" if report.passed else "PARTIAL"
+        emit(f"[bold]{verdict}[/bold]: {report.passed_count}/{len(report.results)}")
 
     def action_approve(self) -> None:
         if self._approval.visible:
