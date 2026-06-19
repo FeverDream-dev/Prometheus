@@ -1,0 +1,27 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>PROMETHEUS Web Fixture</title>
+</head>
+<body>
+  <h1>Counter Fixture</h1>
+  <p>Count: <span id="count">0</span></p>
+  <button id="inc" type="button">Increment</button>
+  <input id="name" placeholder="your name">
+  <button id="greet" type="button">Greet</button>
+  <p id="out"></p>
+  <script>
+    console.error("fixture diagnostic error");
+    var c = 0;
+    document.getElementById("inc").addEventListener("click", function () {
+      c++;
+      document.getElementById("count").textContent = c;
+    });
+    document.getElementById("greet").addEventListener("click", function () {
+      var n = document.getElementById("name").value || "stranger";
+      document.getElementById("out").textContent = "Hello, " + n;
+    });
+  </script>
+</body>
+</html>
