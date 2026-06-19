@@ -38,54 +38,65 @@ Criticality: C5=critical safety/core, C3=important, C2=standard, C1=nice.
 | § | Requirement | Crit | Code | Test | Runtime evidence | Status |
 |---|---|---|---|---|---|---|
 | 1 | Audit + this matrix | C3 | this file | — | — | done |
-| 2 | Quota-free local settings (unlimited local, caps, budgets) | C5 | `models.py` Settings | unit | `prometheus doctor` | in progress |
-| 3 | Selectable v2 model packages (Spark/Ember/Forge/Oracle/Titan/Hephaestus/VibeThinker) | C5 | `bundles.py`, `config/bundles-v2/` | unit | `prometheus bundles` | in progress |
-| 3 | Rich bundle schema + validation (reject unknown/missing-license) | C3 | `bundles.py` | unit | — | in progress |
-| 3 | Hardware-fit classification + "why recommended" | C3 | `bundles.py` | unit | `prometheus bundles` | in progress |
-| 4 | `/settings` + slash commands + Model Packages screen | C5 | `tui.py` | unit/import | TUI launch | in progress |
-| 4 | Bundle install/compare/select per project; atomic persist | C3 | — | — | — | planned |
-| 5 | Model router by capability + real-time RAM/VRAM + hot-swap | C5 | partial (`orchestrator.py`) | — | — | partial |
+| 2 | Quota-free local settings (unlimited local, caps, budgets) | C5 | `models.py` Settings | unit | `prometheus doctor` | done |
+| 3 | Selectable v2 model packages (Spark/Ember/Forge/Oracle/Titan/Hephaestus/VibeThinker) | C5 | `bundles.py`, `config/bundles-v2/` | 20 unit | `prometheus bundles` | done |
+| 3 | Rich bundle schema + validation (reject unknown/missing-license/non-https/unsafe-id) | C3 | `bundles.py` | unit | — | done |
+| 3 | Hardware-fit classification + "why recommended" | C3 | `bundles.py` | unit | `prometheus bundles` | done |
+| 3 | Qualification harness (chat/json/tool/code) + "verified" gate | C5 | `qualification.py` | 7 unit | `prometheus qualify` 4/4 real | done |
+| 4 | `/settings` + slash commands + Model Packages surface | C5 | `tui.py`, `tui_commands.py` | 8 unit | headless TUI launches | done(slice) |
+| 4 | Full navigable bundle CRUD screens (install/compare/edit/export) | C3 | partial (`bundles`/`qualify` CLI) | — | — | partial |
+| 5 | Model router by capability + real-time RAM/VRAM + hot-swap | C5 | `orchestrator.py` (single-controller) | — | — | partial |
 | 6 | MCP product (stdio + Streamable HTTP, trust, injection boundary) | C3 | `mcp_client.py` (stdio) | unit | fixture server | partial |
-| 7 | Typed tool broker (file/patch/process/Git/browser/web) | C5 | `tools/workspace.py`, `browser.py` | unit | E2E repair | partial |
-| 8 | Aggressive Ollama test matrix + disposable repair E2E | C5 | `test_e2e_ollama.py` | opt-in | llama3.2 | partial |
-| 9 | Repo organization + .gitignore rejecting models/secrets/artifacts | C3 | `.gitignore` | — | — | in progress |
+| 7 | Typed tool broker (file/patch/process/Git/browser/web) | C5 | `tools/`, `browser.py` | unit | real-Ollama repair E2E | done(core) |
+| 8 | Aggressive Ollama test matrix + disposable repair E2E | C5 | `test_e2e_ollama.py` | opt-in | granite4.1:3b 4/4 + repair | done |
+| 9 | Repo organization + .gitignore rejecting models/secrets/artifacts | C3 | `.gitignore`, `test_repo_hygiene.py` | 5 unit | `git ls-files` clean | done |
 | 10 | Professional Pages site (SEO, JSON-LD, sitemap, Lighthouse 95+) | C3 | `website/` (basic) | `test_website.py` | local preview | partial |
 | 11 | 18 acceptance gates | C5 | — | — | — | see below |
 
 ## Acceptance gates (§11) — current state
 
-1. `/settings` shows built-in packages w/ fit + roles — **in progress**
-2. One small package pulled/qualified or existing model qualified — **in progress**
-3. Local sessions have no artificial quota — **in progress** (Settings)
-4. Cloud marked metered/provider-limited — **planned**
-5. Router uses capability + memory rules — **partial**
-6. Sequential hot-swap without losing task state — **partial**
-7. VibeThinker cannot call tools — **enforced** (orchestrator rejects non-tool controller; v2 marks it review-only)
-8. MCP fixture server E2E (not just config parsing) — **partial** (stdio client exists; fixture test planned)
-9. File/patch/process/Git tools complete a real repair — **done** (E2E repair fixture + real-Ollama)
-10. Playwright real browser test for a web fixture — **partial** (browser module exists; web-fixture test planned)
-11. Local Ollama real-model smoke + tool tests — **done** (llama3.2 inference + E2E)
+1. `/settings` shows built-in packages w/ fit + roles — **done**
+2. One small package pulled/qualified — **done** (Spark/granite4.1:3b pulled + QUALIFIED 4/4)
+3. Local sessions have no artificial quota — **done** (Settings.unlimited_local_sessions default True; 0=unlimited)
+4. Cloud marked metered/provider-limited — **done** (`/settings` + bundles show "metered" when not unlimited)
+5. Router uses capability + memory rules — **partial** (hardware-fit routing; per-step live memory not yet)
+6. Sequential hot-swap without losing task state — **partial** (declarative sequential_loading; live unload/swap not yet)
+7. VibeThinker cannot call tools — **done** (add-on, no controller; prohibited_capabilities enforced)
+8. MCP fixture server E2E (not just config parsing) — **partial** (stdio client + unit; fixture E2E planned)
+9. File/patch/process/Git tools complete a real repair — **done** (real-Ollama repair E2E, granite4.1:3b)
+10. Playwright real browser test for a web fixture — **partial** (browser module; web-fixture test planned)
+11. Local Ollama real-model smoke + tool tests — **done** (qualify 4/4 + inference smoke)
 12. Sessions resume after restart — **done**
 13. Git checkpoints + safe rollback — **done**
-14. No test artifact/model/secret in Git — **enforced** (.gitignore + this audit)
-15. One-line install works outside a clone — **done** (clean-venv proof on `main`)
-16. Pages builds + install command tested — **done** (workflow + drift tests on `main`)
+14. No test artifact/model/secret in Git — **done** (hygiene test + .gitignore; tree clean)
+15. One-line install works outside a clone — **done** (on `main`)
+16. Pages builds + install command tested — **done** (on `main`)
 17. Website uses only factual claims + real captures — **partial** (terminal recording still placeholder)
-18. Full automated suite passes — **in progress** (247 + growing)
+18. Full automated suite passes — **done** (287 + 2 opt-in)
 
-## Known false/inflated claims to avoid
+## Test counts (reality)
 
-- Do NOT say "unlimited AI" without the §2 explanation (RAM/VRAM/context/disk bounds).
-- Do NOT mark a v2 bundle "verified" until its qualification suite passes on the runtime.
-- Do NOT advertise parallel multi-agent if hardware forces sequential (v2 sets `maximum_loaded_models`).
-- Do NOT route VibeThinker to tools (enforced; it is a review add-on only).
-- Qwen3-Coder-Next is NOT a 24 GB default (~52 GB Q4) — excluded from local defaults.
+- `pytest -q` → **287 passed, 2 skipped** (the 2 skips = opt-in real-Ollama; both pass when enabled).
+- New this branch: 20 bundles + 7 qualification + 8 tui_commands + 5 hygiene = 40 new tests.
+- Real-model evidence: `granite4.1:3b` (Spark controller, pulled ~2 GB) QUALIFIED 4/4 and drove
+  the opt-in repair E2E (2 passed in 2.65s). `llama3.2:latest` also QUALIFIED 4/4.
+
+## Remaining (honest, no inflated %)
+
+- Full navigable TUI bundle-management screens (install/compare/edit/export/import) — currently
+  a renderable `/settings` + `prometheus bundles`/`qualify` CLI.
+- Router per-step live RAM/VRAM gating + sequential hot-swap lifecycle (§5) — hardware-fit
+  selection is real; runtime memory monitoring is not.
+- MCP stdio fixture E2E + Streamable HTTP transport (§6).
+- Playwright web-fixture acceptance test (§7/§10).
+- Professional Pages redesign (§10: JSON-LD, sitemap, Lighthouse 95+) — current site is the
+  recovery-era basic static site.
+- Repo restructure into app/agent/providers/models/tools/mcp/... (§9) — deferred; public imports stable.
 
 ## Placeholder inventory (this branch)
 
-- Splash logo art (carried from `main`) — pending official logo image.
-- Website terminal recording (carried) — pending real capture.
-- v2 bundle model tags (qwen3.5/granite4.1/gemma4/devstral) — research-date
-  2026-06-19; must be re-qualified at install time. None are installed on this
-  machine, so qualification uses available models (llama3.2/gemma4) as capability
-  proxies unless a small package is pulled.
+- Splash logo art (from `main`) — pending official logo image.
+- Website terminal recording (from `main`) — pending real capture.
+- v2 bundle model tags (qwen3.5/granite4.1/gemma4/devstral) — research-date 2026-06-19; only
+  `granite4.1:3b` has been pulled+qualified on this machine. Other tags must be qualified at
+  install time; Qwen3-Coder-Next is deliberately excluded from 24 GB local defaults (~52 GB Q4).
