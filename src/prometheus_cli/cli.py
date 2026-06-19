@@ -273,8 +273,9 @@ def run(
     workspace: Path = typer.Option(Path.cwd(), exists=True, file_okay=False),
     mode: AutonomyMode | None = typer.Option(None),
     resume: str | None = typer.Option(None, "--resume", help="Session ID to resume"),
+    classic: bool = typer.Option(False, "--classic", help="Use the legacy one-shot orchestrator instead of the bounded-memory Arena"),
 ) -> None:
-    """Run an evidence-driven coding session."""
+    """Run an evidence-driven coding session (bounded-memory Arena by default)."""
     settings = load_settings()
     settings.workspace = workspace.resolve()
     if mode:
@@ -287,10 +288,47 @@ def run(
         settings.bundle_file = bundle_path
     home = ensure_home()
     store = SessionStore(home / "sessions" / "prometheus.db")
-    orchestrator = Orchestrator(settings, load_bundle(bundle_path), approve=_approval, session_store=store)
-    result = orchestrator.run(objective, on_update=lambda line: console.print(f"[cyan]{line}[/cyan]"))
-    store.close()
-    console.print(Panel(result.message, title=f"{result.status} — {result.completion_percent}%"))
+    if classic:
+        orchestrator = Orchestrator(settings, load_bundle(bundle_path), approve=_approval, session_store=store)
+        result = orchestrator.run(objective, on_update=lambda line: console.print(f"[cyan]{line}[/cyan]"))
+        store.close()
+        console.print(Panel(result.message, title=f"{result.status} — {result.completion_percent}%"))
+        return
+    _run_arena(objective, bundle_path, workspace, settings, store)
+
+
+def _run_arena(objective, bundle_path, workspace, settings, session_store) -> None:
+    from .agent import ArenaLoop, MicroStepEngine, make_default_verify
+    from .memory import Intent, ProjectMemoryStore
+    from .providers import create_provider
+    from .tools.workspace import WorkspaceTools
+
+    bundle = load_bundle(bundle_path)
+    controller_spec = bundle.for_role("controller")
+    forge = create_provider(controller_spec)
+    envoy = create_provider(controller_spec)
+    argus = None
+    if settings.multi_agent_review:
+        try:
+            argus = create_provider(bundle.for_role("reviewer"))
+        except KeyError:
+            argus = create_provider(controller_spec)
+    mem = ProjectMemoryStore(workspace)
+    mem.set_intent(Intent(objective=objective, success_criteria=[]))
+    tools = WorkspaceTools(workspace)
+    engine = MicroStepEngine(store=mem, tools=tools, settings=settings, approve=_approval)
+    arena = ArenaLoop(store=mem, tools=tools, engine=engine)
+    verify = make_default_verify(workspace)
+    providers = {"envoy": envoy, "forge": forge, "argus": argus}
+    console.print(Panel.fit(f"PROMETHEUS Arena — bounded memory + micro-steps\nBundle: {bundle.name} · Mode: {settings.mode.value}"))
+    result = arena.run(providers, verify, on_update=lambda line: console.print(f"[cyan]{line}[/cyan]"))
+    mem.set_working_memory(f"# Session result\n\nobjective: {objective}\nstatus: {result.final_status}\nattempts: {result.attempts}\naccepted: {result.accepted}\n")
+    session_store.close()
+    verdict = "[green]COMPLETE[/green]" if result.accepted else f"[yellow]{result.final_status.upper()}[/yellow]"
+    console.print(Panel(
+        f"accepted={result.accepted} · attempts={result.attempts} · signatures={result.failure_signatures}",
+        title=f"{verdict} — Arena",
+    ))
 
 
 @app.command()

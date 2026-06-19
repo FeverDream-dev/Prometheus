@@ -171,6 +171,38 @@ def _normalize_signature(evidence: str) -> str:
     return text[:80] or "unknown-failure"
 
 
+def detect_test_command(workspace) -> list[str] | None:
+    import shutil
+    import sys
+    from pathlib import Path
+
+    root = Path(workspace)
+    py = shutil.which("python") or shutil.which("python3") or sys.executable
+    has_tests = any(root.glob("test_*.py")) or any(root.glob("*_test.py")) or any(root.glob("tests/test_*.py"))
+    if has_tests or (root / "pytest.ini").exists() or (root / "pyproject.toml").exists():
+        return [py, "-m", "pytest", "-q"]
+    return None
+
+
+def make_default_verify(workspace):
+    from pathlib import Path
+
+    root = Path(workspace)
+    test_cmd = detect_test_command(root)
+
+    def verify(store, tools):
+        if test_cmd:
+            out = tools.run_command(test_cmd, timeout=180)
+            passed = "passed" in out and ("failed" not in out.lower() or " failed" not in out.lower())
+            last = out.strip().splitlines()[-1] if out.strip() else "(no output)"
+            return passed, last
+        diff = tools.git_diff() if hasattr(tools, "git_diff") else ""
+        changed = bool(diff and diff.strip() and "fatal" not in diff.lower())
+        return changed, ("patch applied (no test suite to verify)" if changed else "no change made")
+
+    return verify
+
+
 def _fact(summary: str, source: str, ref: str):
     from ..memory import Fact, FactConfidence, Provenance
 
