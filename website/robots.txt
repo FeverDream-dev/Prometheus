@@ -1,0 +1,8 @@
+# PROMETHEUS robots.txt
+# No tracking, no crawlers beyond these polite defaults.
+# Single-page static site; the homepage is the only indexable URL.
+User-agent: *
+Allow: /
+
+# Update this host if Pages is ever served from a custom domain.
+Sitemap: https://feverdream-dev.github.io/Prometheus/sitemap.xml

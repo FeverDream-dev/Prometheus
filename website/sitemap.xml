@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  PROMETHEUS sitemap. Single static page; the section anchors are part of one
+  indexable document. Update <loc> if Pages is served from a custom domain.
+-->
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+  <url>
+    <loc>https://feverdream-dev.github.io/Prometheus/</loc>
+    <changefreq>monthly</changefreq>
+    <priority>1.0</priority>
+  </url>
+</urlset>

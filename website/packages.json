@@ -1,0 +1,235 @@
+{
+  "generated_from": "config/bundles-v2/*.yaml",
+  "schema_version": 1,
+  "repo": "FeverDream-dev/Prometheus",
+  "note": "Model-package comparison data. Generated from config/bundles-v2/. tests/test_packages_json.py asserts this file cannot drift from those YAML manifests (count + ids). License values marked 'verify-at-install' or 'verify-community-quantization' mean the license must be confirmed at install time from the upstream source. Download sizes are approximate. Only 'granite4.1:3b' has been pulled and qualified in this release cycle; every other model tag must be qualified at install time. Qwen3-Coder-Next is deliberately excluded from 24 GB local defaults (~52 GB Q4).",
+  "packages": [
+    {
+      "id": "spark-cpu-8gb",
+      "name": "Spark",
+      "subtitle": "CPU / 8 GB",
+      "tier": "cpu",
+      "status": "stable",
+      "experimental": false,
+      "addon": false,
+      "description": "Smallest practical quota-free local setup for CPU-only and 8 GB systems.",
+      "recommended_for": ["small repositories", "scripts", "learning", "slow CPU fallback"],
+      "min_ram_gb": 8,
+      "rec_ram_gb": 12,
+      "min_vram_gb": 0,
+      "min_disk_gb": 8,
+      "provider": "ollama",
+      "min_runtime_version": "0.13.3",
+      "default_context": 8192,
+      "context_ceiling": 16384,
+      "sequential_loading": true,
+      "unlimited_local_sessions": true,
+      "total_download_gb": 4.8,
+      "core_download_gb": 2.1,
+      "roles": [
+        {"role": "controller", "model": "granite4.1:3b", "download_gb": 2.1, "optional": false, "capabilities": ["text", "tools", "json", "coding"]},
+        {"role": "vision", "model": "qwen3.5:2b", "download_gb": 2.7, "optional": true, "capabilities": ["text", "image", "tools", "thinking"]}
+      ],
+      "licenses": [
+        {"model": "granite4.1:3b", "license": "Apache-2.0", "source": "https://ollama.com/library/granite4.1"},
+        {"model": "qwen3.5:2b", "license": "verify-at-install", "source": "https://ollama.com/library/qwen3.5"}
+      ]
+    },
+    {
+      "id": "ember-8gb-gpu",
+      "name": "Ember",
+      "subtitle": "8 GB GPU",
+      "tier": "gpu-8",
+      "status": "stable",
+      "experimental": false,
+      "addon": false,
+      "description": "One compact multimodal controller for coding, tools, reasoning, and screenshots.",
+      "recommended_for": ["general coding", "small web projects", "screenshot interpretation"],
+      "min_ram_gb": 12,
+      "rec_ram_gb": 16,
+      "min_vram_gb": 6,
+      "rec_vram_gb": 8,
+      "min_disk_gb": 8,
+      "provider": "ollama",
+      "min_runtime_version": "0.13.3",
+      "default_context": 8192,
+      "context_ceiling": 16384,
+      "sequential_loading": true,
+      "unlimited_local_sessions": true,
+      "total_download_gb": 5.5,
+      "core_download_gb": 3.4,
+      "roles": [
+        {"role": "controller", "model": "qwen3.5:4b", "download_gb": 3.4, "optional": false, "capabilities": ["text", "image", "tools", "thinking", "coding", "json"]},
+        {"role": "reviewer", "model": "granite4.1:3b", "download_gb": 2.1, "optional": true, "capabilities": ["text", "tools", "json", "coding"]}
+      ],
+      "licenses": [
+        {"model": "qwen3.5:4b", "license": "verify-at-install", "source": "https://ollama.com/library/qwen3.5"},
+        {"model": "granite4.1:3b", "license": "Apache-2.0", "source": "https://ollama.com/library/granite4.1"}
+      ]
+    },
+    {
+      "id": "forge-12gb",
+      "name": "Forge",
+      "subtitle": "12 GB balanced",
+      "tier": "gpu-12",
+      "status": "stable",
+      "experimental": false,
+      "addon": false,
+      "description": "Strong multimodal local controller with a hot-swapped compact reviewer.",
+      "recommended_for": ["medium repositories", "frontend/backend work", "browser screenshots"],
+      "min_ram_gb": 16,
+      "rec_ram_gb": 24,
+      "min_vram_gb": 10,
+      "rec_vram_gb": 12,
+      "min_disk_gb": 14,
+      "provider": "ollama",
+      "min_runtime_version": "0.13.3",
+      "default_context": 16384,
+      "context_ceiling": 32768,
+      "sequential_loading": true,
+      "unlimited_local_sessions": true,
+      "total_download_gb": 9.4,
+      "core_download_gb": 8.7,
+      "roles": [
+        {"role": "controller", "model": "qwen3.5:9b", "download_gb": 6.6, "optional": false, "capabilities": ["text", "image", "tools", "thinking", "coding", "json"]},
+        {"role": "reviewer", "model": "granite4.1:3b", "download_gb": 2.1, "optional": false, "capabilities": ["text", "tools", "json", "coding"]},
+        {"role": "embedding", "model": "qwen3-embedding:0.6b", "download_gb": 0.7, "optional": true, "capabilities": ["embeddings"]}
+      ],
+      "licenses": [
+        {"model": "qwen3.5:9b", "license": "verify-at-install", "source": "https://ollama.com/library/qwen3.5"},
+        {"model": "granite4.1:3b", "license": "Apache-2.0", "source": "https://ollama.com/library/granite4.1"},
+        {"model": "qwen3-embedding:0.6b", "license": "verify-at-install", "source": "https://ollama.com/library/qwen3-embedding"}
+      ]
+    },
+    {
+      "id": "oracle-gemma4-12gb",
+      "name": "Oracle",
+      "subtitle": "Gemma 4 multimodal",
+      "tier": "gpu-12",
+      "status": "experimental",
+      "experimental": true,
+      "addon": false,
+      "description": "Google Gemma 4 package for text, code, screenshots, documents, and function calling.",
+      "recommended_for": ["multimodal work", "UI review", "document interpretation", "coding"],
+      "min_ram_gb": 16,
+      "rec_ram_gb": 24,
+      "min_vram_gb": 10,
+      "rec_vram_gb": 12,
+      "min_disk_gb": 12,
+      "provider": "ollama",
+      "min_runtime_version": "latest-qualified",
+      "default_context": 16384,
+      "context_ceiling": 32768,
+      "sequential_loading": true,
+      "unlimited_local_sessions": true,
+      "total_download_gb": 9.7,
+      "core_download_gb": 7.6,
+      "roles": [
+        {"role": "controller", "model": "gemma4:12b", "download_gb": 7.6, "optional": false, "capabilities": ["text", "image", "tools", "thinking", "coding", "json"]},
+        {"role": "reviewer", "model": "granite4.1:3b", "download_gb": 2.1, "optional": true, "capabilities": ["text", "tools", "json", "coding"]}
+      ],
+      "licenses": [
+        {"model": "gemma4:12b", "license": "Gemma-Terms", "source": "https://ai.google.dev/gemma/terms"},
+        {"model": "granite4.1:3b", "license": "Apache-2.0", "source": "https://ollama.com/library/granite4.1"}
+      ]
+    },
+    {
+      "id": "titan-24gb",
+      "name": "Titan",
+      "subtitle": "24 GB quality",
+      "tier": "gpu-24",
+      "status": "experimental",
+      "experimental": true,
+      "addon": false,
+      "description": "High-quality multimodal controller with sequential specialist review.",
+      "recommended_for": ["large repositories", "long tasks", "architecture", "complex debugging"],
+      "min_ram_gb": 32,
+      "rec_ram_gb": 48,
+      "min_vram_gb": 22,
+      "rec_vram_gb": 24,
+      "min_disk_gb": 28,
+      "provider": "ollama",
+      "min_runtime_version": "0.13.3",
+      "default_context": 16384,
+      "context_ceiling": 65536,
+      "sequential_loading": true,
+      "unlimited_local_sessions": true,
+      "total_download_gb": 23.0,
+      "core_download_gb": 22.3,
+      "roles": [
+        {"role": "controller", "model": "qwen3.5:27b", "download_gb": 17.0, "optional": false, "capabilities": ["text", "image", "tools", "thinking", "coding", "json"]},
+        {"role": "reviewer", "model": "granite4.1:8b", "download_gb": 5.3, "optional": false, "capabilities": ["text", "tools", "coding", "json"]},
+        {"role": "embedding", "model": "qwen3-embedding:0.6b", "download_gb": 0.7, "optional": true, "capabilities": ["embeddings"]}
+      ],
+      "licenses": [
+        {"model": "qwen3.5:27b", "license": "verify-at-install", "source": "https://ollama.com/library/qwen3.5"},
+        {"model": "granite4.1:8b", "license": "Apache-2.0", "source": "https://ollama.com/library/granite4.1"},
+        {"model": "qwen3-embedding:0.6b", "license": "verify-at-install", "source": "https://ollama.com/library/qwen3-embedding"}
+      ]
+    },
+    {
+      "id": "hephaestus-code-24gb",
+      "name": "Hephaestus",
+      "subtitle": "24 GB coding team",
+      "tier": "gpu-24",
+      "status": "experimental",
+      "experimental": true,
+      "addon": false,
+      "description": "Agentic coding specialist plus a multimodal controller, loaded one at a time.",
+      "recommended_for": ["software engineering", "multi-file refactors", "difficult GitHub-style issues"],
+      "min_ram_gb": 32,
+      "rec_ram_gb": 48,
+      "min_vram_gb": 22,
+      "rec_vram_gb": 24,
+      "min_disk_gb": 28,
+      "provider": "ollama",
+      "min_runtime_version": "0.13.3",
+      "default_context": 16384,
+      "context_ceiling": 32768,
+      "sequential_loading": true,
+      "unlimited_local_sessions": true,
+      "total_download_gb": 22.7,
+      "core_download_gb": 22.7,
+      "roles": [
+        {"role": "controller", "model": "qwen3.5:9b", "download_gb": 6.6, "optional": false, "capabilities": ["text", "image", "tools", "thinking", "coding", "json"]},
+        {"role": "coder", "model": "devstral:24b", "download_gb": 14.0, "optional": false, "capabilities": ["text", "tools", "agentic_coding", "repository_navigation"]},
+        {"role": "reviewer", "model": "granite4.1:3b", "download_gb": 2.1, "optional": false, "capabilities": ["text", "tools", "coding", "json"]}
+      ],
+      "licenses": [
+        {"model": "qwen3.5:9b", "license": "verify-at-install", "source": "https://ollama.com/library/qwen3.5"},
+        {"model": "devstral:24b", "license": "Apache-2.0", "source": "https://ollama.com/library/devstral"},
+        {"model": "granite4.1:3b", "license": "Apache-2.0", "source": "https://ollama.com/library/granite4.1"}
+      ]
+    },
+    {
+      "id": "vibethinker-review-addon",
+      "name": "VibeThinker",
+      "subtitle": "optional review add-on",
+      "tier": "addon",
+      "status": "experimental",
+      "experimental": true,
+      "addon": true,
+      "description": "Compact verifiable reasoning specialist. Never use it as the tool controller.",
+      "recommended_for": ["algorithm review", "failure diagnosis", "verifiable reasoning", "test criticism"],
+      "min_ram_gb": 8,
+      "rec_ram_gb": 12,
+      "min_vram_gb": 0,
+      "min_disk_gb": 4,
+      "provider": "ollama-huggingface-gguf",
+      "min_runtime_version": "latest-qualified",
+      "default_context": 16384,
+      "context_ceiling": 65536,
+      "sequential_loading": true,
+      "unlimited_local_sessions": true,
+      "total_download_gb": 1.93,
+      "core_download_gb": 1.93,
+      "roles": [
+        {"role": "reviewer", "model": "hf.co/prithivMLmods/VibeThinker-3B-GGUF:Q4_K_M", "download_gb": 1.93, "optional": false, "capabilities": ["text", "reasoning", "coding_review"], "prohibited_capabilities": ["tools", "autonomous_controller"]}
+      ],
+      "licenses": [
+        {"model": "WeiboAI/VibeThinker-3B", "license": "MIT", "source": "https://huggingface.co/WeiboAI/VibeThinker-3B"},
+        {"model": "prithivMLmods/VibeThinker-3B-GGUF", "license": "verify-community-quantization", "source": "https://huggingface.co/prithivMLmods/VibeThinker-3B-GGUF"}
+      ]
+    }
+  ]
+}

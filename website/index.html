@@ -1,86 +1,184 @@
 <!DOCTYPE html>
-<html lang="en">
+<!--
+  PROMETHEUS — static, self-contained GitHub Pages site.
+  One local stylesheet, one local script, no CDN, no external fonts, no trackers,
+  no analytics. Default telemetry is OFF. The install commands below are the
+  canonical copy of website/commands.json; tests/test_website.py asserts they
+  cannot drift. The package comparison is rendered from website/packages.json,
+  which tests/test_packages_json.py asserts against config/bundles-v2/.
+-->
+<html lang="en" data-theme="dark">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta name="color-scheme" content="dark">
-  <meta name="theme-color" content="#0c0a09">
+  <meta name="color-scheme" content="dark light">
+  <meta name="theme-color" content="#0c0a09" media="(prefers-color-scheme: dark)">
+  <meta name="theme-color" content="#f7f3ec" media="(prefers-color-scheme: light)">
+  <meta name="robots" content="index,follow">
+  <meta name="author" content="FeverDream-dev">
   <title>PROMETHEUS — local-first multi-model coding agent</title>
-  <meta name="description" content="PROMETHEUS is a local-first, adaptive multi-model coding agent. Install with one command on Linux, macOS, or Windows/WSL. Ollama is the default backend; cloud models are optional.">
-  <link rel="stylesheet" href="assets/css/styles.css">
+  <meta name="description" content="PROMETHEUS is a local-first, adaptive multi-model coding agent. Run a private coding agent on your own hardware with Ollama — a local Claude Code and OpenCode alternative. Install with one command on Linux, macOS, or Windows/WSL.">
+  <link rel="canonical" href="https://feverdream-dev.github.io/Prometheus/">
+  <link rel="icon" href="favicon.svg" type="image/svg+xml">
+  <link rel="apple-touch-icon" href="favicon.svg">
+  <link rel="manifest" href="site.webmanifest">
+
+  <!-- Open Graph -->
+  <meta property="og:type" content="website">
+  <meta property="og:site_name" content="PROMETHEUS">
+  <meta property="og:title" content="PROMETHEUS — local-first multi-model coding agent">
+  <meta property="og:description" content="A private, local-first AI coding agent. Bring your own models via Ollama; cloud is optional and always opt-in. Evidence-driven completion, three autonomy modes, MCP and built-in tools.">
+  <meta property="og:url" content="https://feverdream-dev.github.io/Prometheus/">
   <!--
-    No analytics, no trackers, no external fonts, no CDN calls. This page is
-    fully self-contained: it loads one local stylesheet and one local script.
-    Privacy policy: default telemetry is OFF.
+    PROVISIONAL social card. Original inline SVG (website/og.svg), not the
+    official brand artwork (pending). Social scrapers prefer PNG/JPG; the SVG
+    is the honest self-contained choice under the no-CDN/no-raster constraint.
+    TODO: replace with a real raster card once brand artwork is supplied.
   -->
+  <meta property="og:image" content="https://feverdream-dev.github.io/Prometheus/og.svg">
+  <meta property="og:image:alt" content="PROMETHEUS wordmark and spark mark on a dark card.">
+  <meta property="og:locale" content="en_US">
+
+  <!-- Twitter / X -->
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:title" content="PROMETHEUS — local-first multi-model coding agent">
+  <meta name="twitter:description" content="A private, local-first AI coding agent. Bring your own models via Ollama; cloud is optional.">
+  <meta name="twitter:image" content="https://feverdream-dev.github.io/Prometheus/og.svg">
+  <meta name="twitter:image:alt" content="PROMETHEUS wordmark and spark mark on a dark card.">
+
+  <link rel="stylesheet" href="assets/css/styles.css">
+
+  <!-- Structured data: truthful fields only. -->
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@graph": [
+      {
+        "@type": "SoftwareApplication",
+        "name": "PROMETHEUS",
+        "applicationCategory": "DeveloperApplication",
+        "operatingSystem": "Linux, macOS, Windows (WSL 2)",
+        "description": "Local-first, adaptive multi-model coding agent. A tool-capable controller works with optional coding, reasoning, reviewing, and vision specialists. Ollama is the default backend; cloud and other OpenAI-compatible backends are pluggable and always opt-in.",
+        "url": "https://feverdream-dev.github.io/Prometheus/",
+        "downloadUrl": "https://github.com/FeverDream-dev/Prometheus/releases",
+        "softwareVersion": "0.x (pre-1.0)",
+        "runtimePlatform": ["Ollama"],
+        "softwareRequirements": "Python 3.11+ (bootstrapped by the installer), Ollama (optional, auto-detected). 8 GB RAM minimum; a GPU with 8-24 GB VRAM is recommended for larger model packages.",
+        "featureList": [
+          "Selectable local model packages that fit detected hardware",
+          "Quota-free local sessions with Ollama",
+          "Three autonomy modes: Copilot, Pilot, Astronaut",
+          "Evidence-driven completion evaluation",
+          "MCP client and a typed built-in tool broker",
+          "SQLite sessions that resume after restart",
+          "Git checkpoints with safe rollback",
+          "No telemetry by default"
+        ],
+        "offers": {
+          "@type": "Offer",
+          "price": "0",
+          "priceCurrency": "USD"
+        }
+      },
+      {
+        "@type": "SoftwareSourceCode",
+        "name": "PROMETHEUS",
+        "codeRepository": "https://github.com/FeverDream-dev/Prometheus",
+        "issueTracker": "https://github.com/FeverDream-dev/Prometheus/issues",
+        "programmingLanguage": "Python",
+        "runtimePlatform": ["Ollama"],
+        "license": "https://github.com/FeverDream-dev/Prometheus/blob/main/LICENSE.md",
+        "description": "Source code for PROMETHEUS, a local-first multi-model coding agent."
+      }
+    ]
+  }
+  </script>
+
+  <!-- Set theme before paint to avoid a flash of the wrong theme. No external requests. -->
+  <script>
+  (function(){try{var k="prometheus-theme";var v=localStorage.getItem(k);
+  var t=(v==="light"||v==="dark")?v:(window.matchMedia&&matchMedia("(prefers-color-scheme: light)").matches?"light":"dark");
+  document.documentElement.setAttribute("data-theme",t);}catch(e){}})();
+  </script>
 </head>
 <body>
   <a class="skip-link" href="#install">Skip to install instructions</a>
 
   <header class="site-header">
-    <div class="brand">
-      <!--
-        PROVISIONAL LOGO MARK — placeholder pending the official company logo.
-        This is a tasteful "flame-in-brackets / spark" motif rendered as inline
-        SVG. It is NOT the final brand artwork. Replace wholesale when the
-        official PROMETHEUS logo is supplied (see Milestone 5).
-      -->
-      <svg class="logo" viewBox="0 0 32 32" role="img" aria-label="PROMETHEUS provisional spark logo" focusable="false">
-        <defs>
-          <linearGradient id="flameGrad" x1="0" y1="1" x2="0" y2="0">
-            <stop offset="0" stop-color="#e0451b"/>
-            <stop offset="0.55" stop-color="#ff7a18"/>
-            <stop offset="1" stop-color="#ffd27a"/>
-          </linearGradient>
-        </defs>
-        <!-- brackets -->
-        <path d="M7 4 H3 V28 H7" fill="none" stroke="#ff7a18" stroke-width="2.4" stroke-linecap="square" stroke-linejoin="miter"/>
-        <path d="M25 4 H29 V28 H25" fill="none" stroke="#ff7a18" stroke-width="2.4" stroke-linecap="square" stroke-linejoin="miter"/>
-        <!-- flame / spark -->
-        <path d="M16 5 C 12.5 9.5, 11 12.5, 11 16.5 C 11 20.5, 13 23.5, 16 24.8 C 19 23.5, 21 20.5, 21 16.5 C 21 13.5, 19.2 11, 17.4 8.6 C 18 11, 17.4 13.2, 16 13.2 C 14.7 12.8, 14.8 9.2, 16 5 Z" fill="url(#flameGrad)"/>
-        <path d="M16 15.5 C 14.8 17, 14.4 18.6, 15 20 C 15.5 21, 16.5 21, 17 20 C 17.6 18.6, 17.2 17, 16 15.5 Z" fill="#fff3e0" opacity="0.9"/>
-      </svg>
-      <span class="wordmark">PROMETHEUS</span>
+    <div class="header-inner">
+      <a class="brand" href="#top" aria-label="PROMETHEUS home">
+        <!--
+          PROVISIONAL LOGO MARK — placeholder pending the official company logo.
+          This is an original "spark / flame-in-brackets" motif rendered as inline
+          SVG. It is NOT the final brand artwork. Replace wholesale when the
+          official PROMETHEUS logo is supplied.
+        -->
+        <svg class="logo" viewBox="0 0 32 32" role="img" aria-label="PROMETHEUS provisional spark logo" focusable="false">
+          <defs>
+            <linearGradient id="flameGrad" x1="0" y1="1" x2="0" y2="0">
+              <stop offset="0" stop-color="#e0451b"/>
+              <stop offset="0.55" stop-color="#ff7a18"/>
+              <stop offset="1" stop-color="#ffd27a"/>
+            </linearGradient>
+          </defs>
+          <path d="M7 4 H3 V28 H7" fill="none" stroke="#ff7a18" stroke-width="2.4" stroke-linecap="square"/>
+          <path d="M25 4 H29 V28 H25" fill="none" stroke="#ff7a18" stroke-width="2.4" stroke-linecap="square"/>
+          <path d="M16 5 C 12.5 9.5, 11 12.5, 11 16.5 C 11 20.5, 13 23.5, 16 24.8 C 19 23.5, 21 20.5, 21 16.5 C 21 13.5, 19.2 11, 17.4 8.6 C 18 11, 17.4 13.2, 16 13.2 C 14.7 12.8, 14.8 9.2, 16 5 Z" fill="url(#flameGrad)"/>
+          <path d="M16 15.5 C 14.8 17, 14.4 18.6, 15 20 C 15.5 21, 16.5 21, 17 20 C 17.6 18.6, 17.2 17, 16 15.5 Z" fill="#fff3e0" opacity="0.9"/>
+        </svg>
+        <span class="wordmark">PROMETHEUS</span>
+      </a>
+      <nav class="top-nav" aria-label="Page sections">
+        <a href="#packages">Models</a>
+        <a href="#quota">Local vs cloud</a>
+        <a href="#features">Features</a>
+        <a href="#security">Privacy</a>
+        <a href="#docs">Docs</a>
+        <a href="#install">Install</a>
+        <button class="theme-toggle" type="button" aria-label="Toggle light or dark theme" aria-pressed="false" title="Toggle theme">
+          <svg class="icon icon-sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M2 12h2M20 12h2M5 5l1.5 1.5M17.5 17.5L19 19M19 5l-1.5 1.5M6.5 17.5L5 19"/></svg>
+          <svg class="icon icon-moon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/></svg>
+        </button>
+        <a class="gh" href="https://github.com/FeverDream-dev/Prometheus" rel="noopener">GitHub</a>
+      </nav>
     </div>
-    <nav class="top-nav" aria-label="Page sections">
-      <a href="#install">Install</a>
-      <a href="#support">Support</a>
-      <a href="#requirements">Requirements</a>
-      <a href="#installer">Installer</a>
-      <a href="#first-run">First run</a>
-      <a href="#commands">Commands</a>
-      <a href="#troubleshooting">Troubleshooting</a>
-      <a class="gh" href="https://github.com/FeverDream-dev/Prometheus" rel="noopener">GitHub</a>
-    </nav>
   </header>
 
-  <main>
+  <main id="top">
     <section class="hero" aria-labelledby="hero-title">
       <p class="eyebrow">local-first &middot; multi-model &middot; evidence-driven</p>
       <h1 id="hero-title">Bring your own models.<br><span class="accent">Keep your code local.</span></h1>
       <p class="lead">
-        PROMETHEUS is a local-first, adaptive multi-model coding agent. A tool-capable
-        controller works with optional coding, reasoning, and reviewing specialists.
-        Ollama is the default backend; cloud and other OpenAI-compatible backends are
-        pluggable and always opt-in.
+        PROMETHEUS is a local-first, adaptive multi-model coding agent &mdash; a private
+        coding agent that runs on your hardware. A tool-capable controller works with
+        optional coding, reasoning, reviewing, and vision specialists. Ollama is the
+        default backend; cloud and other OpenAI-compatible backends are pluggable and
+        always opt-in. Think of it as a local Claude Code or local OpenCode alternative
+        you fully own.
       </p>
       <ul class="hero-points">
-        <li><strong>Private by default.</strong> Runs on your machine. Network use is explicit and visible.</li>
-        <li><strong>Honest about hardware.</strong> Detects your CPU, RAM, GPU, and VRAM, and recommends a bundle that actually fits.</li>
-        <li><strong>Evidence-driven completion.</strong> A deterministic evaluator — not a model opinion — decides when a task is done.</li>
+        <li><strong>Private by default.</strong> Runs on your machine. Network use is explicit and visible. No telemetry.</li>
+        <li><strong>Honest about hardware.</strong> Detects your CPU, RAM, GPU, and VRAM, and recommends a model package that actually fits.</li>
+        <li><strong>Evidence-driven completion.</strong> A deterministic evaluator &mdash; not a model opinion &mdash; decides when a task is done.</li>
       </ul>
       <p class="cta-row">
         <a class="cta" href="#install">Get the install command</a>
+        <a class="cta ghost" href="#packages">Compare model packages</a>
         <a class="cta ghost" href="https://github.com/FeverDream-dev/Prometheus/releases" rel="noopener">View releases</a>
       </p>
     </section>
 
     <section id="install" class="install" aria-labelledby="install-title">
-      <h2 id="install-title">Install PROMETHEUS</h2>
-      <p class="section-lead">
-        Pick your operating system, copy one command, and paste it into a terminal.
-        You do <strong>not</strong> need to clone the repository first.
-      </p>
+      <div class="section-head">
+        <span class="eyebrow">Installation</span>
+        <h2 id="install-title">Install PROMETHEUS</h2>
+        <p class="section-lead">
+          Pick your operating system, copy one command, and paste it into a terminal.
+          You do <strong>not</strong> need to clone the repository first. This is a
+          multi-model coding CLI you can run as an offline AI programming assistant
+          once models are downloaded.
+        </p>
+      </div>
 
       <div class="tablist-wrap" data-tablist-root>
         <div class="tablist" role="tablist" aria-label="Choose your operating system">
@@ -147,9 +245,227 @@ notepad install.ps1
       </p>
     </section>
 
+    <section id="packages" class="packages" aria-labelledby="packages-title">
+      <div class="section-head">
+        <span class="eyebrow">Model packages</span>
+        <h2 id="packages-title">Compare the seven packages</h2>
+        <p class="section-lead">
+          PROMETHEUS ships selectable, pre-built model packages that fit your detected
+          hardware. Each pairs a tool-capable controller with optional specialists.
+          Data below is loaded from <code>packages.json</code>, which is generated from
+          the <code>config/bundles-v2/</code> manifests and drift-checked by the test
+          suite. Download sizes are approximate; every tag except
+          <code>granite4.1:3b</code> must be qualified at install time.
+        </p>
+      </div>
+
+      <div class="pk-toolbar">
+        <div class="pk-control">
+          <label for="pk-filter">Filter by hardware tier</label>
+          <select class="pk-filter" id="pk-filter">
+            <option value="all">All packages</option>
+            <option value="cpu">CPU</option>
+            <option value="gpu-8">8 GB GPU</option>
+            <option value="gpu-12">12 GB GPU</option>
+            <option value="gpu-24">24 GB GPU</option>
+            <option value="addon">Review add-on</option>
+          </select>
+        </div>
+        <div class="pk-view" role="group" aria-label="View">
+          <button type="button" data-view="table" aria-pressed="true">Table</button>
+          <button type="button" data-view="cards" aria-pressed="false">Cards</button>
+        </div>
+        <span class="pk-status" role="status" aria-live="polite"></span>
+      </div>
+
+      <div class="table-wrap pk-table-host">
+        <table class="pk-table">
+          <caption>PROMETHEUS model packages: roles, approximate download size, hardware fit, and status. JavaScript enhances this table; the static data below is a no-JS fallback.</caption>
+          <thead>
+            <tr>
+              <th scope="col">Package</th>
+              <th scope="col" class="hide-sm">Hardware fit</th>
+              <th scope="col">Controller</th>
+              <th scope="col" class="num hide-sm">~Core</th>
+              <th scope="col" class="num hide-sm">Context</th>
+              <th scope="col" class="hide-sm">Status</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr class="tier-cpu status-stable"><td><span class="pk-name">Spark</span><div class="pk-sub">CPU / 8 GB</div></td><td class="hide-sm">CPU · 8+ GB RAM</td><td><code>granite4.1:3b</code></td><td class="num hide-sm">~2.1 GB</td><td class="num hide-sm">8K&ndash;16K</td><td class="hide-sm">Stable</td></tr>
+            <tr class="tier-gpu-8 status-stable"><td><span class="pk-name">Ember</span><div class="pk-sub">8 GB GPU</div></td><td class="hide-sm">8 GB VRAM</td><td><code>qwen3.5:4b</code></td><td class="num hide-sm">~3.4 GB</td><td class="num hide-sm">8K&ndash;16K</td><td class="hide-sm">Stable</td></tr>
+            <tr class="tier-gpu-12 status-stable"><td><span class="pk-name">Forge</span><div class="pk-sub">12 GB balanced</div></td><td class="hide-sm">12 GB VRAM</td><td><code>qwen3.5:9b</code></td><td class="num hide-sm">~8.7 GB</td><td class="num hide-sm">16K&ndash;32K</td><td class="hide-sm">Stable</td></tr>
+            <tr class="tier-gpu-12 status-experimental"><td><span class="pk-name">Oracle</span><div class="pk-sub">Gemma 4 multimodal</div></td><td class="hide-sm">12 GB VRAM</td><td><code>gemma4:12b</code></td><td class="num hide-sm">~7.6 GB</td><td class="num hide-sm">16K&ndash;32K</td><td class="hide-sm">Experimental</td></tr>
+            <tr class="tier-gpu-24 status-experimental"><td><span class="pk-name">Titan</span><div class="pk-sub">24 GB quality</div></td><td class="hide-sm">24 GB VRAM</td><td><code>qwen3.5:27b</code></td><td class="num hide-sm">~22.3 GB</td><td class="num hide-sm">16K&ndash;64K</td><td class="hide-sm">Experimental</td></tr>
+            <tr class="tier-gpu-24 status-experimental"><td><span class="pk-name">Hephaestus</span><div class="pk-sub">24 GB coding team</div></td><td class="hide-sm">24 GB VRAM</td><td><code>qwen3.5:9b</code> + <code>devstral:24b</code></td><td class="num hide-sm">~22.7 GB</td><td class="num hide-sm">16K&ndash;32K</td><td class="hide-sm">Experimental</td></tr>
+            <tr class="tier-addon status-experimental"><td><span class="pk-name">VibeThinker</span><div class="pk-sub">review add-on</div></td><td class="hide-sm">Add-on (no controller)</td><td><em>none &mdash; review only</em></td><td class="num hide-sm">~1.9 GB</td><td class="num hide-sm">16K&ndash;64K</td><td class="hide-sm">Experimental</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <div class="pk-cards-host" hidden></div>
+
+      <p class="pk-footnote">
+        Models load sequentially (one at a time) unless your hardware safely fits more.
+        VibeThinker is an optional reasoning/review specialist and is <strong>never</strong>
+        the tool controller. Licenses marked &ldquo;verify-at-install&rdquo; must be
+        confirmed from the upstream source at install time. Qwen3-Coder-Next is
+        deliberately excluded from 24 GB local defaults (its Q4 package is roughly 52 GB).
+      </p>
+    </section>
+
+    <section id="quota" class="quota" aria-labelledby="quota-title">
+      <div class="section-head">
+        <span class="eyebrow">Pricing model</span>
+        <h2 id="quota-title">Quota-free local, or metered cloud</h2>
+        <p class="section-lead">
+          &ldquo;Unlimited&rdquo; is not a marketing word here. Local sessions through
+          Ollama have no artificial message, token, daily, or project quotas. They remain
+          bounded by your RAM, VRAM, context window, disk, and model speed. Cloud APIs
+          keep their own provider quotas, rate limits, and costs.
+        </p>
+      </div>
+      <div class="vs-grid">
+        <div class="vs-col local">
+          <h3>Local (Ollama) &mdash; quota-free</h3>
+          <ul>
+            <li>No product quotas on messages, tokens, days, or projects.</li>
+            <li>Constrained by your RAM/VRAM, context window, disk, and model speed &mdash; not by us.</li>
+            <li>Unlimited local sessions enabled by default; caps are opt-in.</li>
+            <li>Runs fully offline once models are downloaded.</li>
+          </ul>
+        </div>
+        <div class="vs-col cloud">
+          <h3>Cloud &mdash; metered by the provider</h3>
+          <ul>
+            <li>Always opt-in and clearly labeled &ldquo;metered&rdquo;.</li>
+            <li>Provider quotas, rate limits, costs, and terms apply.</li>
+            <li>Optional cost/token budgets can be set for cloud only.</li>
+            <li>No silent cloud fallback when a local, privacy-only mode is active.</li>
+          </ul>
+        </div>
+      </div>
+    </section>
+
+    <section id="features" class="features" aria-labelledby="features-title">
+      <div class="section-head">
+        <span class="eyebrow">Features</span>
+        <h2 id="features-title">What works today (verified, not promised)</h2>
+        <p class="section-lead">
+          Only behavior backed by a test or a real run is listed here. This is an honest
+          snapshot of the current MVP, not a roadmap dressed up as features.
+        </p>
+      </div>
+      <div class="feat-grid">
+        <div class="feat">
+          <h3><span class="num">01</span>Hardware-aware package selection</h3>
+          <p>Cross-platform detection of CPU, RAM, GPU, and VRAM, with an honest Ollama binary-vs-service distinction in <code>doctor</code>. Packages are recommended only when they actually fit.</p>
+        </div>
+        <div class="feat">
+          <h3><span class="num">02</span>Consent-gated first-run wizard</h3>
+          <p><code>setup</code> detects Ollama, offers to install it only after explicit approval, pulls approved models with live progress, discovers models you already have, and runs a real inference smoke test.</p>
+        </div>
+        <div class="feat">
+          <h3><span class="num">03</span>Durable sessions</h3>
+          <p>A SQLite store with a monotonic event log, tasks, evidence, and checkpoints. Sessions resume after restart via <code>prometheus resume</code>.</p>
+        </div>
+        <div class="feat">
+          <h3><span class="num">04</span>Evidence-driven completion</h3>
+          <p>A deterministic weighted evaluator overrides the model&rsquo;s self-reported completion. A task cannot be marked complete unless criteria are met with tool-result evidence.</p>
+        </div>
+        <div class="feat">
+          <h3><span class="num">05</span>Git checkpoints and safe rollback</h3>
+          <p>Every mutation is checkpointed and recoverable. Atomic file writes use temp-plus-fsync-plus-rename. Destructive actions always require approval.</p>
+        </div>
+        <div class="feat">
+          <h3><span class="num">06</span>Secret and path safety</h3>
+          <p>Secrets are redacted from evidence, model requests, and output. Workspace path-traversal and symlink-escape are guarded.</p>
+        </div>
+        <div class="feat">
+          <h3><span class="num">07</span>Real Ollama inference</h3>
+          <p>Proven against real models (for example <code>granite4.1:3b</code> and <code>llama3.2:latest</code>) in an opt-in end-to-end repair test, not only mocked providers.</p>
+        </div>
+        <div class="feat">
+          <h3><span class="num">08</span>Textual TUI</h3>
+          <p>A streaming terminal UI with approval prompts, a status bar, and a startup splash that is non-TTY and reduced-motion safe.</p>
+        </div>
+      </div>
+    </section>
+
+    <section id="mcp" class="mcp" aria-labelledby="mcp-title">
+      <div class="section-head">
+        <span class="eyebrow">Extensibility</span>
+        <h2 id="mcp-title">MCP and the built-in tools</h2>
+        <p class="section-lead">
+          PROMETHEUS is an Ollama coding assistant with a typed, schema-validated tool
+          broker and a standards-based MCP client. Tools declare their risk, required
+          permissions, side effects, and redaction rules.
+        </p>
+      </div>
+      <div class="grid-two">
+        <div class="card">
+          <h3>Built-in tools</h3>
+          <ul>
+            <li><strong>Files:</strong> list/tree, bounded read, ripgrep search, symbol search, atomic write, apply-patch, diff, with path and symlink-escape protection.</li>
+            <li><strong>Process:</strong> argument-array execution, supervised long-running processes, streaming with limits, cancellation, timeouts, and process-tree cleanup.</li>
+            <li><strong>Git:</strong> status/diff/log, pre-change and verified checkpoints, branch creation, and rollback that preserves your work.</li>
+            <li><strong>Browser &amp; vision:</strong> Playwright automation for deterministic testing; screenshots feed the active vision role when needed.</li>
+            <li><strong>Web/research:</strong> bounded fetch and reader with citations, domain permissions, and web content treated as untrusted.</li>
+          </ul>
+        </div>
+        <div class="card">
+          <h3>MCP client</h3>
+          <ul>
+            <li>Add, remove, enable, or disable servers globally and per project.</li>
+            <li>Stdio transport today; Streamable HTTP is on the roadmap.</li>
+            <li>Namespaced tools to prevent collisions; per-server trust and permission scope.</li>
+            <li>A prompt-injection boundary: MCP output is treated as untrusted data, never as system policy.</li>
+            <li>Output size and time limits with redaction.</li>
+          </ul>
+        </div>
+      </div>
+    </section>
+
+    <section id="security" class="security" aria-labelledby="security-title">
+      <div class="section-head">
+        <span class="eyebrow">Privacy and control</span>
+        <h2 id="security-title">Security, privacy, and autonomy modes</h2>
+        <p class="section-lead">
+          The deterministic engine &mdash; never an untrusted model &mdash; owns permissions
+          and tools. Internet use is explicit and visible. There is no telemetry by
+          default; local audit logs are yours to read and delete.
+        </p>
+      </div>
+      <div class="modes-grid">
+        <div class="mode-card">
+          <span class="mode-tag">Copilot</span>
+          <h3>Suggestive</h3>
+          <p>Reads automatically and asks before any write or command. Best when you want to stay in full control of every change.</p>
+        </div>
+        <div class="mode-card">
+          <span class="mode-tag">Pilot</span>
+          <h3>Balanced</h3>
+          <p>Applies edits and safe tests automatically, and asks before network use, installs, or risky commands.</p>
+        </div>
+        <div class="mode-card">
+          <span class="mode-tag">Astronaut</span>
+          <h3>Autonomous within scope</h3>
+          <p>Runs within a declared capability envelope. Destructive actions always require approval, even here.</p>
+        </div>
+      </div>
+      <p class="callout">
+        Five repeated failures sharing one cause trigger a different model or persona and a
+        newly stated hypothesis &mdash; not five cosmetic retries. &ldquo;Unlimited&rdquo;
+        local operation never disables emergency cancellation, memory and disk protection,
+        permission policy, or destructive-action approval.
+      </p>
+    </section>
+
     <section id="support" class="support" aria-labelledby="support-title">
-      <h2 id="support-title">Support matrix</h2>
-      <p class="section-lead">An honest view of where PROMETHEUS runs today.</p>
+      <div class="section-head">
+        <span class="eyebrow">Compatibility</span>
+        <h2 id="support-title">Support matrix</h2>
+        <p class="section-lead">An honest view of where PROMETHEUS runs today.</p>
+      </div>
       <div class="table-wrap">
         <table class="matrix">
           <caption>Operating system support for the PROMETHEUS MVP</caption>
@@ -168,7 +484,10 @@ notepad install.ps1
     </section>
 
     <section id="requirements" class="requirements" aria-labelledby="req-title">
-      <h2 id="req-title">System requirements</h2>
+      <div class="section-head">
+        <span class="eyebrow">Requirements</span>
+        <h2 id="req-title">System requirements</h2>
+      </div>
       <div class="grid-two">
         <div class="card">
           <h3>Minimum</h3>
@@ -176,15 +495,15 @@ notepad install.ps1
             <li>8 GB RAM, 10 GB free disk (more for models)</li>
             <li>Linux, macOS, or Windows via WSL 2</li>
             <li><code>curl</code> or <code>wget</code>, and Git</li>
-            <li>Python 3.11+ — the installer can bootstrap an isolated runtime if needed</li>
+            <li>Python 3.11+ &mdash; the installer can bootstrap an isolated runtime if needed</li>
             <li>Ollama is optional and auto-detected on first run</li>
           </ul>
         </div>
         <div class="card">
           <h3>Recommended</h3>
           <ul>
-            <li>16–32 GB RAM</li>
-            <li>NVIDIA, AMD, or Apple Silicon GPU with 12–24 GB VRAM for larger bundles</li>
+            <li>16&ndash;32 GB RAM</li>
+            <li>NVIDIA, AMD, or Apple Silicon GPU with 12&ndash;24 GB VRAM for larger packages</li>
             <li>SSD with 40+ GB free for model storage</li>
             <li>Ollama installed and running for the default local backend</li>
           </ul>
@@ -193,12 +512,15 @@ notepad install.ps1
     </section>
 
     <section id="installer" class="installer" aria-labelledby="installer-title">
-      <h2 id="installer-title">What the installer does</h2>
-      <p class="section-lead">Transparent disclosure. Nothing runs as root without your explicit approval.</p>
+      <div class="section-head">
+        <span class="eyebrow">Transparency</span>
+        <h2 id="installer-title">What the installer does</h2>
+        <p class="section-lead">Nothing runs as root without your explicit approval.</p>
+      </div>
       <ol class="disclosure">
         <li>Detects your OS, CPU architecture, and an available runtime or package manager.</li>
         <li>Downloads the release artifact from the <code>FeverDream-dev/Prometheus</code> GitHub Release and verifies its SHA-256 checksum before executing anything.</li>
-        <li>Installs into an isolated, user-owned location — <code>~/.local/share/prometheus/versions/&lt;version&gt;</code> — and never modifies your system Python.</li>
+        <li>Installs into an isolated, user-owned location &mdash; <code>~/.local/share/prometheus/versions/&lt;version&gt;</code> &mdash; and never modifies your system Python.</li>
         <li>Creates a <code>prometheus</code> launcher in <code>~/.local/bin</code> and either adds it to your PATH or prints the exact shell command to do so.</li>
         <li>Runs <code>prometheus doctor</code> to print a full hardware report, then starts first-run setup.</li>
         <li>Writes a diagnostic log (no secrets), is idempotent, and is safe to run twice.</li>
@@ -208,8 +530,11 @@ notepad install.ps1
     </section>
 
     <section id="first-run" class="first-run" aria-labelledby="firstrun-title">
-      <h2 id="firstrun-title">What happens on first run</h2>
-      <p class="section-lead"><code>prometheus setup</code> is an interactive wizard — it does not just print hints.</p>
+      <div class="section-head">
+        <span class="eyebrow">First run</span>
+        <h2 id="firstrun-title">What happens on first run</h2>
+        <p class="section-lead"><code>prometheus setup</code> is an interactive wizard &mdash; it does not just print hints.</p>
+      </div>
       <ul class="steps">
         <li>
           <h3>Ollama detection</h3>
@@ -217,20 +542,15 @@ notepad install.ps1
         </li>
         <li>
           <h3>Approval before install</h3>
-          <p>If Ollama is missing, PROMETHEUS offers to install it — but only after you explicitly approve the exact command. It never silently pipes a vendor script as root.</p>
+          <p>If Ollama is missing, PROMETHEUS offers to install it &mdash; but only after you explicitly approve the exact command. It never silently pipes a vendor script as root.</p>
         </li>
         <li>
           <h3>No duplicate downloads</h3>
           <p>Models you already have are discovered first, so nothing is re-downloaded.</p>
         </li>
         <li>
-          <h3>Bundles that fit — with sizes shown first</h3>
-          <p>A bundle is recommended for your detected RAM and VRAM, with approximate download sizes up front:</p>
-          <ul class="bundle-sizes">
-            <li><strong>ember (CPU, 8 GB RAM):</strong> roughly 3.5–6.5 GB of downloads (e.g. <code>gemma3:4b</code> ~3.5 GB, <code>qwen3:8b</code> ~6.5 GB).</li>
-            <li><strong>forge-12gb (GPU, 12 GB VRAM):</strong> roughly 6.5–9.0 GB of downloads (e.g. <code>qwen3:8b</code> ~6.5 GB, <code>qwen3-coder</code> ~9.0 GB).</li>
-            <li><strong>forge-24gb (GPU, 24 GB VRAM):</strong> roughly 11 GB of downloads (e.g. <code>qwen3:14b</code> ~11 GB).</li>
-          </ul>
+          <h3>Packages that fit &mdash; with sizes shown first</h3>
+          <p>A package is recommended for your detected RAM and VRAM, with approximate download sizes up front before you approve anything.</p>
         </li>
         <li>
           <h3>Download only what you approve</h3>
@@ -244,19 +564,25 @@ notepad install.ps1
     </section>
 
     <section id="commands" class="commands" aria-labelledby="commands-title">
-      <h2 id="commands-title">Quick commands</h2>
+      <div class="section-head">
+        <span class="eyebrow">CLI</span>
+        <h2 id="commands-title">Quick commands</h2>
+        <p class="section-lead">After install, <code>prometheus</code> is on your PATH.</p>
+      </div>
       <div class="table-wrap">
         <table class="cmd-table">
           <caption>Common PROMETHEUS commands after install</caption>
           <thead><tr><th scope="col">Command</th><th scope="col">What it does</th></tr></thead>
           <tbody>
             <tr><td><code>prometheus</code></td><td>Launch the interactive TUI.</td></tr>
-            <tr><td><code>prometheus setup</code></td><td>Detect hardware, pick a bundle, and configure Ollama.</td></tr>
-            <tr><td><code>prometheus doctor</code></td><td>Print the full hardware report and bundle fit.</td></tr>
+            <tr><td><code>prometheus setup</code></td><td>Detect hardware, pick a package, and configure Ollama.</td></tr>
+            <tr><td><code>prometheus doctor</code></td><td>Print the full hardware report and package fit.</td></tr>
             <tr><td><code>prometheus run "&lt;task&gt;"</code></td><td>Run an evidence-driven coding session.</td></tr>
             <tr><td><code>prometheus sessions</code></td><td>List recent sessions and their completion.</td></tr>
             <tr><td><code>prometheus resume &lt;id&gt;</code></td><td>Resume a session from the durable event log.</td></tr>
             <tr><td><code>prometheus modes</code></td><td>Explain the Copilot, Pilot, and Astronaut autonomy levels.</td></tr>
+            <tr><td><code>prometheus bundles</code></td><td>List model packages and hardware fit.</td></tr>
+            <tr><td><code>prometheus qualify</code></td><td>Qualify a package against its capability tests.</td></tr>
             <tr><td><code>prometheus update</code></td><td>Update to the latest release.</td></tr>
             <tr><td><code>prometheus uninstall</code></td><td>Remove PROMETHEUS, keeping your models and projects.</td></tr>
           </tbody>
@@ -264,8 +590,39 @@ notepad install.ps1
       </div>
     </section>
 
+    <section id="docs" class="docs" aria-labelledby="docs-title">
+      <div class="section-head">
+        <span class="eyebrow">Documentation</span>
+        <h2 id="docs-title">Quick start and troubleshooting</h2>
+        <p class="section-lead">
+          A condensed quick start, plus fixes for the issues new users hit most. Full
+          specifications live in the <code>docs/</code> directory of the repository.
+        </p>
+      </div>
+      <div class="grid-two">
+        <div class="card">
+          <h3>Quick start</h3>
+          <pre><code>prometheus setup      # detect hardware, pick a package
+prometheus            # launch the TUI
+prometheus run "Fix the failing tests" --workspace .
+prometheus sessions   # list sessions + completion</code></pre>
+          <p>Prefer to read the full guides? See <code>docs/PRODUCT_SPEC.md</code>, <code>docs/ARCHITECTURE.md</code>, <code>docs/SECURITY.md</code>, and <code>docs/ACCEPTANCE_TESTS.md</code> in the repository.</p>
+        </div>
+        <div class="card">
+          <h3>Real-Ollama end-to-end (opt-in)</h3>
+          <pre><code>PROMETHEUS_E2E_OLLAMA=1 \
+PROMETHEUS_E2E_MODEL=granite4.1:3b \
+pytest tests/test_e2e_ollama.py -q -s</code></pre>
+          <p>This drives the full provider-to-tools-to-evidence-to-completion loop against a real local model. It is opt-in so CI never downloads weights.</p>
+        </div>
+      </div>
+    </section>
+
     <section id="troubleshooting" class="troubleshooting" aria-labelledby="ts-title">
-      <h2 id="ts-title">Troubleshooting</h2>
+      <div class="section-head">
+        <span class="eyebrow">Troubleshooting</span>
+        <h2 id="ts-title">Troubleshooting</h2>
+      </div>
       <div class="accordion">
         <details>
           <summary><code>prometheus: command not found</code> (PATH)</summary>
@@ -283,7 +640,7 @@ brew services start ollama                    # macOS</code></pre>
         </details>
         <details>
           <summary>My GPU is not detected</summary>
-          <p>Install current drivers: NVIDIA CUDA / AMD ROCm or Vulkan, or the Apple Silicon Metal build of Ollama. Then run <code>prometheus doctor</code> and confirm VRAM appears. On Linux without a GPU, PROMETHEUS falls back to the CPU-only <code>ember</code> bundle.</p>
+          <p>Install current drivers: NVIDIA CUDA, AMD ROCm or Vulkan, or the Apple Silicon Metal build of Ollama. Then run <code>prometheus doctor</code> and confirm VRAM appears. On Linux without a GPU, PROMETHEUS falls back to the CPU-only Spark package.</p>
         </details>
         <details>
           <summary>Setting up WSL 2 on Windows</summary>
@@ -303,43 +660,108 @@ irm https://raw.githubusercontent.com/FeverDream-dev/Prometheus/main/install.ps1
       </div>
     </section>
 
+    <section id="releases" class="releases" aria-labelledby="releases-title">
+      <div class="section-head">
+        <span class="eyebrow">Releases</span>
+        <h2 id="releases-title">Changelog and releases</h2>
+        <p class="section-lead">
+          The release workflow builds an sdist and wheel, SHA-256 sidecars, a CycloneDX
+          SBOM, and a clean-venv bootstrap smoke job. No release has been published yet
+          &mdash; artifacts are built and tested locally, and the workflow is ready.
+        </p>
+      </div>
+      <div class="changelog">
+        <div class="entry">
+          <span class="ver">completion branch</span><span class="date">unreleased</span>
+          <ul>
+            <li>Seven selectable v2 model packages with hardware-fit classification and a qualification harness.</li>
+            <li>Capability and live-memory model router with sequential hot-swap.</li>
+            <li>MCP fixture-server end-to-end and JSON-RPC error surfacing.</li>
+            <li>Real Playwright web-fixture end-to-end test.</li>
+            <li>Bounded web/research fetch tool.</li>
+          </ul>
+        </div>
+        <div class="entry">
+          <span class="ver">main</span><span class="date">prior</span>
+          <ul>
+            <li>Public one-line installer, first-run wizard, SQLite sessions, evidence-driven completion.</li>
+            <li>Git checkpoint and rollback, atomic writes, secret redaction, path and symlink guards.</li>
+            <li>Sandbox broker, Playwright browser tools, MCP client (stdio), rotating ASCII splash.</li>
+            <li>GitHub Pages site and deploy workflow.</li>
+          </ul>
+        </div>
+      </div>
+      <p><a href="https://github.com/FeverDream-dev/Prometheus/releases" rel="noopener">View releases on GitHub</a> &middot; <a href="https://github.com/FeverDream-dev/Prometheus/blob/main/docs/COMPLETION_STATUS.md" rel="noopener">Read the completion status</a></p>
+    </section>
+
+    <section id="license" class="license" aria-labelledby="license-title">
+      <div class="section-head">
+        <span class="eyebrow">License</span>
+        <h2 id="license-title">License and commercial use</h2>
+        <p class="section-lead">
+          PROMETHEUS is dual-licensed. The models themselves retain their own upstream
+          licenses (for example Apache-2.0 for Granite, Gemma-Terms for Gemma, MIT for
+          VibeThinker). Licenses marked &ldquo;verify-at-install&rdquo; must be confirmed
+          from the upstream source before use.
+        </p>
+      </div>
+      <p class="callout">
+        The agent and its tooling are open to community use; commercial terms are defined
+        in the repository license. Commercial use of the bundled models is governed by
+        each model&rsquo;s own license &mdash; verify before deploying in production.
+      </p>
+      <p><a href="https://github.com/FeverDream-dev/Prometheus/blob/main/LICENSE.md" rel="noopener">Read LICENSE.md</a> &middot; <a href="https://github.com/FeverDream-dev/Prometheus/security/policy" rel="noopener">Security policy</a></p>
+    </section>
+
     <section id="preview" class="preview" aria-labelledby="preview-title">
-      <h2 id="preview-title">In the terminal</h2>
+      <div class="section-head">
+        <span class="eyebrow">In the terminal</span>
+        <h2 id="preview-title">A look at the TUI</h2>
+      </div>
       <!--
         PLACEHOLDER: A real terminal recording of the PROMETHEUS TUI and first-run
-        wizard belongs here once captured (a later milestone). This block is a
-        clearly-labelled placeholder, NOT a fabricated screenshot.
+        wizard belongs here once captured. This block is a clearly-labelled
+        placeholder, NOT a fabricated screenshot.
         TODO: replace with real terminal recording once TUI is captured.
       -->
       <div class="terminal-placeholder" role="img" aria-label="Placeholder area for a future terminal recording of the PROMETHEUS TUI. No real screenshot yet.">
         <div class="terminal-bar"><span class="dot"></span><span class="dot"></span><span class="dot"></span><span class="term-title">prometheus — first run</span></div>
         <pre class="terminal-body">$ prometheus setup
   detecting OS · CPU · RAM · GPU · VRAM · disk
-  ollama service: ready (3 models found)
-  recommended bundle: forge-12gb (~6.5 GB to download)
+  ollama service: ready (models found via /api/tags)
+  recommended package: shown only if it fits your hardware
   approve download? [y/N] _
-
-  PLACEHOLDER — a real terminal recording will replace this rendering.</pre>
+<span class="ph-note">  PLACEHOLDER — a real terminal recording will replace this rendering.</span></pre>
       </div>
     </section>
   </main>
 
   <footer class="site-footer">
-    <nav class="footer-links" aria-label="Project resources">
-      <a href="https://github.com/FeverDream-dev/Prometheus/releases" rel="noopener">Releases</a>
-      <a href="https://github.com/FeverDream-dev/Prometheus" rel="noopener">Source</a>
-      <a href="https://github.com/FeverDream-dev/Prometheus/issues" rel="noopener">Issues</a>
-      <a href="https://github.com/FeverDream-dev/Prometheus/blob/main/LICENSE.md" rel="noopener">License</a>
-      <a href="https://github.com/FeverDream-dev/Prometheus/security/policy" rel="noopener">Security policy</a>
-      <a href="https://github.com/FeverDream-dev/Prometheus/tree/main/docs" rel="noopener">Documentation</a>
-    </nav>
-    <p class="copyright">
-      PROMETHEUS &middot; <a href="https://github.com/FeverDream-dev/Prometheus" rel="noopener">FeverDream-dev/Prometheus</a>
-      &middot; Prometheus Community and Commercial License.
-    </p>
-    <p class="no-track-footer">No cookies. No analytics. No accounts. This page is static and self-contained.</p>
+    <div class="footer-inner">
+      <nav class="footer-links" aria-label="Project resources">
+        <a href="#install">Install</a>
+        <a href="#packages">Model packages</a>
+        <a href="#quota">Local vs cloud</a>
+        <a href="#features">Features</a>
+        <a href="#mcp">MCP and tools</a>
+        <a href="#security">Privacy</a>
+        <a href="#docs">Docs</a>
+        <a href="#releases">Releases</a>
+        <a href="#license">License</a>
+        <a href="https://github.com/FeverDream-dev/Prometheus" rel="noopener">Source</a>
+        <a href="https://github.com/FeverDream-dev/Prometheus/issues" rel="noopener">Issues</a>
+        <a href="https://github.com/FeverDream-dev/Prometheus/releases" rel="noopener">Releases on GitHub</a>
+        <a href="https://github.com/FeverDream-dev/Prometheus/blob/main/LICENSE.md" rel="noopener">License</a>
+        <a href="https://github.com/FeverDream-dev/Prometheus/security/policy" rel="noopener">Security policy</a>
+      </nav>
+      <p class="copyright">
+        PROMETHEUS &middot; <a href="https://github.com/FeverDream-dev/Prometheus" rel="noopener">FeverDream-dev/Prometheus</a>
+        &middot; Prometheus Community and Commercial License.
+      </p>
+      <p class="no-track-footer">No cookies. No analytics. No accounts. Static and self-contained.</p>
+    </div>
   </footer>
 
-  <script src="assets/js/install.js" defer></script>
+  <script src="assets/js/main.js" defer></script>
 </body>
 </html>
