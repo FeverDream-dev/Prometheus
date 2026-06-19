@@ -316,6 +316,41 @@ def _pick_recommended(bundles: list[BundleV2], report: HardwareReport) -> str | 
     return ranked[0].id
 
 
+_SECRET_KEY_RE = re.compile(r"(?i)(api[_-]?key|secret|token|password|credential)")
+_ABS_PATH_RE = re.compile(r"^/|[A-Za-z]:[\\/]|^\.\./")
+
+
+def sanitize_bundle(bundle: BundleV2) -> dict:
+    """Return a dict representation safe to export/share: strips any field whose
+    name looks like a secret, drops values containing absolute/personal paths,
+    and never includes API keys. Built-in v2 manifests have none of these, but
+    custom/user bundles must be sanitized before export."""
+    data = bundle.model_dump(mode="json")
+    return _strip_unsafe(data)
+
+
+def _strip_unsafe(node):
+    if isinstance(node, dict):
+        out = {}
+        for k, v in node.items():
+            if _SECRET_KEY_RE.search(str(k)):
+                continue
+            out[k] = _strip_unsafe(v)
+        return out
+    if isinstance(node, list):
+        return [_strip_unsafe(item) for item in node]
+    if isinstance(node, str):
+        if _ABS_PATH_RE.search(node) and "://" not in node:
+            return None
+        return node
+    return node
+
+
+def find_bundle(bundle_id: str, registry: list[BundleV2] | None = None) -> BundleV2 | None:
+    registry = registry if registry is not None else load_registry()
+    return next((b for b in registry if b.id == bundle_id), None)
+
+
 __all__ = [
     "BUILT_IN_DIR",
     "BundleHardware",
@@ -327,7 +362,9 @@ __all__ = [
     "RoleSpecV2",
     "classify_bundle",
     "classify_registry",
+    "find_bundle",
     "hardware_fits",
     "load_bundle",
     "load_registry",
+    "sanitize_bundle",
 ]

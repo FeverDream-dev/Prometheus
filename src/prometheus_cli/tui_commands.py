@@ -12,6 +12,7 @@ SLASH_COMMANDS = {
     "/doctor": "hardware + Ollama service report",
     "/sessions": "list recent coding sessions",
     "/qualify": "qualify the first installed model or a bundle (/qualify <id>)",
+    "/use": "select the active package (/use <id>, e.g. /use spark-cpu-8gb)",
     "/modes": "autonomy modes",
     "/clear": "clear the log",
     "/help": "show this help",

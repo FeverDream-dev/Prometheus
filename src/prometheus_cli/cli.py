@@ -7,7 +7,7 @@ from rich.console import Console
 from rich.panel import Panel
 from rich.prompt import Confirm, Prompt
 
-from .bundles import classify_registry, load_registry
+from .bundles import classify_registry, find_bundle, load_registry, sanitize_bundle
 from .config import ensure_home, load_bundle, load_settings, save_settings
 from .hardware import detect_hardware, recommended_profile
 from .installer import (
@@ -452,6 +452,59 @@ def bundles(
             console.print(f"    {role}: {spec.model}{opt}{pulled}")
         for reason in c.reasons:
             console.print(f"  [dim]• {reason}[/dim]")
+
+
+@app.command(name="use")
+def use_bundle(
+    bundle_id: str = typer.Argument(..., help="Package id, e.g. spark-cpu-8gb"),
+) -> None:
+    """Select the active model package (materializes it so run/tui use it)."""
+    import yaml
+
+    registry = load_registry()
+    match = find_bundle(bundle_id, registry)
+    if match is None:
+        console.print(f"[red]No package '{bundle_id}'.[/red] Available: "
+                      f"{', '.join(b.id for b in registry)}")
+        raise typer.Exit(code=1)
+    if match.is_add_on:
+        console.print(f"[red]'{bundle_id}' is an add-on (no controller) and cannot be the active package.[/red]")
+        raise typer.Exit(code=1)
+    settings = load_settings()
+    home = ensure_home()
+    active_dir = home / "bundles"
+    active_dir.mkdir(exist_ok=True)
+    active_path = active_dir / f"active-{match.id}.yaml"
+    v1 = match.to_v1_bundle()
+    active_path.write_text(yaml.safe_dump(v1.model_dump(mode="json"), sort_keys=False), encoding="utf-8")
+    settings.active_bundle_id = match.id
+    settings.bundle_file = active_path
+    save_settings(settings)
+    console.print(f"[green]Active package:[/green] {match.name} ({match.id})")
+    console.print(f"Controller: {match.controller_spec().model}")
+    quota = "quota-free / unlimited" if match.runtime.unlimited_local_sessions else "metered"
+    console.print(f"Local sessions: {quota}")
+    console.print(f"Materialized bundle: {active_path}")
+    console.print("Next: prometheus run \"<objective>\" --workspace .   (or: prometheus tui)")
+
+
+@app.command()
+def export(
+    bundle_id: str = typer.Argument(..., help="Package id to export"),
+    out: Path = typer.Option(Path("exported-bundle.yaml"), "--out", "-o"),
+) -> None:
+    """Export a sanitized bundle manifest (no secrets or personal paths)."""
+    import yaml
+
+    registry = load_registry()
+    match = find_bundle(bundle_id, registry)
+    if match is None:
+        console.print(f"[red]No package '{bundle_id}'.[/red]")
+        raise typer.Exit(code=1)
+    sanitized = sanitize_bundle(match)
+    out.write_text(yaml.safe_dump(sanitized, sort_keys=False), encoding="utf-8")
+    console.print(f"[green]Exported sanitized manifest:[/green] {out}")
+    console.print("[dim]Secret-named fields and absolute/personal paths were stripped.[/dim]")
 
 
 @app.command()

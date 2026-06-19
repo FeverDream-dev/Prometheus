@@ -212,7 +212,44 @@ class PrometheusApp(App):
         if cmd == "/qualify":
             self.run_worker(self._run_qualify, parts[1] if len(parts) > 1 else None)
             return
+        if cmd == "/use":
+            if len(parts) < 2:
+                _emit(["[yellow]Usage:[/yellow] /use <bundle-id>  (e.g. /use spark-cpu-8gb)"])
+                return
+            self.run_worker(self._run_use, parts[1])
+            return
         _emit([f"[yellow]Unknown command:[/yellow] {cmd}. Try [bold]/help[/bold]."])
+
+    def _run_use(self, bundle_id: str) -> None:
+        import yaml
+
+        from .bundles import find_bundle, load_registry
+        from .config import ensure_home, save_settings
+
+        def emit(line: str) -> None:
+            self.call_from_thread(self._log, line)
+
+        match = find_bundle(bundle_id, load_registry())
+        if match is None:
+            emit(f"[red]No package '{bundle_id}'.[/red]")
+            return
+        if match.is_add_on:
+            emit(f"[red]'{bundle_id}' is an add-on; cannot be the active package.[/red]")
+            return
+        settings = load_settings()
+        home = ensure_home()
+        active_dir = home / "bundles"
+        active_dir.mkdir(exist_ok=True)
+        active_path = active_dir / f"active-{match.id}.yaml"
+        active_path.write_text(
+            yaml.safe_dump(match.to_v1_bundle().model_dump(mode="json"), sort_keys=False),
+            encoding="utf-8",
+        )
+        settings.active_bundle_id = match.id
+        settings.bundle_file = active_path
+        save_settings(settings)
+        self.bundle_path = active_path
+        emit(f"[green]Active package:[/green] {match.name} ({match.id}) — controller {match.controller_spec().model}")
 
     def _run_qualify(self, bundle_id: str | None) -> None:
         from .bundles import load_registry

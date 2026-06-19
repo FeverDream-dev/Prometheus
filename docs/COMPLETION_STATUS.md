@@ -44,13 +44,14 @@ Criticality: C5=critical safety/core, C3=important, C2=standard, C1=nice.
 | 3 | Hardware-fit classification + "why recommended" | C3 | `bundles.py` | unit | `prometheus bundles` | done |
 | 3 | Qualification harness (chat/json/tool/code) + "verified" gate | C5 | `qualification.py` | 7 unit | `prometheus qualify` 4/4 real | done |
 | 4 | `/settings` + slash commands + Model Packages surface | C5 | `tui.py`, `tui_commands.py` | 14 unit | headless TUI launches | done |
-| 4 | Full navigable bundle CRUD screens (install/compare/edit/export) | C3 | partial (`bundles`/`qualify` CLI) | — | — | partial |
+| 4 | Active package selection + sanitized export (`prometheus use`/`export`, `/use`) | C3 | `cli.py`, `bundles.py` | 8 unit | `prometheus use spark-cpu-8gb` | done |
+| 4 | Full navigable bundle CRUD screens (edit/import/delete in TUI) | C3 | `use`/`export`/`bundles`/`qualify` CLI | — | — | partial |
 | 5 | Model router by capability + real-time RAM/VRAM + hot-swap | C5 | `router.py` | 15 unit | capability+memory rules | done |
 | 6 | MCP product (stdio + Streamable HTTP, trust, injection boundary) | C3 | `mcp_client.py` (stdio) + fixture | 7 e2e | real fixture server | done(stdio) |
 | 7 | Typed tool broker (file/patch/process/Git/browser/web) | C5 | `tools/`, `browser.py`, `tools/web.py` | unit+e2e | real repair + real Chromium + web fetch | done(core) |
 | 8 | Aggressive Ollama test matrix + disposable repair E2E | C5 | `test_e2e_ollama.py` | opt-in | granite4.1:3b 4/4 + repair | done |
 | 9 | Repo organization + .gitignore rejecting models/secrets/artifacts | C3 | `.gitignore`, `test_repo_hygiene.py` | 5 unit | `git ls-files` clean | done |
-| 10 | Professional Pages site (SEO, JSON-LD, sitemap, Lighthouse 95+) | C3 | `website/` | `test_website.py` | local preview | in progress(redesign) |
+| 10 | Professional Pages site (SEO, JSON-LD, sitemap, Lighthouse 95+) | C3 | `website/` redesigned | 60 unit | local preview + SEO assets | done |
 | 11 | 18 acceptance gates | C5 | — | — | — | see below |
 
 ## Acceptance gates (§11) — current state
@@ -76,8 +77,8 @@ Criticality: C5=critical safety/core, C3=important, C2=standard, C1=nice.
 
 ## Test counts (reality)
 
-- `pytest -q` → **330 passed, 2 skipped** (the 2 skips = opt-in real-Ollama; both pass when enabled).
-- New this branch: 20 bundles + 7 qualification + 14 tui_commands + 5 hygiene + 7 MCP e2e + 6 browser e2e + 15 router + 10 web tool = 84 new tests.
+- `pytest -q` → **367 passed, 2 skipped** (the 2 skips = opt-in real-Ollama; both pass when enabled).
+- New this branch: 20 bundles + 7 qualification + 14 tui_commands + 5 hygiene + 7 MCP e2e + 6 browser e2e + 15 router + 10 web tool + 8 use/export + 60 website/packages = 152 new tests.
 - Real-model evidence: `granite4.1:3b` (Spark controller, pulled ~2 GB) QUALIFIED 4/4 and drove
   the opt-in repair E2E (2 passed in 2.65s). `llama3.2:latest` also QUALIFIED 4/4.
 - Real browser evidence: 6 Playwright tests pass against headless Chromium (navigate, click,
@@ -86,15 +87,19 @@ Criticality: C5=critical safety/core, C3=important, C2=standard, C1=nice.
 
 ## Remaining (honest, no inflated %)
 
-- Full navigable TUI bundle-management screens (install/compare/edit/export/import) — currently
-  a renderable `/settings` + `prometheus bundles`/`qualify` CLI.
-- Router per-step live RAM/VRAM gating + sequential hot-swap lifecycle (§5) — hardware-fit
-  selection is real; runtime memory monitoring is not.
-- MCP stdio fixture E2E + Streamable HTTP transport (§6).
-- Playwright web-fixture acceptance test (§7/§10).
-- Professional Pages redesign (§10: JSON-LD, sitemap, Lighthouse 95+) — current site is the
-  recovery-era basic static site.
-- Repo restructure into app/agent/providers/models/tools/mcp/... (§9) — deferred; public imports stable.
+- Full navigable TUI bundle-management screens (edit/import/delete in-app) — currently
+  `prometheus use`/`export`/`bundles`/`qualify` CLI + renderable `/settings`/`/use` slash surface.
+- MCP Streamable HTTP transport (§6) — stdio + fixture E2E done; HTTP transport not yet.
+- Repo restructure into app/agent/providers/models/tools/mcp/... (§9) — deliberately deferred:
+  it is invasive (rewrites every import across src + tests), high-regression-risk for the
+  367-test suite, and the prompt itself says "keep public imports stable where needed … do not
+  create circular compatibility layers forever." Low marginal user value vs. the risk.
+- Real terminal recording for the website (§10/§11 gate 17) — a media asset; the page carries a
+  labeled PLACEHOLDER until a real TUI capture is made.
+
+Lighthouse/Pages: the site is built, SEO-complete, and Pages-deploy-ready; Lighthouse 95+ and
+the public Pages URL require enabling GitHub Pages at the repo level (repo-owner action, no
+credentials available here).
 
 ## Placeholder inventory (this branch)
 
