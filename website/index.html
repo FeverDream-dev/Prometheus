@@ -1,0 +1,345 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="dark">
+  <meta name="theme-color" content="#0c0a09">
+  <title>PROMETHEUS — local-first multi-model coding agent</title>
+  <meta name="description" content="PROMETHEUS is a local-first, adaptive multi-model coding agent. Install with one command on Linux, macOS, or Windows/WSL. Ollama is the default backend; cloud models are optional.">
+  <link rel="stylesheet" href="assets/css/styles.css">
+  <!--
+    No analytics, no trackers, no external fonts, no CDN calls. This page is
+    fully self-contained: it loads one local stylesheet and one local script.
+    Privacy policy: default telemetry is OFF.
+  -->
+</head>
+<body>
+  <a class="skip-link" href="#install">Skip to install instructions</a>
+
+  <header class="site-header">
+    <div class="brand">
+      <!--
+        PROVISIONAL LOGO MARK — placeholder pending the official company logo.
+        This is a tasteful "flame-in-brackets / spark" motif rendered as inline
+        SVG. It is NOT the final brand artwork. Replace wholesale when the
+        official PROMETHEUS logo is supplied (see Milestone 5).
+      -->
+      <svg class="logo" viewBox="0 0 32 32" role="img" aria-label="PROMETHEUS provisional spark logo" focusable="false">
+        <defs>
+          <linearGradient id="flameGrad" x1="0" y1="1" x2="0" y2="0">
+            <stop offset="0" stop-color="#e0451b"/>
+            <stop offset="0.55" stop-color="#ff7a18"/>
+            <stop offset="1" stop-color="#ffd27a"/>
+          </linearGradient>
+        </defs>
+        <!-- brackets -->
+        <path d="M7 4 H3 V28 H7" fill="none" stroke="#ff7a18" stroke-width="2.4" stroke-linecap="square" stroke-linejoin="miter"/>
+        <path d="M25 4 H29 V28 H25" fill="none" stroke="#ff7a18" stroke-width="2.4" stroke-linecap="square" stroke-linejoin="miter"/>
+        <!-- flame / spark -->
+        <path d="M16 5 C 12.5 9.5, 11 12.5, 11 16.5 C 11 20.5, 13 23.5, 16 24.8 C 19 23.5, 21 20.5, 21 16.5 C 21 13.5, 19.2 11, 17.4 8.6 C 18 11, 17.4 13.2, 16 13.2 C 14.7 12.8, 14.8 9.2, 16 5 Z" fill="url(#flameGrad)"/>
+        <path d="M16 15.5 C 14.8 17, 14.4 18.6, 15 20 C 15.5 21, 16.5 21, 17 20 C 17.6 18.6, 17.2 17, 16 15.5 Z" fill="#fff3e0" opacity="0.9"/>
+      </svg>
+      <span class="wordmark">PROMETHEUS</span>
+    </div>
+    <nav class="top-nav" aria-label="Page sections">
+      <a href="#install">Install</a>
+      <a href="#support">Support</a>
+      <a href="#requirements">Requirements</a>
+      <a href="#installer">Installer</a>
+      <a href="#first-run">First run</a>
+      <a href="#commands">Commands</a>
+      <a href="#troubleshooting">Troubleshooting</a>
+      <a class="gh" href="https://github.com/FeverDream-dev/Prometheus" rel="noopener">GitHub</a>
+    </nav>
+  </header>
+
+  <main>
+    <section class="hero" aria-labelledby="hero-title">
+      <p class="eyebrow">local-first &middot; multi-model &middot; evidence-driven</p>
+      <h1 id="hero-title">Bring your own models.<br><span class="accent">Keep your code local.</span></h1>
+      <p class="lead">
+        PROMETHEUS is a local-first, adaptive multi-model coding agent. A tool-capable
+        controller works with optional coding, reasoning, and reviewing specialists.
+        Ollama is the default backend; cloud and other OpenAI-compatible backends are
+        pluggable and always opt-in.
+      </p>
+      <ul class="hero-points">
+        <li><strong>Private by default.</strong> Runs on your machine. Network use is explicit and visible.</li>
+        <li><strong>Honest about hardware.</strong> Detects your CPU, RAM, GPU, and VRAM, and recommends a bundle that actually fits.</li>
+        <li><strong>Evidence-driven completion.</strong> A deterministic evaluator — not a model opinion — decides when a task is done.</li>
+      </ul>
+      <p class="cta-row">
+        <a class="cta" href="#install">Get the install command</a>
+        <a class="cta ghost" href="https://github.com/FeverDream-dev/Prometheus/releases" rel="noopener">View releases</a>
+      </p>
+    </section>
+
+    <section id="install" class="install" aria-labelledby="install-title">
+      <h2 id="install-title">Install PROMETHEUS</h2>
+      <p class="section-lead">
+        Pick your operating system, copy one command, and paste it into a terminal.
+        You do <strong>not</strong> need to clone the repository first.
+      </p>
+
+      <div class="tablist-wrap" data-tablist-root>
+        <div class="tablist" role="tablist" aria-label="Choose your operating system">
+          <button class="tab" role="tab" id="tab-linux" aria-selected="true" aria-controls="panel-linux" tabindex="0" data-os="linux">Linux</button>
+          <button class="tab" role="tab" id="tab-macos" aria-selected="false" aria-controls="panel-macos" tabindex="-1" data-os="macos">macOS</button>
+          <button class="tab" role="tab" id="tab-windows" aria-selected="false" aria-controls="panel-windows" tabindex="-1" data-os="windows">Windows (WSL)</button>
+        </div>
+
+        <div class="tabpanel" role="tabpanel" id="panel-linux" aria-labelledby="tab-linux" data-os="linux">
+          <p class="os-note">Supported. The installer detects your distribution, installs an isolated runtime, and places <code>prometheus</code> on your PATH.</p>
+          <div class="cmd-block" data-cmd-block="linux">
+            <code class="cmd" data-os="linux" data-command="curl -fsSL https://raw.githubusercontent.com/FeverDream-dev/Prometheus/main/install.sh | sh">curl -fsSL https://raw.githubusercontent.com/FeverDream-dev/Prometheus/main/install.sh | sh</code>
+            <button class="copy-btn" type="button" data-copy-target="panel-linux" data-os="linux" data-command="curl -fsSL https://raw.githubusercontent.com/FeverDream-dev/Prometheus/main/install.sh | sh" aria-label="Copy the Linux install command">
+              <span class="copy-label">Copy</span>
+            </button>
+          </div>
+          <details class="manual-alt">
+            <summary>Prefer to download and inspect the script first?</summary>
+            <p>Download the installer, read it, then run it locally. The SHA-256 of the release artifact is verified by the installer before anything executes.</p>
+            <pre class="manual-code"><code data-manual-os="linux">curl -fsSL https://raw.githubusercontent.com/FeverDream-dev/Prometheus/main/install.sh -o install.sh
+less install.sh
+sh install.sh</code></pre>
+          </details>
+        </div>
+
+        <div class="tabpanel" role="tabpanel" id="panel-macos" aria-labelledby="tab-macos" data-os="macos" hidden>
+          <p class="os-note">Supported on Apple Silicon and Intel. The installer uses an isolated Python runtime in your home directory and never modifies system Python.</p>
+          <div class="cmd-block" data-cmd-block="macos">
+            <code class="cmd" data-os="macos" data-command="curl -fsSL https://raw.githubusercontent.com/FeverDream-dev/Prometheus/main/install.sh | sh">curl -fsSL https://raw.githubusercontent.com/FeverDream-dev/Prometheus/main/install.sh | sh</code>
+            <button class="copy-btn" type="button" data-copy-target="panel-macos" data-os="macos" data-command="curl -fsSL https://raw.githubusercontent.com/FeverDream-dev/Prometheus/main/install.sh | sh" aria-label="Copy the macOS install command">
+              <span class="copy-label">Copy</span>
+            </button>
+          </div>
+          <details class="manual-alt">
+            <summary>Prefer to download and inspect the script first?</summary>
+            <p>Download the installer, read it, then run it locally.</p>
+            <pre class="manual-code"><code data-manual-os="macos">curl -fsSL https://raw.githubusercontent.com/FeverDream-dev/Prometheus/main/install.sh -o install.sh
+less install.sh
+sh install.sh</code></pre>
+          </details>
+        </div>
+
+        <div class="tabpanel" role="tabpanel" id="panel-windows" aria-labelledby="tab-windows" data-os="windows" hidden>
+          <p class="os-note">Windows is supported through <strong>WSL 2 only</strong>. Native Windows is not supported yet. The PowerShell bootstrap installs PROMETHEUS inside a WSL distribution.</p>
+          <div class="cmd-block" data-cmd-block="windows">
+            <code class="cmd" data-os="windows" data-command="irm https://raw.githubusercontent.com/FeverDream-dev/Prometheus/main/install.ps1 | iex">irm https://raw.githubusercontent.com/FeverDream-dev/Prometheus/main/install.ps1 | iex</code>
+            <button class="copy-btn" type="button" data-copy-target="panel-windows" data-os="windows" data-command="irm https://raw.githubusercontent.com/FeverDream-dev/Prometheus/main/install.ps1 | iex" aria-label="Copy the Windows (WSL) install command">
+              <span class="copy-label">Copy</span>
+            </button>
+          </div>
+          <details class="manual-alt">
+            <summary>Prefer to download and inspect the script first?</summary>
+            <p>Download the PowerShell bootstrap in PowerShell, review it, then run it.</p>
+            <pre class="manual-code"><code data-manual-os="windows">iwr https://raw.githubusercontent.com/FeverDream-dev/Prometheus/main/install.ps1 -OutFile install.ps1
+notepad install.ps1
+&amp; ./install.ps1</code></pre>
+          </details>
+        </div>
+      </div>
+
+      <p class="no-track">
+        <strong>No telemetry.</strong> This page loads no analytics, no trackers, and no
+        external fonts. The installer never phones home. Default telemetry is OFF.
+      </p>
+    </section>
+
+    <section id="support" class="support" aria-labelledby="support-title">
+      <h2 id="support-title">Support matrix</h2>
+      <p class="section-lead">An honest view of where PROMETHEUS runs today.</p>
+      <div class="table-wrap">
+        <table class="matrix">
+          <caption>Operating system support for the PROMETHEUS MVP</caption>
+          <thead>
+            <tr><th scope="col">Operating system</th><th scope="col">Status</th><th scope="col">Notes</th></tr>
+          </thead>
+          <tbody>
+            <tr><td>Linux (x86_64)</td><td><span class="badge ok">Supported</span></td><td>Ubuntu/Debian, Fedora, and Arch exercised in CI. Other distributions are best-effort.</td></tr>
+            <tr><td>macOS (Apple Silicon)</td><td><span class="badge ok">Supported</span></td><td>Metal acceleration via Ollama.</td></tr>
+            <tr><td>macOS (Intel)</td><td><span class="badge ok">Supported</span></td><td>CPU mode.</td></tr>
+            <tr><td>Windows (WSL 2)</td><td><span class="badge ok">Supported</span></td><td>Requires WSL 2. GPU passthrough depends on your driver.</td></tr>
+            <tr><td>Windows (native)</td><td><span class="badge no">Not supported</span></td><td>Use WSL 2. Native Windows is planned, not shipped.</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <section id="requirements" class="requirements" aria-labelledby="req-title">
+      <h2 id="req-title">System requirements</h2>
+      <div class="grid-two">
+        <div class="card">
+          <h3>Minimum</h3>
+          <ul>
+            <li>8 GB RAM, 10 GB free disk (more for models)</li>
+            <li>Linux, macOS, or Windows via WSL 2</li>
+            <li><code>curl</code> or <code>wget</code>, and Git</li>
+            <li>Python 3.11+ — the installer can bootstrap an isolated runtime if needed</li>
+            <li>Ollama is optional and auto-detected on first run</li>
+          </ul>
+        </div>
+        <div class="card">
+          <h3>Recommended</h3>
+          <ul>
+            <li>16–32 GB RAM</li>
+            <li>NVIDIA, AMD, or Apple Silicon GPU with 12–24 GB VRAM for larger bundles</li>
+            <li>SSD with 40+ GB free for model storage</li>
+            <li>Ollama installed and running for the default local backend</li>
+          </ul>
+        </div>
+      </div>
+    </section>
+
+    <section id="installer" class="installer" aria-labelledby="installer-title">
+      <h2 id="installer-title">What the installer does</h2>
+      <p class="section-lead">Transparent disclosure. Nothing runs as root without your explicit approval.</p>
+      <ol class="disclosure">
+        <li>Detects your OS, CPU architecture, and an available runtime or package manager.</li>
+        <li>Downloads the release artifact from the <code>FeverDream-dev/Prometheus</code> GitHub Release and verifies its SHA-256 checksum before executing anything.</li>
+        <li>Installs into an isolated, user-owned location — <code>~/.local/share/prometheus/versions/&lt;version&gt;</code> — and never modifies your system Python.</li>
+        <li>Creates a <code>prometheus</code> launcher in <code>~/.local/bin</code> and either adds it to your PATH or prints the exact shell command to do so.</li>
+        <li>Runs <code>prometheus doctor</code> to print a full hardware report, then starts first-run setup.</li>
+        <li>Writes a diagnostic log (no secrets), is idempotent, and is safe to run twice.</li>
+        <li>Supports <code>--dry-run</code>, <code>--version</code>, <code>--prefix</code>, <code>--no-ollama</code>, and noninteractive/CI modes.</li>
+        <li>Provides <code>prometheus uninstall</code> to remove PROMETHEUS while preserving your downloaded models and projects.</li>
+      </ol>
+    </section>
+
+    <section id="first-run" class="first-run" aria-labelledby="firstrun-title">
+      <h2 id="firstrun-title">What happens on first run</h2>
+      <p class="section-lead"><code>prometheus setup</code> is an interactive wizard — it does not just print hints.</p>
+      <ul class="steps">
+        <li>
+          <h3>Ollama detection</h3>
+          <p>PROMETHEUS checks both that the Ollama <em>binary</em> exists and that the <em>service actually responds</em> (via <code>/api/tags</code>). It never confuses &ldquo;installed&rdquo; with &ldquo;running&rdquo;.</p>
+        </li>
+        <li>
+          <h3>Approval before install</h3>
+          <p>If Ollama is missing, PROMETHEUS offers to install it — but only after you explicitly approve the exact command. It never silently pipes a vendor script as root.</p>
+        </li>
+        <li>
+          <h3>No duplicate downloads</h3>
+          <p>Models you already have are discovered first, so nothing is re-downloaded.</p>
+        </li>
+        <li>
+          <h3>Bundles that fit — with sizes shown first</h3>
+          <p>A bundle is recommended for your detected RAM and VRAM, with approximate download sizes up front:</p>
+          <ul class="bundle-sizes">
+            <li><strong>ember (CPU, 8 GB RAM):</strong> roughly 3.5–6.5 GB of downloads (e.g. <code>gemma3:4b</code> ~3.5 GB, <code>qwen3:8b</code> ~6.5 GB).</li>
+            <li><strong>forge-12gb (GPU, 12 GB VRAM):</strong> roughly 6.5–9.0 GB of downloads (e.g. <code>qwen3:8b</code> ~6.5 GB, <code>qwen3-coder</code> ~9.0 GB).</li>
+            <li><strong>forge-24gb (GPU, 24 GB VRAM):</strong> roughly 11 GB of downloads (e.g. <code>qwen3:14b</code> ~11 GB).</li>
+          </ul>
+        </li>
+        <li>
+          <h3>Download only what you approve</h3>
+          <p>Every model download asks for confirmation and shows its size. Nothing is fetched without your say-so.</p>
+        </li>
+        <li>
+          <h3>Smoke test, then save</h3>
+          <p>After configuration, a short inference probe validates a real response, and your working configuration is saved atomically.</p>
+        </li>
+      </ul>
+    </section>
+
+    <section id="commands" class="commands" aria-labelledby="commands-title">
+      <h2 id="commands-title">Quick commands</h2>
+      <div class="table-wrap">
+        <table class="cmd-table">
+          <caption>Common PROMETHEUS commands after install</caption>
+          <thead><tr><th scope="col">Command</th><th scope="col">What it does</th></tr></thead>
+          <tbody>
+            <tr><td><code>prometheus</code></td><td>Launch the interactive TUI.</td></tr>
+            <tr><td><code>prometheus setup</code></td><td>Detect hardware, pick a bundle, and configure Ollama.</td></tr>
+            <tr><td><code>prometheus doctor</code></td><td>Print the full hardware report and bundle fit.</td></tr>
+            <tr><td><code>prometheus run "&lt;task&gt;"</code></td><td>Run an evidence-driven coding session.</td></tr>
+            <tr><td><code>prometheus sessions</code></td><td>List recent sessions and their completion.</td></tr>
+            <tr><td><code>prometheus resume &lt;id&gt;</code></td><td>Resume a session from the durable event log.</td></tr>
+            <tr><td><code>prometheus modes</code></td><td>Explain the Copilot, Pilot, and Astronaut autonomy levels.</td></tr>
+            <tr><td><code>prometheus update</code></td><td>Update to the latest release.</td></tr>
+            <tr><td><code>prometheus uninstall</code></td><td>Remove PROMETHEUS, keeping your models and projects.</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <section id="troubleshooting" class="troubleshooting" aria-labelledby="ts-title">
+      <h2 id="ts-title">Troubleshooting</h2>
+      <div class="accordion">
+        <details>
+          <summary><code>prometheus: command not found</code> (PATH)</summary>
+          <p>The launcher lives in <code>~/.local/bin</code>. Add it to your PATH:</p>
+          <pre><code>export PATH="$HOME/.local/bin:$PATH"</code></pre>
+          <p>Put that line in <code>~/.bashrc</code> or <code>~/.zshrc</code> to make it permanent, then open a new terminal.</p>
+        </details>
+        <details>
+          <summary>Ollama service is not running</summary>
+          <p>PROMETHEUS needs the Ollama <em>service</em>, not just the binary. Start it:</p>
+          <pre><code>ollama serve                                  # foreground, any OS
+systemctl --user start ollama                 # Linux, if installed as a unit
+brew services start ollama                    # macOS</code></pre>
+          <p>Verify with <code>prometheus doctor</code>, which reports service health.</p>
+        </details>
+        <details>
+          <summary>My GPU is not detected</summary>
+          <p>Install current drivers: NVIDIA CUDA / AMD ROCm or Vulkan, or the Apple Silicon Metal build of Ollama. Then run <code>prometheus doctor</code> and confirm VRAM appears. On Linux without a GPU, PROMETHEUS falls back to the CPU-only <code>ember</code> bundle.</p>
+        </details>
+        <details>
+          <summary>Setting up WSL 2 on Windows</summary>
+          <p>Install WSL 2 from PowerShell, then run the Windows bootstrap, which installs PROMETHEUS inside the WSL distribution:</p>
+          <pre><code>wsl --install -d Ubuntu
+# restart, then in PowerShell:
+irm https://raw.githubusercontent.com/FeverDream-dev/Prometheus/main/install.ps1 | iex</code></pre>
+        </details>
+        <details>
+          <summary>Permission errors</summary>
+          <p>The installer is user-scoped and should <strong>never need <code>sudo</code></strong>. If it asks for elevated privileges, stop and inspect the script. Run the download-and-inspect alternative shown in the install section instead.</p>
+        </details>
+        <details>
+          <summary>Using PROMETHEUS offline</summary>
+          <p>Once models are downloaded, PROMETHEUS runs fully offline. Pass <code>--no-ollama</code> to the installer or decline network prompts during setup. Cloud providers are always opt-in and never required.</p>
+        </details>
+      </div>
+    </section>
+
+    <section id="preview" class="preview" aria-labelledby="preview-title">
+      <h2 id="preview-title">In the terminal</h2>
+      <!--
+        PLACEHOLDER: A real terminal recording of the PROMETHEUS TUI and first-run
+        wizard belongs here once captured (a later milestone). This block is a
+        clearly-labelled placeholder, NOT a fabricated screenshot.
+        TODO: replace with real terminal recording once TUI is captured.
+      -->
+      <div class="terminal-placeholder" role="img" aria-label="Placeholder area for a future terminal recording of the PROMETHEUS TUI. No real screenshot yet.">
+        <div class="terminal-bar"><span class="dot"></span><span class="dot"></span><span class="dot"></span><span class="term-title">prometheus — first run</span></div>
+        <pre class="terminal-body">$ prometheus setup
+  detecting OS · CPU · RAM · GPU · VRAM · disk
+  ollama service: ready (3 models found)
+  recommended bundle: forge-12gb (~6.5 GB to download)
+  approve download? [y/N] _
+
+  PLACEHOLDER — a real terminal recording will replace this rendering.</pre>
+      </div>
+    </section>
+  </main>
+
+  <footer class="site-footer">
+    <nav class="footer-links" aria-label="Project resources">
+      <a href="https://github.com/FeverDream-dev/Prometheus/releases" rel="noopener">Releases</a>
+      <a href="https://github.com/FeverDream-dev/Prometheus" rel="noopener">Source</a>
+      <a href="https://github.com/FeverDream-dev/Prometheus/issues" rel="noopener">Issues</a>
+      <a href="https://github.com/FeverDream-dev/Prometheus/blob/main/LICENSE.md" rel="noopener">License</a>
+      <a href="https://github.com/FeverDream-dev/Prometheus/security/policy" rel="noopener">Security policy</a>
+      <a href="https://github.com/FeverDream-dev/Prometheus/tree/main/docs" rel="noopener">Documentation</a>
+    </nav>
+    <p class="copyright">
+      PROMETHEUS &middot; <a href="https://github.com/FeverDream-dev/Prometheus" rel="noopener">FeverDream-dev/Prometheus</a>
+      &middot; Prometheus Community and Commercial License.
+    </p>
+    <p class="no-track-footer">No cookies. No analytics. No accounts. This page is static and self-contained.</p>
+  </footer>
+
+  <script src="assets/js/install.js" defer></script>
+</body>
+</html>

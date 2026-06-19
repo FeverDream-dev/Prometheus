@@ -1,0 +1,28 @@
+{
+  "repo": "FeverDream-dev/Prometheus",
+  "raw_base": "https://raw.githubusercontent.com/FeverDream-dev/Prometheus/main",
+  "description": "Canonical public install commands. Both website/assets/js/install.js and tests/test_website.py read this file so the website cannot drift from the fixed install contract. Do not change the one-liner commands without updating the PROMETHEUS_MVP_RECOVERY_PROMPT contract.",
+  "tabs": [
+    {
+      "id": "linux",
+      "label": "Linux",
+      "shell": "bash",
+      "command": "curl -fsSL https://raw.githubusercontent.com/FeverDream-dev/Prometheus/main/install.sh | sh",
+      "manual": "curl -fsSL https://raw.githubusercontent.com/FeverDream-dev/Prometheus/main/install.sh -o install.sh\nless install.sh\nsh install.sh"
+    },
+    {
+      "id": "macos",
+      "label": "macOS",
+      "shell": "bash",
+      "command": "curl -fsSL https://raw.githubusercontent.com/FeverDream-dev/Prometheus/main/install.sh | sh",
+      "manual": "curl -fsSL https://raw.githubusercontent.com/FeverDream-dev/Prometheus/main/install.sh -o install.sh\nless install.sh\nsh install.sh"
+    },
+    {
+      "id": "windows",
+      "label": "Windows (WSL)",
+      "shell": "powershell",
+      "command": "irm https://raw.githubusercontent.com/FeverDream-dev/Prometheus/main/install.ps1 | iex",
+      "manual": "iwr https://raw.githubusercontent.com/FeverDream-dev/Prometheus/main/install.ps1 -OutFile install.ps1\nnotepad install.ps1\n& ./install.ps1"
+    }
+  ]
+}
