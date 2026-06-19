@@ -4,6 +4,7 @@ import json
 import time
 from collections.abc import Callable
 
+from .escalation import FailureTracker
 from .models import AgentTurn, ModelBundle, Risk, Settings, ToolCall
 from .policy import requires_approval
 from .providers import create_provider
@@ -111,7 +112,7 @@ class Orchestrator:
             {"role": "system", "content": SYSTEM_PROMPT},
             {"role": "user", "content": objective},
         ]
-        failures = 0
+        failures = FailureTracker(self.settings.attempts_before_escalation)
         last_turn = AgentTurn(message="Not started")
         schema = AgentTurn.model_json_schema()
 
@@ -157,11 +158,15 @@ class Orchestrator:
                 return turn
 
             results = []
+            escalated_sig: str | None = None
             for call in turn.calls:
                 result = self._execute(call)
                 result = redact(result)
                 results.append({"tool": call.tool, "result": result})
-                failures = failures + 1 if result.startswith("ERROR") else 0
+                if result.startswith("ERROR"):
+                    sig = failures.record(call.tool, result)
+                    if sig:
+                        escalated_sig = sig
                 if session_id:
                     self.store.add_evidence(session_id, call.tool, result[:5000])
 
@@ -171,15 +176,25 @@ class Orchestrator:
                     {"role": "user", "content": "TOOL RESULTS:\n" + json.dumps(results)},
                 ]
             )
-            if failures >= self.settings.attempts_before_escalation and self.reviewer:
+            if escalated_sig and self.reviewer:
                 review = self.reviewer.complete(
                     [
-                        {"role": "system", "content": "Diagnose the repeated failure. Do not call tools."},
+                        {"role": "system", "content": (
+                            f"You have failed {self.settings.attempts_before_escalation} times "
+                            f"with the same error signature. Diagnose the root cause and propose "
+                            f"a materially different approach. Do not repeat the same fix."
+                        )},
                         {"role": "user", "content": json.dumps(results)},
                     ]
                 )
-                messages.append({"role": "user", "content": f"REVIEWER ADVICE:\n{review}"})
-                failures = 0
+                messages.append({
+                    "role": "user",
+                    "content": (
+                        f"ESCALATION: {failures.count_for(call.tool, result)} identical failures "
+                        f"detected. Try a materially different approach.\n{review}"
+                    ),
+                })
+                failures.reset(escalated_sig)
         if session_id:
             self.store.set_status(session_id, "blocked")
         return AgentTurn(
