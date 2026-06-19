@@ -5,14 +5,23 @@ from pathlib import Path
 import typer
 from rich.console import Console
 from rich.panel import Panel
-from rich.prompt import Confirm
+from rich.prompt import Confirm, Prompt
 
 from .config import load_bundle, load_settings, save_settings
 from .hardware import detect_hardware, recommended_profile
 from .models import AutonomyMode, Risk, ToolCall
+from .onboarding import (
+    check_ollama,
+    classify_bundle_fit,
+    explain_bundle,
+    list_available_bundles,
+    pick_default_bundle,
+)
 from .orchestrator import Orchestrator
 from .policy import mode_description
 
+CONFIG_DIR = Path(__file__).resolve().parent.parent.parent / "config"
+BUNDLES_DIR = CONFIG_DIR / "bundles"
 
 app = typer.Typer(help="PROMETHEUS — local-first adaptive coding agent", no_args_is_help=True)
 console = Console()
@@ -53,6 +62,89 @@ def doctor(json_output: bool = typer.Option(False, "--json")) -> None:
     console.print(f"Recommended bundle: [bold]{recommended_profile(report)}[/bold]")
     for note in report.notes:
         console.print(f"[dim]• {note}[/dim]")
+
+
+@app.command()
+def setup(
+    bundles_dir: Path = typer.Option(BUNDLES_DIR, "--bundles-dir"),
+    mode: AutonomyMode = typer.Option(AutonomyMode.PILOT),
+    bundle_name: str | None = typer.Option(None, "--bundle", help="Pre-select a bundle (non-interactive)"),
+    yes: bool = typer.Option(False, "--yes", help="Accept defaults without prompting"),
+    pull: bool = typer.Option(False, "--pull", help="Pull model files via Ollama after setup"),
+) -> None:
+    """Detect hardware, recommend a bundle, and configure PROMETHEUS."""
+    report = detect_hardware()
+    console.print(Panel.fit("PROMETHEUS setup"))
+    console.print(f"OS: {report.os} {report.architecture}" + (" (WSL)" if report.wsl else ""))
+    console.print(f"RAM: {report.ram_gb} GB | Disk free: {report.disk_free_gb} GB")
+    if report.gpu_vendor:
+        console.print(f"GPU: {report.gpu_name or report.gpu_vendor} ({report.vram_gb} GB VRAM)")
+    else:
+        console.print("GPU: CPU mode")
+    for note in report.notes:
+        console.print(f"[dim]• {note}[/dim]")
+
+    ollama = check_ollama()
+    if not ollama.installed:
+        console.print(f"\n[yellow]Ollama is not installed.[/yellow]\nInstall: {ollama.install_hint}")
+    elif not ollama.running:
+        console.print("\n[yellow]Ollama is installed but not running.[/yellow]\nStart it with: ollama serve")
+    else:
+        console.print(f"\nOllama: ready ({len(ollama.models)} models available)")
+
+    options = list_available_bundles(bundles_dir)
+    if not options:
+        console.print("[red]No bundles found.[/red] Pass --bundles-dir.")
+        raise typer.Exit(code=1)
+
+    default = pick_default_bundle(options, report)
+    for opt in options:
+        if opt is default:
+            continue
+        opt.fits, opt.reason = classify_bundle_fit(opt.bundle, report)
+
+    console.print("\n[bold]Available bundles:[/bold]")
+    for idx, opt in enumerate(options, 1):
+        marker = " (recommended)" if opt is default else ""
+        fit_label = "[green]fits[/green]" if opt.fits else "[red]does not fit[/red]"
+        console.print(f"  {idx}. {opt.name}{marker} — {fit_label}: {opt.reason}")
+
+    if bundle_name:
+        chosen = next((o for o in options if o.name == bundle_name), None)
+        if chosen is None:
+            console.print(f"[red]Bundle '{bundle_name}' not found.[/red]")
+            raise typer.Exit(code=1)
+    elif yes or default is None:
+        chosen = default or options[0]
+    else:
+        console.print(f"\nRecommended: [bold]{default.name}[/bold]")
+        console.print(explain_bundle(default.bundle, report))
+        selection = Prompt.ask(
+            "Choose a bundle by number, or press Enter for the recommended one",
+            default=str(options.index(default) + 1),
+        )
+        try:
+            chosen = options[int(selection) - 1]
+        except (ValueError, IndexError):
+            chosen = default
+
+    settings = load_settings()
+    settings.bundle_file = chosen.path
+    settings.mode = mode
+    path = save_settings(settings)
+    console.print(f"\nSaved [bold]{path}[/bold]")
+    console.print(f"Bundle: {chosen.name}")
+    console.print(mode_description(mode))
+
+    if pull and ollama.running:
+        for spec in chosen.bundle.models:
+            if spec.provider == "ollama":
+                console.print(f"Pulling {spec.model}…")
+                typer.echo(f"  Run manually to confirm: ollama pull {spec.model}")
+    elif pull and not ollama.running:
+        console.print("[yellow]Skipping model pull: Ollama is not running.[/yellow]")
+
+    console.print(f"\nNext: prometheus run \"<objective>\" --bundle {chosen.path} --workspace .")
 
 
 @app.command("init")

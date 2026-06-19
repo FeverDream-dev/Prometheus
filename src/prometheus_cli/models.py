@@ -28,7 +28,7 @@ class ModelSpec(BaseModel):
     base_url: str | None = None
     api_key_env: str | None = None
     context_window: int = 32768
-    keep_alive: str = "5m"
+    keep_alive: int | str = "5m"
     tool_capable: bool = True
     options: dict[str, Any] = Field(default_factory=dict)
 
