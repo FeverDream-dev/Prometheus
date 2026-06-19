@@ -7,7 +7,10 @@ never downloads a model without explicit confirmation, per PRODUCT_SPEC.
 
 from __future__ import annotations
 
+import json
+import platform
 import shutil
+import subprocess
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -125,9 +128,7 @@ def pick_default_bundle(options: list[BundleOption], report: HardwareReport) -> 
 
 def check_ollama(base_url: str = "http://127.0.0.1:11434") -> OllamaStatus:
     installed = shutil.which("ollama") is not None
-    import platform as _platform
-
-    hint = OLLAMA_INSTALL_HINTS.get(_platform.system(), "See https://ollama.com/download")
+    hint = OLLAMA_INSTALL_HINTS.get(platform.system(), "See https://ollama.com/download")
     if not installed:
         return OllamaStatus(installed=False, running=False, models=[], install_hint=hint)
     try:
@@ -138,3 +139,172 @@ def check_ollama(base_url: str = "http://127.0.0.1:11434") -> OllamaStatus:
         return OllamaStatus(installed=True, running=True, models=models, install_hint=hint)
     except (httpx.HTTPError, ValueError):
         return OllamaStatus(installed=True, running=False, models=[], install_hint=hint)
+
+
+@dataclass
+class InstallPlan:
+    command: str | None
+    description: str
+    needs_shell: bool
+
+
+def ollama_install_plan(system: str | None = None) -> InstallPlan:
+    """Return the command PROMETHEUS will run (after explicit consent) to install
+    Ollama on this platform, plus a human description. Returns command=None when no
+    automatic method applies and the user must install manually."""
+    sysname = system or platform.system()
+    if sysname == "Darwin":
+        if shutil.which("brew"):
+            return InstallPlan("brew install ollama", "Homebrew installs Ollama.", needs_shell=True)
+        return InstallPlan(
+            "curl -fsSL https://ollama.com/install.sh | sh",
+            "No Homebrew found; Ollama's official installer (may request sudo).",
+            needs_shell=True,
+        )
+    if sysname == "Linux" or _is_wsl():
+        return InstallPlan(
+            "curl -fsSL https://ollama.com/install.sh | sh",
+            "Ollama's official installer (may request sudo internally).",
+            needs_shell=True,
+        )
+    if sysname.startswith("Win"):
+        return InstallPlan(
+            "winget install Ollama.Ollama",
+            "winget installs the Ollama Windows package (use WSL for the Linux path).",
+            needs_shell=True,
+        )
+    return InstallPlan(None, f"No automatic install method for {sysname}. See https://ollama.com/download", False)
+
+
+def _is_wsl() -> bool:
+    try:
+        return "microsoft" in Path("/proc/version").read_text(encoding="utf-8").lower()
+    except OSError:
+        return False
+
+
+@dataclass
+class InstallResult:
+    success: bool
+    output: str
+    returncode: int
+
+
+def run_ollama_install(plan: InstallPlan, runner=None) -> InstallResult:
+    """Run the consented Ollama install command. Shell execution is intentional
+    here: install plans are piped vendor scripts (e.g. `curl ... | sh`) that cannot
+    be expressed as a pure argv array. The CLI MUST obtain explicit user approval
+    showing plan.command before calling this."""
+    if plan.command is None:
+        return InstallResult(False, "No install command available.", -1)
+    run = runner or subprocess.run
+    completed = run(plan.command, shell=plan.needs_shell, capture_output=True, text=True)
+    output = (completed.stdout or "") + (completed.stderr or "")
+    return InstallResult(completed.returncode == 0, output, completed.returncode)
+
+
+def start_ollama_service(base_url: str = "http://127.0.0.1:11434", runner=None) -> bool:
+    """Best-effort start of the Ollama service. Returns True if the API responds
+    afterwards. Never raises."""
+    if check_ollama(base_url).running:
+        return True
+    exe = shutil.which("ollama")
+    if not exe:
+        return False
+    run = runner or subprocess.Popen
+    try:
+        run([exe, "serve"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, start_new_session=True)
+    except OSError:
+        return False
+    for _ in range(20):
+        if check_ollama(base_url).running:
+            return True
+        import time
+
+        time.sleep(0.5)
+    return check_ollama(base_url).running
+
+
+def pull_model(
+    model: str,
+    base_url: str = "http://127.0.0.1:11434",
+    on_progress=None,
+    cancel_check=None,
+    client: httpx.Client | None = None,
+) -> bool:
+    """Pull a model via Ollama's streaming /api/pull, reporting progress through
+    on_progress(dict). Returns True on success. cancel_check() -> True aborts."""
+    cl = client or httpx.Client(timeout=httpx.Timeout(connect=10.0, read=None, write=10.0, pool=10.0))
+    try:
+        with cl.stream(
+            "POST",
+            f"{base_url.rstrip('/')}/api/pull",
+            json={"name": model, "stream": True},
+        ) as response:
+            response.raise_for_status()
+            for line in response.iter_lines():
+                if cancel_check and cancel_check():
+                    return False
+                if not line:
+                    continue
+                try:
+                    data = json.loads(line)
+                except ValueError:
+                    continue
+                if on_progress:
+                    on_progress(data)
+                if data.get("error"):
+                    return False
+                if data.get("status") == "success":
+                    return True
+        return True
+    except httpx.HTTPError:
+        return False
+    finally:
+        if client is None:
+            cl.close()
+
+
+def format_pull_progress(data: dict) -> str:
+    status = data.get("status", "")
+    completed = data.get("completed")
+    total = data.get("total")
+    if completed is not None and total:
+        pct = completed * 100 // total if total else 0
+        mb_done = completed / (1024 * 1024)
+        mb_total = total / (1024 * 1024)
+        return f"{status}: {pct}% ({mb_done:.0f}/{mb_total:.0f} MB)"
+    return status
+
+
+@dataclass
+class SmokeResult:
+    success: bool
+    model: str
+    response: str
+    error: str = ""
+
+
+def inference_smoke_test(
+    model: str,
+    base_url: str = "http://127.0.0.1:11434",
+    client: httpx.Client | None = None,
+) -> SmokeResult:
+    """Run a real one-token inference probe and validate a non-empty response."""
+    cl = client or httpx.Client(timeout=120.0)
+    try:
+        response = cl.post(
+            f"{base_url.rstrip('/')}/api/generate",
+            json={"model": model, "prompt": "Reply with the single word: ready", "stream": False},
+        )
+        if response.status_code != 200:
+            return SmokeResult(False, model, "", f"HTTP {response.status_code}")
+        content = response.json().get("response", "")
+        if content and content.strip():
+            return SmokeResult(True, model, content.strip())
+        return SmokeResult(False, model, "", "empty response")
+    except httpx.HTTPError as exc:
+        return SmokeResult(False, model, "", str(exc))
+    finally:
+        if client is None:
+            cl.close()

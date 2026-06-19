@@ -14,6 +14,8 @@ import os
 import platform
 import shutil
 import subprocess
+import urllib.error
+import urllib.request
 from dataclasses import asdict, dataclass, field
 
 _VENDOR_AMD = "0x1002"
@@ -35,6 +37,7 @@ class HardwareReport:
     unified_memory: bool = False
     disk_free_gb: float = 0
     ollama_installed: bool = False
+    ollama_running: bool = False
     docker_installed: bool = False
     wsl: bool = False
     notes: list[str] = field(default_factory=list)
@@ -52,6 +55,15 @@ def _run(cmd: list[str], *, timeout: float = 5.0) -> subprocess.CompletedProcess
 
 def _which(name: str) -> bool:
     return shutil.which(name) is not None
+
+
+def _ollama_service_running(base_url: str = "http://127.0.0.1:11434") -> bool:
+    try:
+        req = urllib.request.Request(f"{base_url.rstrip('/')}/api/tags", method="GET")
+        with urllib.request.urlopen(req, timeout=2.0) as resp:
+            return resp.status == 200
+    except (urllib.error.URLError, OSError, ValueError):
+        return False
 
 
 def _ram_gb_linux() -> float:
@@ -345,6 +357,7 @@ def detect_hardware() -> HardwareReport:
         unified_memory=unified,
         disk_free_gb=_disk_free_gb(),
         ollama_installed=_which("ollama"),
+        ollama_running=_ollama_service_running(),
         docker_installed=_which("docker"),
         wsl="microsoft" in release,
         notes=notes,

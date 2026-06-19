@@ -24,8 +24,13 @@ from .onboarding import (
     check_ollama,
     classify_bundle_fit,
     explain_bundle,
+    format_pull_progress,
+    inference_smoke_test,
     list_available_bundles,
+    ollama_install_plan,
     pick_default_bundle,
+    run_ollama_install,
+    start_ollama_service,
 )
 from .orchestrator import Orchestrator
 from .policy import mode_description
@@ -68,7 +73,12 @@ def doctor(json_output: bool = typer.Option(False, "--json")) -> None:
     else:
         console.print("GPU: CPU mode")
     console.print(f"Disk free: {report.disk_free_gb} GB")
-    console.print(f"Ollama: {'ready' if report.ollama_installed else 'not installed'}")
+    if report.ollama_running:
+        console.print("Ollama: installed, service running")
+    elif report.ollama_installed:
+        console.print("Ollama: installed, service NOT running (start with: ollama serve)")
+    else:
+        console.print("Ollama: not installed")
     console.print(f"Docker: {'ready' if report.docker_installed else 'not installed'}")
     console.print(f"Recommended bundle: [bold]{recommended_profile(report)}[/bold]")
     for note in report.notes:
@@ -97,9 +107,43 @@ def setup(
 
     ollama = check_ollama()
     if not ollama.installed:
-        console.print(f"\n[yellow]Ollama is not installed.[/yellow]\nInstall: {ollama.install_hint}")
+        plan = ollama_install_plan()
+        console.print("\n[yellow]Ollama is not installed.[/yellow]")
+        console.print("Recommended bundle needs Ollama for local inference.")
+        if plan.command:
+            console.print("PROMETHEUS can install it for you. It will run:")
+            console.print(f"  [bold]{plan.command}[/bold]")
+            console.print(f"[dim]({plan.description})[/dim]")
+        want_install = (bundle_name is None) and (not yes) and Confirm.ask(
+            "Install Ollama now with the command above?", default=False
+        )
+        if want_install and plan.command:
+            console.print("Running installer (it may request sudo internally)…")
+            result_install = run_ollama_install(plan)
+            if result_install.success:
+                console.print("[green]Ollama installed.[/green]")
+                if start_ollama_service():
+                    ollama = check_ollama()
+                    console.print(f"Ollama service: {'ready' if ollama.running else 'not responding'}")
+                else:
+                    console.print("[yellow]Install succeeded but the service did not respond. "
+                                  "Start it with: ollama serve[/yellow]")
+            else:
+                console.print(f"[red]Install failed (exit {result_install.returncode}).[/red]")
+                console.print(f"[dim]{result_install.output[-400:]}[/dim]")
+        else:
+            console.print(f"Install Ollama manually: {ollama.install_hint}")
+            console.print("Or re-run setup after installing, then pick a bundle.")
     elif not ollama.running:
-        console.print("\n[yellow]Ollama is installed but not running.[/yellow]\nStart it with: ollama serve")
+        console.print("\n[yellow]Ollama is installed but not running.[/yellow]")
+        if yes or Confirm.ask("Start the Ollama service now?", default=True):
+            if start_ollama_service():
+                ollama = check_ollama()
+                console.print(f"Ollama service: {'ready' if ollama.running else 'not responding'}")
+            else:
+                console.print("Start it manually with: ollama serve")
+        else:
+            console.print("Start it manually with: ollama serve")
     else:
         console.print(f"\nOllama: ready ({len(ollama.models)} models available)")
 
@@ -149,13 +193,56 @@ def setup(
 
     if pull and ollama.running:
         for spec in chosen.bundle.models:
-            if spec.provider == "ollama":
-                console.print(f"Pulling {spec.model}…")
-                typer.echo(f"  Run manually to confirm: ollama pull {spec.model}")
+            if spec.provider != "ollama":
+                continue
+            if spec.model in ollama.models:
+                console.print(f"Already installed: {spec.model}")
+                continue
+            console.print(f"Pulling {spec.model}…")
+            last = {"pct": -1}
+
+            def on_progress(data, _last=last):
+                line = format_pull_progress(data)
+                pct = data.get("completed", 0) * 100 // max(data.get("total", 1), 1)
+                if pct != _last["pct"] or data.get("status") in ("success", "pulling manifest"):
+                    console.print(f"  {line}")
+                    _last["pct"] = pct
+
+            from .onboarding import pull_model
+
+            ok = pull_model(spec.model, on_progress=on_progress)
+            if ok:
+                console.print(f"[green]Pulled {spec.model}.[/green]")
+            else:
+                console.print(f"[red]Pull failed for {spec.model}. "
+                              f"Run manually: ollama pull {spec.model}[/red]")
+        ollama = check_ollama()
+        controller_spec = next(
+            (s for s in chosen.bundle.models if s.provider == "ollama" and s.tool_capable),
+            chosen.bundle.models[0] if chosen.bundle.models else None,
+        )
+        if controller_spec and controller_spec.model in ollama.models:
+            console.print(f"\nRunning inference smoke test on [bold]{controller_spec.model}[/bold]…")
+            smoke = inference_smoke_test(controller_spec.model)
+            if smoke.success:
+                console.print(f"[green]Inference OK.[/green] Response: {smoke.response[:80]}")
+            else:
+                console.print(f"[yellow]Smoke test did not return a response: {smoke.error}[/yellow]")
+                console.print("[yellow]The model is installed; inference may still work for longer prompts.[/yellow]")
     elif pull and not ollama.running:
         console.print("[yellow]Skipping model pull: Ollama is not running.[/yellow]")
 
     console.print(f"\nNext: prometheus run \"<objective>\" --bundle {chosen.path} --workspace .")
+
+    if yes:
+        return
+    if Confirm.ask("Open the PROMETHEUS TUI now?", default=False):
+        try:
+            from .tui import launch_tui
+
+            launch_tui(bundle_path=chosen.path, workspace=Path.cwd())
+        except ImportError:
+            console.print("[red]Textual is not installed. Run: pip install 'prometheus-local-agent[tui]'[/red]")
 
 
 @app.command("init")
