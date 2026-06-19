@@ -7,6 +7,7 @@ from collections.abc import Callable
 from .models import AgentTurn, ModelBundle, Risk, Settings, ToolCall
 from .policy import requires_approval
 from .providers import create_provider
+from .redaction import redact
 from .session import SessionStore
 from .tools.workspace import WorkspaceTools
 
@@ -158,6 +159,7 @@ class Orchestrator:
             results = []
             for call in turn.calls:
                 result = self._execute(call)
+                result = redact(result)
                 results.append({"tool": call.tool, "result": result})
                 failures = failures + 1 if result.startswith("ERROR") else 0
                 if session_id:
