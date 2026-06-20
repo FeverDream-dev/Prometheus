@@ -11,17 +11,17 @@ Silicon GPUs and recommends a model bundle that actually fits your hardware.
 
 ## Install (public one-liner — no clone needed)
 
-**Linux / macOS / WSL:**
+**Linux / macOS / WSL** (from the GitHub Pages site):
 ```sh
-curl -fsSL https://raw.githubusercontent.com/FeverDream-dev/Prometheus/main/install.sh | sh
+curl -fsSL https://feverdream-dev.github.io/Prometheus/install.sh | sh
 ```
 
-**Windows (delegates to WSL):**
+**Windows** (delegates to WSL):
 ```powershell
-irm https://raw.githubusercontent.com/FeverDream-dev/Prometheus/main/install.ps1 | iex
+irm https://feverdream-dev.github.io/Prometheus/install.ps1 | iex
 ```
 
-Prefer to inspect first?
+Prefer the raw GitHub mirror, or want to inspect first?
 ```sh
 curl -fsSL https://raw.githubusercontent.com/FeverDream-dev/Prometheus/main/install.sh -o install.sh
 less install.sh      # review it
@@ -32,7 +32,8 @@ The installer downloads the **verified** release source archive from GitHub
 (SHA-256 checked for releases), creates an isolated versioned venv under
 `~/.local/share/prometheus/versions/<version>`, places a `prometheus` launcher
 in `~/.local/bin`, and runs `prometheus doctor`. It **never** touches your
-system Python and **never** depends on PyPI. Flags: `--dry-run`, `--version`,
+system Python and **never** depends on PyPI (it `pip install -e`s the extracted
+source tree, not a published package). Flags: `--dry-run`, `--version`,
 `--prefix`, `--no-tui`, `--no-ollama`, `--yes` (CI).
 
 ## Quick start

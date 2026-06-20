@@ -257,3 +257,36 @@ the manual `.github/workflows/vibethinker-sandbox-smoke.yml`.
 4edde5d docs(status): mark §17.16 passing — full §17 matrix now 80/80 = 100%
 f8667c2 feat(providers): labeled preset registry + fake-HTTP conformance harness
 ```
+
+---
+
+## Fresh verification run (this session)
+
+All six user-required commands executed against the real local models. The
+documented `config/bundles/vibethinker-sandbox-q2.yaml` path now resolves (the
+bundle is published at both `config/bundles/` and `config/bundles-v2/`).
+
+```
+$ prometheus sandbox doctor
+  basic   available   docker  available   native  available (bwrap)
+$ prometheus models inspect vibethinker-q2
+  alias: vibethinker-q2 -> hf.co/prithivMLmods/VibeThinker-3B-GGUF:Q2_K
+  installed locally: yes   inference: OK — 8244664656464656
+$ prometheus models pull vibethinker-q2     # Already installed; inference probe OK
+$ prometheus models pull vibethinker-q4     # 1.93 GB pulled; inference OK (<think> reasoning)
+$ prometheus provider smoke --provider ollama --model hf.co/prithivMLmods/VibeThinker-3B-GGUF:Q2_K
+  health: OK · list_models: 5 (includes target) · completion: OK · unload: OK · smoke result: PASS
+$ prometheus sandbox test --bundle config/bundles/vibethinker-sandbox-q2.yaml \
+      --workspace tests/fixtures/sandbox_target --all
+  passed=16 failed=0 skipped=1 ok=True
+```
+
+Sandbox suite (real VibeThinker Q2_K inference): every `basic.*` policy block
+PASS, `mcp.permission_bypass_blocked` PASS, docker + native PASS,
+`ollama.vibethinker_inference` PASS (real tokens), `memory.updated` PASS,
+`git.checkpoint_rollback` PASS. The single SKIP is `browser.sandboxed_fixture_test`
+(Playwright E2E lives in `tests/integration/test_browser_sandbox_policy.py`,
+skipped when Playwright isn't installed — precise reason given).
+
+531 tests passed, 8 skipped. ruff clean. No model weights or `.prometheus/`
+runtime state committed (verified).
