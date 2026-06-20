@@ -1,6 +1,7 @@
 from .base import Provider
 from .ollama import OllamaProvider
 from .openai_compat import OpenAICompatibleProvider
+from .presets import PRESETS, create_provider_from_preset
 
 
 def create_provider(spec) -> Provider:
@@ -9,5 +10,5 @@ def create_provider(spec) -> Provider:
     return OpenAICompatibleProvider(spec)
 
 
-__all__ = ["Provider", "create_provider"]
+__all__ = ["PRESETS", "Provider", "create_provider", "create_provider_from_preset"]
 
