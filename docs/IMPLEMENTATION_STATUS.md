@@ -10,7 +10,7 @@ One incomplete critical row blocks the phase gate.
 
 Legend: `passing` · `partial` · `placeholder` · `missing`
 
-**Last updated:** commit `770aa29` — **443 tests passed, 3 skipped** (up from 91
+**Last updated:** commit `f8667c2` — **493 tests passed, 3 skipped** (up from 91
 at the prior status snapshot). This file was rewritten because it had drifted
 badly out of sync (it documented 82% / 91 tests while the tree had grown to the
 full Phase 2 feature set).
@@ -19,7 +19,7 @@ full Phase 2 feature set).
 
 ```sh
 . .venv/bin/activate
-python -m pytest -q                       # 443 passed, 3 skipped
+python -m pytest -q                       # 493 passed, 3 skipped
 ruff check src tests                       # clean
 python -m compileall -q src                # clean
 prometheus --help                          # 16 top-level + 5 sub-app command groups
@@ -48,14 +48,14 @@ prometheus models list && prometheus mcp list && prometheus astronaut --help
 | 13 | MCP stdio client MVP + test | 3 | passing | `pytest tests/test_mcp.py tests/test_mcp_e2e.py` · `prometheus mcp test <name>` | stdio JSON-RPC init/list/call + untrusted delimiters |
 | 14 | Playwright browser test MVP + test | 3 | passing | `pytest tests/test_browser.py tests/test_browser_e2e.py` · `prometheus browser test <url>` | console/network evidence collection |
 | 15 | Sandbox mode is more than a flag | 5 | passing | `pytest tests/test_sandbox.py` | SandboxTier enum (off/basic/docker/native); BASIC hard-denies catastrophic commands; NATIVE = bwrap/sandbox-exec |
-| 16 | Provider conformance tests exist | 3 | partial | `pytest tests/test_providers.py` | Ollama + OpenAI-compat unit tests pass; fake-HTTP-server harness for all 11 labels is the remaining gap |
+| 16 | Provider conformance tests exist | 3 | passing | `pytest tests/test_provider_conformance.py` | 10 labeled presets + parametrized fake-HTTP harness (complete/list/health/capabilities/structured/error) |
 | 17 | Astronaut long-run session commands exist as working MVP | 5 | passing | `prometheus astronaut --help` · `pytest tests/test_astronaut.py` | start/status/pause/resume/stop + .prometheus/STOP+PAUSE + heartbeat + budgets + periodic checkpoints |
 | 18 | CI covers Linux/macOS/Windows + installer syntax + site build | 3 | passing | `cat .github/workflows/ci.yml pages.yml install-smoke.yml` | + install-smoke.yml weekly public one-liner test |
 | 19 | No weights/caches/DBs/secrets committed | 5 | passing | `pytest tests/test_repo_hygiene.py` | .gitignore enforces |
 | 20 | IMPLEMENTATION_STATUS.md updated with evidence | 3 | passing | this file | — |
 
-**§17 weighted gate:** 80 total · 79 passing · 1 partial (provider conformance harness, weight 3).
-**§17 completion: 79/80 ≈ 99%.** The one partial row is non-critical and already has unit-level coverage.
+**§17 weighted gate:** 80 total · 80 passing · 0 partial.
+**§17 completion: 80/80 = 100%.** Every §17 acceptance criterion is now passing with code + tests + evidence.
 
 ---
 
@@ -155,7 +155,7 @@ prometheus models list && prometheus mcp list && prometheus astronaut --help
 | Ollama provider | `providers/ollama.py` | `tests/test_providers.py` | passing |
 | OpenAI-compatible provider | `providers/openai_compat.py` | `tests/test_providers.py` | passing |
 | Capability router w/ sequential hot-swap | `router.py` | `tests/test_router.py` | passing |
-| Distinct labeled presets + fake-HTTP conformance harness | — | — | **partial** (remaining gap) |
+| Distinct labeled presets (10) + fake-HTTP conformance harness | `providers/presets.py` | `tests/test_provider_conformance.py` | passing |
 
 ### Splash / logo
 | Feature | Implementation | Test | Status |
@@ -176,11 +176,6 @@ prometheus models list && prometheus mcp list && prometheus astronaut --help
   endpoint configuration.
 
 ## Remaining gaps (honest, non-blocking)
-1. **Provider conformance fake-HTTP harness (§11, §17.16 — partial):** Ollama +
-   OpenAI-compat have unit tests; a dedicated fake-HTTP-server conformance
-   harness covering all 11 provider labels (OpenAI, Anthropic, OpenRouter, Z.ai,
-   Grok, Gemini, Mistral, DeepSeek, llama.cpp, etc.) is the remaining work.
-   Today these ride on the OpenAI-compat adapter without distinct display labels.
 2. **arena_mode enum (§8):** `multi_agent_review` exists; a distinct
    `arena_mode` (off/simple/worktree) setting is reachable via the
    `deep_arena` API but not yet a top-level CLI flag.
@@ -189,7 +184,8 @@ prometheus models list && prometheus mcp list && prometheus astronaut --help
    (opt-in `PROMETHEUS_E2E_OLLAMA=1` tests exist for the verified path).
 
 ## Git checkpoints (this recovery session)
-```
+f8667c2 feat(providers): labeled preset registry + fake-HTTP conformance harness
+4f6f1f7 docs(status): rewrite IMPLEMENTATION_STATUS + README + audit from 443-passing reality
 770aa29 feat(bundles): list/inspect/qualify subcommands + cloud-hybrid package
 e8acd0c feat(sandbox+tui+logo+ci): real sandbox tiers, full /settings, logo.py, install-smoke
 e2ccab3 feat(cli): models/mcp/browser/astronaut command groups + gap audit
