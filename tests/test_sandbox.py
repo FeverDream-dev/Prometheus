@@ -206,3 +206,69 @@ class TestSandboxTier:
         result = tools.run_command(["echo", "safe"])
         assert "exit_code=0" in result
         assert "BLOCKED" not in result
+
+
+class TestPolicyGates:
+    def _tools(self, workspace, tier, allow_network=True, allow_install=False):
+        from prometheus_cli.models import Settings
+        from prometheus_cli.tools.workspace import WorkspaceTools
+
+        workspace.mkdir(parents=True, exist_ok=True)
+        settings = Settings(sandbox_tier=tier, allow_network=allow_network,
+                            allow_package_install=allow_install)
+        return WorkspaceTools.from_settings(workspace, settings)
+
+    def test_sudo_blocked_under_basic(self, workspace):
+        from prometheus_cli.models import SandboxTier
+        tools = self._tools(workspace, SandboxTier.BASIC)
+        assert "BLOCKED privilege escalation" in tools.run_command(["sudo", "ls"])
+
+    def test_curl_pipe_sh_blocked_under_basic(self, workspace):
+        from prometheus_cli.models import SandboxTier
+        tools = self._tools(workspace, SandboxTier.BASIC)
+        assert "BLOCKED pipe-to-shell" in tools.run_command(["curl", "http://x", "|", "sh"])
+
+    def test_chmod_r_777_root_blocked(self, workspace):
+        from prometheus_cli.models import SandboxTier
+        tools = self._tools(workspace, SandboxTier.BASIC)
+        assert "BLOCKED catastrophic" in tools.run_command(["chmod", "-R", "777", "/"])
+
+    def test_network_command_blocked_when_disabled(self, workspace):
+        from prometheus_cli.models import SandboxTier
+        tools = self._tools(workspace, SandboxTier.BASIC, allow_network=False)
+        assert "BLOCKED network" in tools.run_command(["curl", "http://example.com"])
+
+    def test_network_command_allowed_when_enabled(self, workspace):
+        from prometheus_cli.models import SandboxTier
+        tools = self._tools(workspace, SandboxTier.BASIC, allow_network=True)
+        result = tools.run_command(["echo", "curl-word"])
+        assert "BLOCKED" not in result
+
+    def test_install_blocked_when_disabled(self, workspace):
+        from prometheus_cli.models import SandboxTier
+        tools = self._tools(workspace, SandboxTier.BASIC, allow_install=False)
+        assert "BLOCKED package install" in tools.run_command(["pip", "install", "x"])
+
+    def test_install_allowed_when_enabled(self, workspace):
+        from prometheus_cli.models import SandboxTier
+        tools = self._tools(workspace, SandboxTier.BASIC, allow_install=True)
+        result = tools.run_command(["echo", "pip-word"])
+        assert "BLOCKED" not in result
+
+    def test_off_tier_allows_everything(self, workspace):
+        from prometheus_cli.models import SandboxTier
+        tools = self._tools(workspace, SandboxTier.OFF, allow_network=False, allow_install=False)
+        result = tools.run_command(["echo", "ok"])
+        assert "BLOCKED" not in result
+
+    def test_symlink_escape_blocked_on_write(self, workspace, tmp_path):
+        import pytest
+        from prometheus_cli.models import SandboxTier
+
+        outside = tmp_path / "outside.txt"
+        outside.write_text("secret")
+        tools = self._tools(workspace, SandboxTier.BASIC)
+        link = workspace / "escape"
+        link.symlink_to(outside)
+        with pytest.raises(PermissionError):
+            tools.write_file("escape", "overwrite")

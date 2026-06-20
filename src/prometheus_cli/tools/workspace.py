@@ -10,9 +10,19 @@ from ..models import SandboxTier, Settings
 from ..sandbox import SandboxBroker
 
 _CATASTROPHIC = re.compile(
-    r"(?:^|\s)(?:rm\s+-rf?\s*[/%~]|rm\s+-[a-z]*r[a-z]*\s*[/%~]|mkfs|dd\s+.*of=/dev/|:\(\)\s*\{|>\s*/dev/sda|shutdown|halt|reboot)",
+    r"(?:^|\s)(?:rm\s+-rf?\s*[/%~]|rm\s+-[a-z]*r[a-z]*\s*[/%~]|mkfs|dd\s+.*of=/dev/|"
+    r":\(\)\s*\{|>\s*/dev/sd|shutdown|halt|reboot|chmod\s+-R\s+777\s*[/%~]|"
+    r"chown\s+-R\s+\S+\s*[/%~])",
     re.IGNORECASE,
 )
+_REQUIRES_NETWORK = re.compile(r"(?:^|\s|/)(?:curl|wget|nc|netcat|ssh|scp|ftp|telnet)\b", re.IGNORECASE)
+_REQUIRES_INSTALL = re.compile(
+    r"(?:^|\s|/)(?:pip|pip3|pipx|uv\s+pip|apt|apt-get|brew|npm|yarn|pnpm|gem\s+install|"
+    r"cargo\s+install|go\s+install|winget)\b",
+    re.IGNORECASE,
+)
+_REQUIRES_PRIVILEGE = re.compile(r"(?:^|\s)(?:sudo|su\b|doas)\b", re.IGNORECASE)
+_PIPE_TO_SHELL = re.compile(r"\|\s*(?:sh|bash|zsh)\b", re.IGNORECASE)
 
 
 class WorkspaceTools:
@@ -20,12 +30,16 @@ class WorkspaceTools:
         self.root = root.resolve()
         self.sandbox = sandbox or SandboxBroker(self.root, enabled=False)
         self.tier = SandboxTier.OFF
+        self.allow_network = True
+        self.allow_package_install = False
 
     @classmethod
     def from_settings(cls, root: Path, settings: Settings) -> WorkspaceTools:
         tier = settings.effective_sandbox_tier()
         tools = cls(root)
         tools.tier = tier
+        tools.allow_network = settings.allow_network
+        tools.allow_package_install = settings.allow_package_install
         if tier == SandboxTier.NATIVE:
             tools.sandbox = SandboxBroker(tools.root, enabled=True)
         else:
@@ -63,15 +77,32 @@ class WorkspaceTools:
             if path.is_file() and ".git" not in path.parts
         )[:100_000]
 
+    def _policy_block(self, command: list[str]) -> str | None:
+        if self.tier == SandboxTier.OFF:
+            return None
+        rendered = " ".join(command)
+        if _CATASTROPHIC.search(rendered):
+            return ("catastrophic command",
+                    "hard-deny pattern (rm -rf /, mkfs, dd to device, chmod -R 777 /, fork bomb, etc.)")
+        if _REQUIRES_PRIVILEGE.search(rendered):
+            return ("privilege escalation", "sudo/su/doas is blocked under sandbox")
+        if _PIPE_TO_SHELL.search(rendered):
+            return ("pipe-to-shell", "piping untrusted output to a shell is blocked under sandbox")
+        if _REQUIRES_INSTALL.search(rendered) and not self.allow_package_install:
+            return ("package install", "package install disabled (set allow_package_install=True to permit)")
+        if _REQUIRES_NETWORK.search(rendered) and not self.allow_network:
+            return ("network", "network command disabled (set allow_network=True to permit)")
+        return None
+
     def run_command(self, command: list[str], timeout: int = 120) -> str:
         if not command:
             raise ValueError("command cannot be empty")
-        rendered = " ".join(command)
-        if self.tier != SandboxTier.OFF and _CATASTROPHIC.search(rendered):
+        block = self._policy_block(command)
+        if block is not None:
+            label, reason = block
             return (
-                f"[sandbox:{self.tier.value}] BLOCKED catastrophic command\n"
-                f"command matched a hard-deny pattern (rm -rf /, mkfs, dd to device, fork bomb, etc.).\n"
-                f"Re-run with an explicit, scoped command if this was intended."
+                f"[sandbox:{self.tier.value}] BLOCKED {label}\n"
+                f"{reason}.\nRe-run with an explicit, scoped command or adjust policy if this was intended."
             )
         wrapped = self.sandbox.wrap(command)
         result = subprocess.run(

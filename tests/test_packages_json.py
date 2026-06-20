@@ -101,7 +101,8 @@ class PackagesJsonDriftTests(unittest.TestCase):
         names = {p["name"] for p in self.packages}
         self.assertEqual(
             names,
-            {"Spark", "Ember", "Forge", "Oracle", "Titan", "Hephaestus", "VibeThinker", "Cloud-Hybrid"},
+            {"Spark", "Ember", "Forge", "Oracle", "Titan", "Hephaestus", "VibeThinker",
+             "Cloud-Hybrid", "VibeThinker Sandbox Q2", "VibeThinker Sandbox Q4"},
         )
 
     def test_repo_field_is_correct(self):

@@ -262,6 +262,66 @@
         {"model": "granite4.1:3b", "license": "Apache-2.0", "source": "https://ollama.com/library/granite4.1"},
         {"model": "qwen3-coder:latest", "license": "verify-at-install", "source": "https://ollama.com/library/qwen3-coder"}
       ]
+    },
+    {
+      "id": "vibethinker-sandbox-q2",
+      "name": "VibeThinker Sandbox Q2",
+      "subtitle": "sandbox smoke test model",
+      "tier": "sandbox",
+      "status": "experimental",
+      "experimental": true,
+      "addon": false,
+      "description": "Smallest practical local reasoning model for proving PROMETHEUS sandbox + real inference. PROMETHEUS owns the tool loop.",
+      "recommended_for": ["sandbox smoke tests", "real-inference proof", "CI on 8 GB hosts"],
+      "min_ram_gb": 8,
+      "rec_ram_gb": 12,
+      "min_vram_gb": 0,
+      "min_disk_gb": 4,
+      "provider": "ollama-huggingface-gguf",
+      "min_runtime_version": "latest-qualified",
+      "default_context": 4096,
+      "context_ceiling": 16384,
+      "sequential_loading": true,
+      "unlimited_local_sessions": true,
+      "total_download_gb": 1.27,
+      "core_download_gb": 1.27,
+      "roles": [
+        {"role": "controller", "model": "hf.co/prithivMLmods/VibeThinker-3B-GGUF:Q2_K", "download_gb": 1.27, "optional": false, "capabilities": ["text", "reasoning"], "prohibited_capabilities": ["tools"]}
+      ],
+      "licenses": [
+        {"model": "WeiboAI/VibeThinker-3B", "license": "MIT", "source": "https://huggingface.co/WeiboAI/VibeThinker-3B"},
+        {"model": "prithivMLmods/VibeThinker-3B-GGUF", "license": "verify-community-quantization", "source": "https://huggingface.co/prithivMLmods/VibeThinker-3B-GGUF"}
+      ]
+    },
+    {
+      "id": "vibethinker-sandbox-q4",
+      "name": "VibeThinker Sandbox Q4",
+      "subtitle": "higher-quality sandbox test model",
+      "tier": "sandbox",
+      "status": "experimental",
+      "experimental": true,
+      "addon": false,
+      "description": "Higher-quality VibeThinker-3B GGUF (Q4_K_M) for sandbox proof when disk/VRAM allow. PROMETHEUS owns the tool loop.",
+      "recommended_for": ["sandbox proof with better reasoning", "8 GB+ hosts"],
+      "min_ram_gb": 8,
+      "rec_ram_gb": 16,
+      "min_vram_gb": 0,
+      "min_disk_gb": 6,
+      "provider": "ollama-huggingface-gguf",
+      "min_runtime_version": "latest-qualified",
+      "default_context": 8192,
+      "context_ceiling": 32768,
+      "sequential_loading": true,
+      "unlimited_local_sessions": true,
+      "total_download_gb": 1.93,
+      "core_download_gb": 1.93,
+      "roles": [
+        {"role": "controller", "model": "hf.co/prithivMLmods/VibeThinker-3B-GGUF:Q4_K_M", "download_gb": 1.93, "optional": false, "capabilities": ["text", "reasoning"], "prohibited_capabilities": ["tools"]}
+      ],
+      "licenses": [
+        {"model": "WeiboAI/VibeThinker-3B", "license": "MIT", "source": "https://huggingface.co/WeiboAI/VibeThinker-3B"},
+        {"model": "prithivMLmods/VibeThinker-3B-GGUF", "license": "verify-community-quantization", "source": "https://huggingface.co/prithivMLmods/VibeThinker-3B-GGUF"}
+      ]
     }
   ]
 }

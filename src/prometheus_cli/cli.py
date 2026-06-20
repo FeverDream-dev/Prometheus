@@ -793,6 +793,8 @@ models_app = typer.Typer(help="List, pull, and unload Ollama models")
 mcp_app = typer.Typer(help="Manage MCP stdio servers")
 browser_app = typer.Typer(help="Browser automation (Playwright)")
 astronaut_app = typer.Typer(help="Long-running autonomous sessions")
+sandbox_app = typer.Typer(help="Sandbox doctor + enforcement test suite")
+provider_app = typer.Typer(help="Provider smoke probes")
 
 
 @models_app.command("list")
@@ -822,23 +824,29 @@ def models_list(
 
 @models_app.command("pull")
 def models_pull(
-    model: str = typer.Argument(None, help="Model tag (e.g. llama3.2:latest). Omit to pull the active bundle's models."),
+    model: str = typer.Argument(None, help="Model tag or alias (e.g. llama3.2:latest or vibethinker-q2). Omit to pull the active bundle's models."),
     bundle_id: str = typer.Option(None, "--bundle", help="Pull every role model of this package id"),
     base_url: str = typer.Option("http://127.0.0.1:11434", "--base-url"),
+    verify: bool = typer.Option(True, "--verify/--no-verify", help="Run a one-token inference probe after pull"),
 ) -> None:
     """Pull a model (or a whole bundle's roles) via Ollama with live progress."""
-    from .onboarding import check_ollama, format_pull_progress, pull_model, start_ollama_service
+    from .model_aliases import resolve_alias
+    from .onboarding import check_ollama, format_pull_progress, inference_smoke_test, pull_model, start_ollama_service
 
     status = check_ollama(base_url)
     if not status.running:
         if not start_ollama_service(base_url):
             console.print(f"[red]Ollama service not responding at {base_url}.[/red]")
+            console.print("[dim]Install: curl -fsSL https://ollama.com/install.sh | sh  ·  then: ollama serve[/dim]")
             raise typer.Exit(code=1)
         status = check_ollama(base_url)
 
     targets: list[str] = []
     if model:
-        targets = [model]
+        resolved = resolve_alias(model)
+        if resolved != model:
+            console.print(f"[dim]alias {model} -> {resolved}[/dim]")
+        targets = [resolved]
     elif bundle_id:
         registry = load_registry()
         match = find_bundle(bundle_id, registry)
@@ -853,28 +861,65 @@ def models_pull(
             if match:
                 targets = [r.model for r in match.roles.values()]
         if not targets:
-            console.print("[red]Provide a model tag, --bundle <id>, or set an active package (prometheus use <id>).[/red]")
+            console.print("[red]Provide a model tag/alias, --bundle <id>, or set an active package (prometheus use <id>).[/red]")
             raise typer.Exit(code=1)
 
     for tag in targets:
         if tag in status.models:
             console.print(f"Already installed: {tag}")
-            continue
-        console.print(f"Pulling {tag}…")
-        last = {"pct": -1}
-
-        def on_progress(data, _last=last):
-            line = format_pull_progress(data)
-            pct = data.get("completed", 0) * 100 // max(data.get("total", 1), 1)
-            if pct != _last["pct"] or data.get("status") in ("success", "pulling manifest"):
-                console.print(f"  {line}")
-                _last["pct"] = pct
-
-        ok = pull_model(tag, base_url=base_url, on_progress=on_progress)
-        if ok:
-            console.print(f"[green]Pulled {tag}.[/green]")
         else:
-            console.print(f"[red]Pull failed for {tag}. Run manually: ollama pull {tag}[/red]")
+            console.print(f"Pulling {tag}…")
+            last = {"pct": -1}
+
+            def on_progress(data, _last=last):
+                line = format_pull_progress(data)
+                pct = data.get("completed", 0) * 100 // max(data.get("total", 1), 1)
+                if pct != _last["pct"] or data.get("status") in ("success", "pulling manifest"):
+                    console.print(f"  {line}")
+                    _last["pct"] = pct
+
+            ok = pull_model(tag, base_url=base_url, on_progress=on_progress)
+            if ok:
+                console.print(f"[green]Pulled {tag}.[/green]")
+            else:
+                console.print(f"[red]Pull failed for {tag}. Run manually: ollama pull {tag}[/red]")
+                raise typer.Exit(code=1)
+        if verify:
+            smoke = inference_smoke_test(tag, base_url=base_url)
+            if smoke.success:
+                console.print(f"[green]Inference OK[/green] on {tag}: {smoke.response[:60]}")
+            else:
+                console.print(f"[yellow]Inference probe did not return text: {smoke.error}[/yellow]")
+                console.print("[yellow]Model is installed; longer prompts may still work.[/yellow]")
+
+
+@models_app.command("inspect")
+def models_inspect(
+    model: str = typer.Argument(..., help="Model tag or alias (e.g. vibethinker-q2)"),
+    base_url: str = typer.Option("http://127.0.0.1:11434", "--base-url"),
+) -> None:
+    """Show resolved tag, install status, and a one-token inference probe."""
+    from .model_aliases import is_alias, resolve_alias
+    from .onboarding import check_ollama, inference_smoke_test
+
+    resolved = resolve_alias(model)
+    status = check_ollama(base_url)
+    installed = resolved in status.models
+    console.print(Panel.fit(f"model inspect — {model}"))
+    if is_alias(model):
+        console.print(f"alias:   {model} -> {resolved}")
+    else:
+        console.print(f"tag:     {resolved}")
+    console.print(f"Ollama:  {'running' if status.running else 'down'}")
+    console.print(f"installed locally: {'yes' if installed else 'no'}")
+    if installed and status.running:
+        smoke = inference_smoke_test(resolved, base_url=base_url)
+        if smoke.success:
+            console.print(f"inference: [green]OK[/green] — {smoke.response[:60]}")
+        else:
+            console.print(f"inference: [yellow]no response[/yellow] — {smoke.error}")
+    elif not installed:
+        console.print("[dim]Pull with: prometheus models pull " + model + "[/dim]")
 
 
 @models_app.command("unload")
@@ -1064,6 +1109,131 @@ app.add_typer(models_app, name="models")
 app.add_typer(mcp_app, name="mcp")
 app.add_typer(browser_app, name="browser")
 app.add_typer(bundles_app, name="bundles")
+app.add_typer(sandbox_app, name="sandbox")
+app.add_typer(provider_app, name="provider")
+
+
+@sandbox_app.command("doctor")
+def sandbox_doctor() -> None:
+    """Report which sandbox tiers are available on this host."""
+    from .sandbox import docker_available, tier_available
+
+    console.print(Panel.fit("PROMETHEUS sandbox doctor"))
+    for tier in ("off", "basic", "docker", "native"):
+        ok, reason = tier_available(tier)
+        mark = "[green]available[/green]" if ok else "[red]unavailable[/red]"
+        console.print(f"  {tier:<7} {mark} — {reason}")
+    console.print(f"\ndocker binary: {'present' if docker_available() else 'absent'}")
+    console.print("[dim]Run 'prometheus sandbox test --workspace <dir> --all' to exercise enforcement.[/dim]")
+
+
+@sandbox_app.command("test")
+def sandbox_test(
+    workspace: Path = typer.Option(Path.cwd(), "--workspace", exists=True, file_okay=False),
+    bundle: Path | None = typer.Option(None, "--bundle", exists=True, readable=True,
+                                       help="Bundle YAML; its controller model is used for the Ollama inference test"),
+    model: str = typer.Option(None, "--model", help="Override the Ollama model tag for the inference test"),
+    base_url: str = typer.Option("http://127.0.0.1:11434", "--base-url"),
+    all_optional: bool = typer.Option(False, "--all", help="Include docker/native/browser/ollama optional tests"),
+    json_output: bool = typer.Option(False, "--json"),
+) -> None:
+    """Run the sandbox enforcement suite and write .prometheus/sandbox-test-report.json."""
+    from .sandbox_test import run_suite
+
+    ollama_model = model
+    if not ollama_model and bundle:
+        ollama_model = load_bundle(bundle).controller_spec().model
+    report = run_suite(workspace, ollama_model=ollama_model, base_url=base_url, include_optional=all_optional)
+    if json_output:
+        import json as _json
+
+        print(_json.dumps(report.to_dict(), indent=2))
+    else:
+        console.print(Panel.fit(f"Sandbox Test Suite — {workspace}"))
+        for r in report.results:
+            color = {"PASS": "green", "FAIL": "red", "SKIP": "yellow"}[r.status]
+            req = "" if r.required else " (optional)"
+            console.print(f"  {r.name:<38} [{color}]{r.status}[/{color}]{req}  {r.detail[:60]}")
+        console.print(Panel.fit(
+            f"passed={report.passed} failed={report.failed} skipped={report.skipped} ok={report.ok}"))
+    if not json_output:
+        console.print(f"[dim]report -> {workspace}/.prometheus/sandbox-test-report.json[/dim]")
+    if not report.ok:
+        raise typer.Exit(code=1)
+
+
+@provider_app.command("smoke")
+def provider_smoke(
+    provider: str = typer.Option("ollama", "--provider", help="Provider preset id (ollama, openai, mistral, ...)"),
+    model: str = typer.Option(..., "--model", help="Model tag to probe"),
+    base_url: str = typer.Option("http://127.0.0.1:11434", "--base-url", help="Override endpoint (Ollama/local)"),
+    timeout: float = typer.Option(30.0, "--timeout", help="Per-request timeout seconds"),
+) -> None:
+    """Probe a provider: health, list models, one completion, unload. Bounded by --timeout."""
+    import httpx
+    from .providers.presets import preset
+
+    p = preset(provider)
+    label = p.label if p else provider
+    endpoint = base_url if provider in {"ollama", "llama-cpp"} else (p.base_url if p else base_url)
+    console.print(Panel.fit(f"provider smoke — {label} @ {endpoint}"))
+
+    client = httpx.Client(timeout=timeout)
+    failures: list[str] = []
+    try:
+        try:
+            r = client.get(f"{endpoint.rstrip('/')}/api/tags" if provider == "ollama" else f"{endpoint.rstrip('/')}/models")
+            health_ok = r.status_code == 200
+            console.print(f"  health: {'OK' if health_ok else 'FAIL'} (HTTP {r.status_code})")
+            if not health_ok:
+                failures.append("health")
+        except httpx.HTTPError as exc:
+            console.print(f"  health: [red]FAIL[/red] — {exc}")
+            failures.append("health")
+
+        try:
+            if provider == "ollama":
+                r = client.get(f"{endpoint.rstrip('/')}/api/tags")
+                models = [m.get("name", "") for m in r.json().get("models", [])]
+            else:
+                r = client.get(f"{endpoint.rstrip('/')}/models")
+                models = [m.get("id", "") for m in r.json().get("data", [])]
+            console.print(f"  list_models: {len(models)} models{' (includes target)' if model in models else ' (target MISSING)'}")
+        except (httpx.HTTPError, ValueError) as exc:
+            console.print(f"  list_models: [red]FAIL[/red] — {exc}")
+            failures.append("list_models")
+
+        try:
+            if provider == "ollama":
+                payload = {"model": model, "prompt": "Reply with exactly: PROMETHEUS_SANDBOX_READY", "stream": False}
+                r = client.post(f"{endpoint.rstrip('/')}/api/generate", json=payload)
+            else:
+                payload = {"model": model, "messages": [{"role": "user", "content": "Reply with exactly: PROMETHEUS_SANDBOX_READY"}], "stream": False}
+                r = client.post(f"{endpoint.rstrip('/')}/chat/completions", json=payload)
+            content = ""
+            if r.status_code == 200:
+                data = r.json()
+                content = data.get("response", "") or (data.get("choices", [{}])[0].get("message", {}).get("content", ""))
+            redacted = content.replace(model, "<model>")[:80]
+            mark = "OK" if "PROMETHEUS_SANDBOX_READY" in content or content.strip() else "NOKEY"
+            console.print(f"  completion: {mark} — '{redacted}'")
+            if not content.strip():
+                failures.append("completion")
+        except httpx.HTTPError as exc:
+            console.print(f"  completion: [red]FAIL[/red] — {exc}")
+            failures.append("completion")
+
+        if provider == "ollama":
+            try:
+                r = client.post(f"{endpoint.rstrip('/')}/api/generate", json={"model": model, "keep_alive": 0})
+                console.print(f"  unload (keep_alive=0): {'OK' if r.status_code == 200 else 'FAIL'}")
+            except httpx.HTTPError as exc:
+                console.print(f"  unload: [red]FAIL[/red] — {exc}")
+    finally:
+        client.close()
+    console.print(Panel.fit(f"smoke result: {'PASS' if not failures else 'FAIL — ' + ', '.join(failures)}"))
+    if failures:
+        raise typer.Exit(code=1)
 
 
 @astronaut_app.command("start")

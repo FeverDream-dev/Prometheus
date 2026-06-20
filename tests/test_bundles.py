@@ -31,7 +31,7 @@ def test_registry_loads_all_built_in_bundles(registry):
     assert ids == {
         "spark-cpu-8gb", "ember-8gb-gpu", "forge-12gb", "oracle-gemma4-12gb",
         "titan-24gb", "hephaestus-code-24gb", "vibethinker-review-addon",
-        "cloud-hybrid",
+        "cloud-hybrid", "vibethinker-sandbox-q2", "vibethinker-sandbox-q4",
     }
 
 

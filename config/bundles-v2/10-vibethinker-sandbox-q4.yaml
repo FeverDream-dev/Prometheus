@@ -1,0 +1,46 @@
+schema_version: 2
+id: vibethinker-sandbox-q4
+name: VibeThinker Sandbox Q4
+description: >
+  Higher-quality VibeThinker-3B GGUF (Q4_K_M, ~1.93 GB) for sandbox and
+  tool-execution proof when disk/VRAM allow. PROMETHEUS owns the deterministic
+  tool loop; the model proposes validated structured JSON. Better reasoning than
+  Q2_K at the cost of download size.
+recommended_for: [sandbox proof with better reasoning, 8 GB+ hosts]
+hardware:
+  minimum_ram_gb: 8
+  recommended_ram_gb: 16
+  minimum_vram_gb: 0
+  minimum_free_disk_gb: 6
+runtime:
+  provider: ollama-huggingface-gguf
+  minimum_version: latest-qualified
+  sequential_loading: true
+  maximum_loaded_models: 1
+  default_context: 8192
+  context_ceiling: 32768
+  unlimited_local_sessions: true
+roles:
+  controller:
+    model: hf.co/prithivMLmods/VibeThinker-3B-GGUF:Q4_K_M
+    approximate_download_gb: 1.93
+    capabilities: [text, reasoning]
+    prohibited_capabilities: [tools]
+    keep_alive: 0
+  reviewer:
+    model: hf.co/prithivMLmods/VibeThinker-3B-GGUF:Q4_K_M
+    approximate_download_gb: 0
+    capabilities: [text, reasoning]
+    prohibited_capabilities: [tools]
+    keep_alive: 0
+    optional: true
+licenses:
+  - model: WeiboAI/VibeThinker-3B
+    license: MIT
+    source: https://huggingface.co/WeiboAI/VibeThinker-3B
+  - model: prithivMLmods/VibeThinker-3B-GGUF
+    license: verify-community-quantization
+    source: https://huggingface.co/prithivMLmods/VibeThinker-3B-GGUF
+qualification:
+  required: [chat, reasoning, structured_output, no_tool_call_enforcement]
+experimental: true
