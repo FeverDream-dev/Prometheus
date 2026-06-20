@@ -265,6 +265,40 @@ def pull_model(
             cl.close()
 
 
+def unload_model(
+    model: str | None = None,
+    base_url: str = "http://127.0.0.1:11434",
+    client: httpx.Client | None = None,
+) -> bool:
+    """Free VRAM without deleting weights: keep_alive=0 evicts the model from
+    memory. model=None evicts every resident model."""
+    cl = client or httpx.Client(timeout=30.0)
+    try:
+        if model is None:
+            status = check_ollama(base_url)
+            if not status.running:
+                return False
+            ok = True
+            for name in status.models:
+                resp = cl.post(
+                    f"{base_url.rstrip('/')}/api/generate",
+                    json={"model": name, "keep_alive": 0},
+                )
+                if resp.status_code != 200:
+                    ok = False
+            return ok
+        resp = cl.post(
+            f"{base_url.rstrip('/')}/api/generate",
+            json={"model": model, "keep_alive": 0},
+        )
+        return resp.status_code == 200
+    except httpx.HTTPError:
+        return False
+    finally:
+        if client is None:
+            cl.close()
+
+
 def format_pull_progress(data: dict) -> str:
     status = data.get("status", "")
     completed = data.get("completed")

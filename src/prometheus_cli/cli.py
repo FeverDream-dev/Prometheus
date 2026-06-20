@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import time
 from pathlib import Path
 
 import typer
@@ -696,6 +697,410 @@ def uninstall(
     if result.removed_user_data:
         console.print("[red]Removed user data (config/sessions/bundles).[/red]")
     console.print("[bold]PROMETHEUS uninstalled.[/bold]")
+
+
+models_app = typer.Typer(help="List, pull, and unload Ollama models")
+mcp_app = typer.Typer(help="Manage MCP stdio servers")
+browser_app = typer.Typer(help="Browser automation (Playwright)")
+astronaut_app = typer.Typer(help="Long-running autonomous sessions")
+
+
+@models_app.command("list")
+def models_list(
+    base_url: str = typer.Option("http://127.0.0.1:11434", "--base-url"),
+    json_output: bool = typer.Option(False, "--json"),
+) -> None:
+    """List models installed in the local Ollama registry."""
+    from .onboarding import check_ollama
+
+    status = check_ollama(base_url)
+    if not status.running:
+        console.print(f"[red]Ollama service not responding at {base_url}.[/red]")
+        console.print("[dim]Start it with: ollama serve[/dim]")
+        raise typer.Exit(code=1)
+    if json_output:
+        import json as _json
+
+        console.print(_json.dumps({"models": status.models}, indent=2))
+        return
+    console.print(Panel.fit(f"Ollama models ({len(status.models)}) — {base_url}"))
+    if not status.models:
+        console.print("[dim]No models pulled yet. Use: prometheus models pull <name>[/dim]")
+    for m in status.models:
+        console.print(f"  • {m}")
+
+
+@models_app.command("pull")
+def models_pull(
+    model: str = typer.Argument(None, help="Model tag (e.g. llama3.2:latest). Omit to pull the active bundle's models."),
+    bundle_id: str = typer.Option(None, "--bundle", help="Pull every role model of this package id"),
+    base_url: str = typer.Option("http://127.0.0.1:11434", "--base-url"),
+) -> None:
+    """Pull a model (or a whole bundle's roles) via Ollama with live progress."""
+    from .onboarding import check_ollama, format_pull_progress, pull_model, start_ollama_service
+
+    status = check_ollama(base_url)
+    if not status.running:
+        if not start_ollama_service(base_url):
+            console.print(f"[red]Ollama service not responding at {base_url}.[/red]")
+            raise typer.Exit(code=1)
+        status = check_ollama(base_url)
+
+    targets: list[str] = []
+    if model:
+        targets = [model]
+    elif bundle_id:
+        registry = load_registry()
+        match = find_bundle(bundle_id, registry)
+        if match is None:
+            console.print(f"[red]No package '{bundle_id}'.[/red]")
+            raise typer.Exit(code=1)
+        targets = [r.model for r in match.roles.values()]
+    else:
+        settings = load_settings()
+        if settings.active_bundle_id:
+            match = find_bundle(settings.active_bundle_id)
+            if match:
+                targets = [r.model for r in match.roles.values()]
+        if not targets:
+            console.print("[red]Provide a model tag, --bundle <id>, or set an active package (prometheus use <id>).[/red]")
+            raise typer.Exit(code=1)
+
+    for tag in targets:
+        if tag in status.models:
+            console.print(f"Already installed: {tag}")
+            continue
+        console.print(f"Pulling {tag}…")
+        last = {"pct": -1}
+
+        def on_progress(data, _last=last):
+            line = format_pull_progress(data)
+            pct = data.get("completed", 0) * 100 // max(data.get("total", 1), 1)
+            if pct != _last["pct"] or data.get("status") in ("success", "pulling manifest"):
+                console.print(f"  {line}")
+                _last["pct"] = pct
+
+        ok = pull_model(tag, base_url=base_url, on_progress=on_progress)
+        if ok:
+            console.print(f"[green]Pulled {tag}.[/green]")
+        else:
+            console.print(f"[red]Pull failed for {tag}. Run manually: ollama pull {tag}[/red]")
+
+
+@models_app.command("unload")
+def models_unload(
+    model: str = typer.Argument(None, help="Model tag to evict from VRAM. Omit to evict all resident models."),
+    base_url: str = typer.Option("http://127.0.0.1:11434", "--base-url"),
+) -> None:
+    """Evict model(s) from Ollama memory (frees VRAM; weights stay on disk)."""
+    from .onboarding import check_ollama, unload_model
+
+    status = check_ollama(base_url)
+    if not status.running:
+        console.print(f"[red]Ollama service not responding at {base_url}.[/red]")
+        raise typer.Exit(code=1)
+    if unload_model(model, base_url=base_url):
+        target = model or "all resident models"
+        console.print(f"[green]Unloaded {target} from VRAM.[/green] Weights remain on disk.")
+    else:
+        console.print(f"[red]Unload failed.[/red]")
+        raise typer.Exit(code=1)
+
+
+@mcp_app.command("list")
+def mcp_list() -> None:
+    """List configured MCP stdio servers."""
+    from .mcp_client import MCPRegistry
+
+    registry = _load_mcp_registry(MCPRegistry())
+    servers = registry.list_servers()
+    if not servers:
+        console.print("[dim]No MCP servers configured.[/dim]")
+        console.print("Add one with: prometheus mcp add <name> -- <command> [args…]")
+        return
+    console.print(Panel.fit(f"MCP servers ({len(servers)})"))
+    for s in servers:
+        console.print(f"  [bold]{s.name}[/bold] — trust={s.trust_level} net={s.network_scope}")
+        console.print(f"    command: {' '.join(s.command)}")
+
+
+@mcp_app.command("add")
+def mcp_add(
+    name: str = typer.Argument(..., help="Server name (alphanumeric/dash)"),
+    trust_level: str = typer.Option("untrusted", "--trust", help="untrusted|trusted"),
+    network_scope: str = typer.Option("none", "--network", help="none|outbound"),
+    argv: list[str] = typer.Argument(..., help="Launch command after '--', e.g. -- python -m my_mcp_server"),
+) -> None:
+    """Register an MCP stdio server in ~/.prometheus/mcp.json."""
+    import json as _json
+    import re
+
+    from .config import ensure_home
+
+    if not re.match(r"^[A-Za-z0-9][A-Za-z0-9._-]*$", name):
+        console.print(f"[red]Invalid server name '{name}'.[/red]")
+        raise typer.Exit(code=1)
+    if not argv:
+        console.print("[red]A launch command is required after '--'.[/red]")
+        raise typer.Exit(code=1)
+    ensure_home()
+    cfg_path = ensure_home() / "mcp.json"
+    data = {}
+    if cfg_path.exists():
+        data = _json.loads(cfg_path.read_text(encoding="utf-8"))
+    servers = data.setdefault("servers", [])
+    servers = [s for s in servers if s.get("name") != name]
+    servers.append({
+        "name": name,
+        "command": argv,
+        "trust_level": trust_level,
+        "network_scope": network_scope,
+        "env": {},
+    })
+    data["servers"] = servers
+    cfg_path.write_text(_json.dumps(data, indent=2), encoding="utf-8")
+    console.print(f"[green]Registered MCP server '{name}'.[/green] -> {cfg_path}")
+    console.print("[dim]Test it with: prometheus mcp test " + name + "[/dim]")
+
+
+@mcp_app.command("remove")
+def mcp_remove(name: str = typer.Argument(...)) -> None:
+    """Remove an MCP server from ~/.prometheus/mcp.json."""
+    import json as _json
+
+    from .config import ensure_home
+
+    cfg_path = ensure_home() / "mcp.json"
+    if not cfg_path.exists():
+        console.print("[dim]No mcp.json exists.[/dim]")
+        return
+    data = _json.loads(cfg_path.read_text(encoding="utf-8"))
+    servers = data.get("servers", [])
+    before = len(servers)
+    servers = [s for s in servers if s.get("name") != name]
+    if len(servers) == before:
+        console.print(f"[yellow]No server named '{name}'.[/yellow]")
+        return
+    data["servers"] = servers
+    cfg_path.write_text(_json.dumps(data, indent=2), encoding="utf-8")
+    console.print(f"[green]Removed MCP server '{name}'.[/green]")
+
+
+@mcp_app.command("test")
+def mcp_test(name: str = typer.Argument(..., help="Server name to probe")) -> None:
+    """Probe an MCP server: initialize, list tools, report capabilities."""
+    from .mcp_client import MCPClient, MCPError, MCPRegistry
+
+    registry = _load_mcp_registry(MCPRegistry())
+    cfg = registry.get(name)
+    if cfg is None:
+        console.print(f"[red]No MCP server '{name}'. Run: prometheus mcp list[/red]")
+        raise typer.Exit(code=1)
+    console.print(f"Launching {name}: {' '.join(cfg.command)}")
+    client = MCPClient(cfg)
+    try:
+        info = client.initialize()
+        console.print(f"[green]Initialized.[/green] server: {info.get('serverInfo', {}).get('name', '?')}")
+        tools = client.list_tools()
+        console.print(Panel.fit(f"Tools ({len(tools)})"))
+        for t in tools:
+            console.print(f"  [bold]{t.name}[/bold] — {t.description[:80]}")
+        if tools:
+            console.print("[dim]Output is delimited as untrusted data; it cannot alter system policy.[/dim]")
+    except MCPError as exc:
+        console.print(f"[red]MCP error: {exc}[/red]")
+        raise typer.Exit(code=1)
+    except Exception as exc:
+        console.print(f"[red]Failed to start/communicate: {exc}[/red]")
+        raise typer.Exit(code=1)
+    finally:
+        client.close()
+
+
+@browser_app.command("test")
+def browser_test(
+    url: str = typer.Argument(..., help="URL to open (http(s):// or file://)"),
+    screenshot: Path | None = typer.Option(None, "--screenshot", help="Save a PNG to this path"),
+    headless: bool = typer.Option(True, "--headless/--headed"),
+) -> None:
+    """Open a URL in Playwright, collect console/network evidence, optionally screenshot."""
+    try:
+        from .browser import BrowserTools
+    except ImportError:
+        console.print("[red]Playwright not installed. pip install 'prometheus-local-agent[browser]' && playwright install chromium[/red]")
+        raise typer.Exit(code=1)
+    try:
+        tools = BrowserTools(headless=headless)
+        nav = tools.navigate(url)
+        console.print(nav)
+        evidence = tools.collect_evidence()
+        console.print(Panel(evidence.summary(), title="browser evidence"))
+        if screenshot:
+            png_b64 = tools.screenshot()
+            import base64
+
+            screenshot.write_bytes(base64.b64decode(png_b64.split("base64 ")[-1]) if "base64" in png_b64 else b"")
+            console.print(f"[green]Screenshot:[/green] {screenshot}")
+        if evidence.console_errors:
+            console.print(f"[yellow]{len(evidence.console_errors)} console error(s) detected.[/yellow]")
+            raise typer.Exit(code=1)
+    except Exception as exc:
+        console.print(f"[red]Browser test failed: {exc}[/red]")
+        raise typer.Exit(code=1)
+    finally:
+        try:
+            tools.close()
+        except Exception:
+            pass
+
+
+def _load_mcp_registry(registry):
+    """Load ~/.prometheus/mcp.json into the registry if present."""
+    import json as _json
+
+    from .config import ensure_home
+
+    cfg = ensure_home() / "mcp.json"
+    if cfg.exists():
+        try:
+            data = _json.loads(cfg.read_text(encoding="utf-8"))
+            registry.load_from_config(data.get("servers", []))
+        except (ValueError, OSError):
+            pass
+    return registry
+
+
+app.add_typer(models_app, name="models")
+app.add_typer(mcp_app, name="mcp")
+app.add_typer(browser_app, name="browser")
+
+
+@astronaut_app.command("start")
+def astronaut_start(
+    objective: str = typer.Argument(..., help="Outcome the astronaut must achieve"),
+    workspace: Path = typer.Option(Path.cwd(), "--workspace", exists=True, file_okay=False),
+    bundle: Path | None = typer.Option(None, "--bundle", exists=True, readable=True),
+    max_steps: int = typer.Option(0, "--max-steps", help="0 = unlimited"),
+    max_runtime: int = typer.Option(0, "--max-runtime", help="minutes, 0 = unlimited"),
+    checkpoint_every: int = typer.Option(5, "--checkpoint-every", help="checkpoint every N attempts"),
+    yes: bool = typer.Option(False, "--yes", help="Auto-approve mode-allowed actions (noninteractive)"),
+) -> None:
+    """Start a long-running autonomous (astronaut-mode) session.
+
+    Runs until the verifier accepts, the step/runtime budget is hit, or a stop
+    is requested via `prometheus astronaut stop` (writes .prometheus/STOP)."""
+    from .agent import ArenaLoop, MicroStepEngine, make_default_verify
+    from .astronaut import AstronautController
+    from .memory import Intent, ProjectMemoryStore
+    from .providers import create_provider
+    from .tools.workspace import WorkspaceTools
+
+    settings = load_settings()
+    settings.mode = AutonomyMode.ASTRONAUT
+    settings.workspace = workspace.resolve()
+    if max_steps:
+        settings.max_steps = max_steps
+    if max_runtime:
+        settings.max_runtime_minutes = max_runtime
+    bundle_path = bundle or settings.bundle_file
+    if not bundle_path:
+        console.print("[red]No bundle configured. Run 'prometheus setup' or pass --bundle.[/red]")
+        raise typer.Exit(code=1)
+    bundle_obj = load_bundle(bundle_path)
+    controller_spec = bundle_obj.for_role("controller")
+    forge = create_provider(controller_spec)
+    envoy = create_provider(controller_spec)
+    argus = None
+    if settings.multi_agent_review:
+        try:
+            argus = create_provider(bundle_obj.for_role("reviewer"))
+        except KeyError:
+            argus = create_provider(controller_spec)
+    mem = ProjectMemoryStore(workspace)
+    mem.set_intent(Intent(objective=objective, success_criteria=[]))
+    tools = WorkspaceTools(workspace)
+    approve = (lambda _c, _r: True) if yes else _approval
+    engine = MicroStepEngine(store=mem, tools=tools, settings=settings, approve=approve)
+    arena = ArenaLoop(store=mem, tools=tools, engine=engine)
+    verify = make_default_verify(workspace)
+    providers = {"envoy": envoy, "forge": forge, "argus": argus}
+    controller = AstronautController(
+        store=mem, tools=tools, arena=arena, providers=providers, verify=verify,
+        workspace=workspace, objective=objective,
+        max_steps=max_steps, max_runtime_minutes=max_runtime,
+        checkpoint_every_attempts=checkpoint_every,
+    )
+    console.print(Panel.fit(f"PROMETHEUS astronaut — long-run autonomous mode\nObjective: {objective}"))
+    result = controller.run(on_update=lambda line: console.print(f"[cyan]{line}[/cyan]"))
+    verdict = "[green]COMPLETE[/green]" if result.accepted else f"[yellow]{result.state.status.upper()}[/yellow]"
+    console.print(Panel(
+        f"accepted={result.accepted} · attempts={result.state.macro_attempts} · "
+        f"checkpoints={result.state.checkpoints} · reason={result.reason}",
+        title=f"{verdict} — astronaut",
+    ))
+
+
+@astronaut_app.command("status")
+def astronaut_status(
+    workspace: Path = typer.Option(Path.cwd(), "--workspace", exists=True, file_okay=False),
+) -> None:
+    """Show the current astronaut session state."""
+    from .astronaut import read_state
+
+    state = read_state(workspace)
+    stop = (workspace / ".prometheus" / "STOP").exists()
+    pause = (workspace / ".prometheus" / "PAUSE").exists()
+    console.print(Panel.fit("PROMETHEUS astronaut status"))
+    console.print(f"Status: [bold]{state.status}[/bold]")
+    console.print(f"Objective: {state.objective or '(none)'}")
+    console.print(f"Macro attempts: {state.macro_attempts}")
+    console.print(f"Checkpoints: {state.checkpoints}")
+    console.print(f"Final status: {state.final_status or '(in progress)'}")
+    console.print(f"Stop file: {'present' if stop else 'absent'}")
+    console.print(f"Pause file: {'present' if pause else 'absent'}")
+    if state.last_heartbeat:
+        age = max(0, int(time.time() - state.last_heartbeat))
+        console.print(f"Last heartbeat: {age}s ago")
+
+
+@astronaut_app.command("pause")
+def astronaut_pause(
+    workspace: Path = typer.Option(Path.cwd(), "--workspace", exists=True, file_okay=False),
+) -> None:
+    """Pause the running astronaut session (writes .prometheus/PAUSE)."""
+    from .astronaut import request_pause
+
+    p = request_pause(workspace)
+    console.print(f"[green]Pause requested.[/green] -> {p}")
+    console.print("[dim]The astronaut process will halt at the next safe point.[/dim]")
+
+
+@astronaut_app.command("resume")
+def astronaut_resume(
+    workspace: Path = typer.Option(Path.cwd(), "--workspace", exists=True, file_okay=False),
+) -> None:
+    """Resume a paused astronaut session (clears .prometheus/PAUSE)."""
+    from .astronaut import clear_pause
+
+    if clear_pause(workspace):
+        console.print("[green]Resumed.[/green] Pause file cleared.")
+    else:
+        console.print("[dim]No pause file present.[/dim]")
+
+
+@astronaut_app.command("stop")
+def astronaut_stop(
+    workspace: Path = typer.Option(Path.cwd(), "--workspace", exists=True, file_okay=False),
+) -> None:
+    """Stop the running astronaut session (writes .prometheus/STOP)."""
+    from .astronaut import request_stop
+
+    p = request_stop(workspace)
+    console.print(f"[green]Stop requested.[/green] -> {p}")
+    console.print("[dim]The astronaut process will exit at the next safe point.[/dim]")
+
+
+app.add_typer(astronaut_app, name="astronaut")
 
 
 if __name__ == "__main__":
