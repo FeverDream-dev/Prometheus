@@ -13,6 +13,13 @@ class AutonomyMode(str, Enum):
     ASTRONAUT = "astronaut"
 
 
+class SandboxTier(str, Enum):
+    OFF = "off"
+    BASIC = "basic"
+    DOCKER = "docker"
+    NATIVE = "native"
+
+
 class Risk(str, Enum):
     READ = "read"
     WRITE = "write"
@@ -56,6 +63,7 @@ class Settings(BaseModel):
     bundle_file: Path | None = None
     active_bundle_id: str | None = None
     sandbox: bool = True
+    sandbox_tier: SandboxTier = SandboxTier.OFF
     allow_package_install: bool = False
     allow_network: bool = True
     telemetry: bool = False
@@ -81,6 +89,13 @@ class Settings(BaseModel):
 
     def runtime_limit_minutes(self) -> int | None:
         return None if self.max_runtime_minutes == 0 else self.max_runtime_minutes
+
+    def effective_sandbox_tier(self) -> SandboxTier:
+        if self.sandbox_tier != SandboxTier.OFF:
+            return self.sandbox_tier
+        if self.sandbox:
+            return SandboxTier.NATIVE
+        return SandboxTier.OFF
 
 
 class ToolCall(BaseModel):

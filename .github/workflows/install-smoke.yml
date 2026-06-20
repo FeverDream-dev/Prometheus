@@ -1,0 +1,55 @@
+name: Install smoke (public one-liner)
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "17 6 * * 1"
+
+permissions:
+  contents: read
+
+jobs:
+  public-installer-clean-home:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Verify the public install.sh syntax
+        run: |
+          set -e
+          curl -fsSL https://raw.githubusercontent.com/FeverDream-dev/Prometheus/main/install.sh -o /tmp/install.sh
+          bash -n /tmp/install.sh
+          echo "install.sh syntax OK"
+
+      - name: Run installer into an isolated HOME (no clone, no PyPI)
+        env:
+          HOME: /tmp/prometheus-smoke-home
+        run: |
+          set -e
+          mkdir -p "$HOME"
+          sh /tmp/install.sh --yes --no-tui --no-ollama --prefix "$HOME/.local"
+
+      - name: Confirm the launcher is on PATH and doctor runs
+        env:
+          HOME: /tmp/prometheus-smoke-home
+          PATH: /tmp/prometheus-smoke-home/.local/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+        run: |
+          set -e
+          command -v prometheus
+          prometheus --version || prometheus --help | head -1
+          prometheus doctor || true
+
+  powershell-bootstrap-syntax:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Verify install.ps1 parses (placeholder-free)
+        run: |
+          set -e
+          curl -fsSL https://raw.githubusercontent.com/FeverDream-dev/Prometheus/main/install.ps1 -o /tmp/install.ps1
+          if grep -q "prometheus/local-agent" /tmp/install.ps1; then
+            echo "ERROR: install.ps1 still references the placeholder prometheus/local-agent"
+            exit 1
+          fi
+          pwsh -NoProfile -Command "
+            \$null = [System.Management.Automation.PSParser]::Tokenize((Get-Content -Raw /tmp/install.ps1), [ref]\$null);
+            Write-Host 'install.ps1 parses OK'
+          "

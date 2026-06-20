@@ -20,6 +20,28 @@ import sys
 from pathlib import Path
 
 
+def docker_available() -> bool:
+    return shutil.which("docker") is not None
+
+
+def tier_available(tier: str) -> tuple[bool, str]:
+    """Report whether a sandbox tier can actually enforce on this host."""
+    if tier == "off":
+        return True, "no enforcement requested"
+    if tier == "basic":
+        return True, "path + command policy enforced in-process"
+    if tier == "native":
+        broker = SandboxBroker(Path("."), enabled=True)
+        if broker.tool is not None:
+            return True, f"native confinement via {broker.tool}"
+        return False, broker.warning or "no native sandbox tool found"
+    if tier == "docker":
+        if docker_available():
+            return True, "docker present; disposable-container enforcement available"
+        return False, "docker not installed; install docker or use 'native'/'basic'"
+    return False, f"unknown sandbox tier: {tier}"
+
+
 class SandboxBroker:
     def __init__(
         self,

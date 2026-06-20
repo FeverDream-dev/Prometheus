@@ -2,8 +2,8 @@ from __future__ import annotations
 
 
 SLASH_COMMANDS = {
-    "/settings": "show model packages and active config",
-    "/bundles": "alias for /settings",
+    "/settings": "show all editable settings and their current values",
+    "/bundles": "show model packages and active config",
     "/models": "show installed Ollama models",
     "/providers": "show configured providers",
     "/mcp": "show MCP server status",
@@ -11,11 +11,14 @@ SLASH_COMMANDS = {
     "/permissions": "show autonomy mode and policy",
     "/doctor": "hardware + Ollama service report",
     "/sessions": "list recent coding sessions",
+    "/resume": "resume a session (/resume <id>)",
+    "/mode": "switch autonomy mode (/mode copilot|pilot|astronaut)",
     "/qualify": "qualify the first installed model or a bundle (/qualify <id>)",
     "/use": "select the active package (/use <id>, e.g. /use spark-cpu-8gb)",
     "/memory": "bounded project memory status (/memory inspect|why|rebuild|export|reset)",
     "/modes": "autonomy modes",
     "/clear": "clear the log",
+    "/exit": "exit the TUI",
     "/help": "show this help",
 }
 
@@ -73,7 +76,7 @@ def permissions_lines(settings) -> list[str]:
 
     out = [
         f"[bold]Autonomy mode:[/bold] {settings.mode.value} — {mode_description(settings.mode)}",
-        f"Sandbox: {'on' if settings.sandbox else 'off'}",
+        f"Sandbox: {settings.effective_sandbox_tier().value}",
         f"Network: {'allowed' if settings.allow_network else 'denied'}",
         f"Package install: {'allowed' if settings.allow_package_install else 'requires approval'}",
         f"Multi-model review: {'on' if settings.multi_agent_review else 'off'}",
@@ -127,7 +130,25 @@ _STATUS_TAG = {
 def settings_lines(settings, classified: list, installed_models: list[str] | None = None) -> list[str]:
     active = settings.active_bundle_id or "(none — run /qualify or prometheus setup)"
     quota = "unlimited" if settings.unlimited_local_sessions else "metered"
-    out = [f"[bold]Model Packages[/bold] — active: {active} · local sessions {quota}"]
+    cloud_key_status = "configured" if not settings.local_only else "disabled (local-only)"
+    out = [
+        f"[bold]Settings[/bold] — stored in ~/.prometheus/config.yaml",
+        f"  autonomy mode: {settings.mode.value} (/mode to switch)",
+        f"  default/active bundle: {active}",
+        f"  provider: ollama (default) · cloud: {cloud_key_status}",
+        f"  Ollama URL: http://127.0.0.1:11434",
+        f"  install packages automatically: {'on' if settings.allow_package_install else 'off'}",
+        f"  sandbox: {settings.effective_sandbox_tier().value}",
+        f"  browser testing: {'enabled' if not settings.local_only else 'off (local-only)'}",
+        f"  multi-agent review: {'on' if settings.multi_agent_review else 'off'}",
+        f"  audio markers: {'on' if settings.sounds else 'off'}",
+        f"  telemetry: {'on' if settings.telemetry else 'off (default)'}",
+        f"  max steps: {'unlimited' if settings.step_limit() is None else settings.step_limit()}",
+        f"  max runtime: {'unlimited' if settings.runtime_limit_minutes() is None else str(settings.runtime_limit_minutes()) + ' min'}",
+        f"  local sessions: {quota}",
+        f"  local-only (no cloud fallback): {'on' if settings.local_only else 'off'}",
+    ]
+    out.append(f"[bold]Model Packages[/bold] — active: {active} · local sessions {quota}")
     for c in classified:
         tag = _STATUS_TAG.get(c.status, c.status)
         add_on = " (add-on)" if c.bundle.is_add_on else ""
@@ -141,4 +162,52 @@ def settings_lines(settings, classified: list, installed_models: list[str] | Non
     return out
 
 
-__all__ = ["SLASH_COMMANDS", "doctor_lines", "help_lines", "modes_lines", "models_lines", "settings_lines"]
+def mode_switch_lines(settings, arg: str) -> list[str]:
+    from .models import AutonomyMode
+
+    arg = (arg or "").strip().lower()
+    valid = {m.value for m in AutonomyMode}
+    if arg not in valid:
+        return [f"[red]Unknown mode '{arg}'.[/red] Use one of: {', '.join(sorted(valid))}"]
+    settings.mode = AutonomyMode(arg)
+    from .config import save_settings
+
+    save_settings(settings)
+    return [f"[green]Autonomy mode set to {settings.mode.value}.[/green] Saved to ~/.prometheus/config.yaml"]
+
+
+def resume_lines(session_id: str) -> list[str]:
+    sid = (session_id or "").strip()
+    if not sid:
+        return ["[red]/resume needs a session id.[/red] Run /sessions to list them."]
+    from .config import ensure_home
+    from .session import SessionStore
+
+    home = ensure_home()
+    store = SessionStore(home / "sessions" / "prometheus.db")
+    try:
+        session = store.get_session(sid)
+        if session is None:
+            return [f"[red]Session {sid} not found.[/red]"]
+        pct = store.completion_percent(sid)
+        return [
+            f"[bold]Session {sid}[/bold]",
+            f"  objective: {session['objective'][:80]}",
+            f"  status: {session['status']} · completion: {pct:.1f}%",
+            f"  mode: {session['mode']}",
+            f"[dim]Run in a terminal: prometheus resume {sid}[/dim]",
+        ]
+    finally:
+        store.close()
+
+
+__all__ = [
+    "SLASH_COMMANDS",
+    "doctor_lines",
+    "help_lines",
+    "mode_switch_lines",
+    "modes_lines",
+    "models_lines",
+    "resume_lines",
+    "settings_lines",
+]

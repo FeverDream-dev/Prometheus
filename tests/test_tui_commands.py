@@ -113,3 +113,40 @@ def test_sessions_lines_handles_empty(tmp_path, monkeypatch):
     monkeypatch.setattr("prometheus_cli.config.ensure_home", lambda: tmp_path)
     lines = tui_commands.sessions_lines()
     assert len(lines) >= 1
+
+
+def test_help_lists_new_slash_commands():
+    lines = tui_commands.help_lines()
+    joined = "\n".join(lines)
+    for cmd in ("/resume", "/mode", "/exit"):
+        assert cmd in joined
+
+
+def test_settings_lines_shows_all_editable_fields():
+    classified = classify_registry(load_registry(), _hw(ram=16, vram=8, disk=200), [])
+    lines = tui_commands.settings_lines(Settings(), classified)
+    joined = "\n".join(lines)
+    for field in ("autonomy mode", "sandbox", "telemetry", "max steps", "max runtime",
+                  "multi-agent review", "audio markers", "local sessions"):
+        assert field in joined, f"missing {field}"
+
+
+def test_mode_switch_persists_valid_mode(tmp_path, monkeypatch):
+    monkeypatch.setattr("prometheus_cli.config.CONFIG_HOME", tmp_path)
+    (tmp_path / "bundles").mkdir()
+    settings = Settings()
+    lines = tui_commands.mode_switch_lines(settings, "astronaut")
+    assert settings.mode.value == "astronaut"
+    assert "astronaut" in "".join(lines)
+
+
+def test_mode_switch_rejects_invalid_mode():
+    settings = Settings()
+    lines = tui_commands.mode_switch_lines(settings, "supervisor")
+    assert settings.mode.value == "pilot"
+    assert "Unknown mode" in "".join(lines)
+
+
+def test_resume_lines_without_id_errors():
+    lines = tui_commands.resume_lines("")
+    assert "needs a session id" in "".join(lines)

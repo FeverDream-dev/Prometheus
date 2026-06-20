@@ -209,6 +209,15 @@ class PrometheusApp(App):
             classified = classify_registry(load_registry(), detect_hardware(), ollama.models)
             _emit(tui_commands.settings_lines(load_settings(), classified, ollama.models))
             return
+        if cmd == "/mode":
+            _emit(tui_commands.mode_switch_lines(load_settings(), parts[1] if len(parts) > 1 else ""))
+            return
+        if cmd == "/resume":
+            _emit(tui_commands.resume_lines(parts[1] if len(parts) > 1 else ""))
+            return
+        if cmd in ("/exit", "/quit"):
+            self.exit()
+            return
         if cmd == "/qualify":
             self.run_worker(self._run_qualify, parts[1] if len(parts) > 1 else None)
             return

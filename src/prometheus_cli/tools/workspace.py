@@ -1,17 +1,36 @@
 from __future__ import annotations
 
 import os
+import re
 import subprocess
 import tempfile
 from pathlib import Path
 
+from ..models import SandboxTier, Settings
 from ..sandbox import SandboxBroker
+
+_CATASTROPHIC = re.compile(
+    r"(?:^|\s)(?:rm\s+-rf?\s*[/%~]|rm\s+-[a-z]*r[a-z]*\s*[/%~]|mkfs|dd\s+.*of=/dev/|:\(\)\s*\{|>\s*/dev/sda|shutdown|halt|reboot)",
+    re.IGNORECASE,
+)
 
 
 class WorkspaceTools:
     def __init__(self, root: Path, sandbox: SandboxBroker | None = None):
         self.root = root.resolve()
         self.sandbox = sandbox or SandboxBroker(self.root, enabled=False)
+        self.tier = SandboxTier.OFF
+
+    @classmethod
+    def from_settings(cls, root: Path, settings: Settings) -> WorkspaceTools:
+        tier = settings.effective_sandbox_tier()
+        tools = cls(root)
+        tools.tier = tier
+        if tier == SandboxTier.NATIVE:
+            tools.sandbox = SandboxBroker(tools.root, enabled=True)
+        else:
+            tools.sandbox = SandboxBroker(tools.root, enabled=False)
+        return tools
 
     def _resolve(self, relative: str) -> Path:
         candidate = (self.root / relative).resolve()
@@ -47,6 +66,13 @@ class WorkspaceTools:
     def run_command(self, command: list[str], timeout: int = 120) -> str:
         if not command:
             raise ValueError("command cannot be empty")
+        rendered = " ".join(command)
+        if self.tier != SandboxTier.OFF and _CATASTROPHIC.search(rendered):
+            return (
+                f"[sandbox:{self.tier.value}] BLOCKED catastrophic command\n"
+                f"command matched a hard-deny pattern (rm -rf /, mkfs, dd to device, fork bomb, etc.).\n"
+                f"Re-run with an explicit, scoped command if this was intended."
+            )
         wrapped = self.sandbox.wrap(command)
         result = subprocess.run(
             wrapped,

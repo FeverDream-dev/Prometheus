@@ -140,3 +140,69 @@ class TestWorkspaceIntegration:
         result = tools.run_command(["echo", "hello"])
         assert "exit_code=0" in result
         assert "sandbox" not in result.lower()
+
+
+class TestSandboxTier:
+    def test_effective_tier_respects_explicit_tier(self):
+        from prometheus_cli.models import SandboxTier, Settings
+
+        s = Settings(sandbox_tier=SandboxTier.DOCKER)
+        assert s.effective_sandbox_tier() == SandboxTier.DOCKER
+
+    def test_effective_tier_legacy_bool_falls_back_to_native(self):
+        from prometheus_cli.models import SandboxTier, Settings
+
+        s = Settings(sandbox=True)
+        assert s.effective_sandbox_tier() == SandboxTier.NATIVE
+
+    def test_effective_tier_off_when_disabled(self):
+        from prometheus_cli.models import SandboxTier, Settings
+
+        assert Settings(sandbox=False).effective_sandbox_tier() == SandboxTier.OFF
+
+    def test_tier_available_off_basic_native(self):
+        from prometheus_cli.sandbox import tier_available
+
+        ok_off, _ = tier_available("off")
+        ok_basic, _ = tier_available("basic")
+        assert ok_off and ok_basic
+
+    def test_tier_available_docker_depends_on_binary(self):
+        from prometheus_cli.sandbox import tier_available
+
+        with mock.patch("prometheus_cli.sandbox.docker_available", return_value=True):
+            assert tier_available("docker")[0] is True
+        with mock.patch("prometheus_cli.sandbox.docker_available", return_value=False):
+            assert tier_available("docker")[0] is False
+
+    def test_basic_tier_blocks_catastrophic_rm_rf_root(self, workspace):
+        from prometheus_cli.models import SandboxTier, Settings
+        from prometheus_cli.tools.workspace import WorkspaceTools
+
+        workspace.mkdir(parents=True, exist_ok=True)
+        settings = Settings(sandbox_tier=SandboxTier.BASIC)
+        tools = WorkspaceTools.from_settings(workspace, settings)
+        result = tools.run_command(["rm", "-rf", "/"])
+        assert "BLOCKED" in result
+        assert tools.tier == SandboxTier.BASIC
+
+    def test_off_tier_does_not_block_catastrophic(self, workspace):
+        from prometheus_cli.models import SandboxTier, Settings
+        from prometheus_cli.tools.workspace import WorkspaceTools
+
+        workspace.mkdir(parents=True, exist_ok=True)
+        settings = Settings(sandbox_tier=SandboxTier.OFF)
+        tools = WorkspaceTools.from_settings(workspace, settings)
+        result = tools.run_command(["echo", "ok"])
+        assert "BLOCKED" not in result
+
+    def test_basic_tier_allows_safe_command(self, workspace):
+        from prometheus_cli.models import SandboxTier, Settings
+        from prometheus_cli.tools.workspace import WorkspaceTools
+
+        workspace.mkdir(parents=True, exist_ok=True)
+        settings = Settings(sandbox_tier=SandboxTier.BASIC)
+        tools = WorkspaceTools.from_settings(workspace, settings)
+        result = tools.run_command(["echo", "safe"])
+        assert "exit_code=0" in result
+        assert "BLOCKED" not in result
