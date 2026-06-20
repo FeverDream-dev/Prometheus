@@ -26,11 +26,12 @@ def registry():
     return load_registry()
 
 
-def test_registry_loads_all_seven_bundles(registry):
+def test_registry_loads_all_built_in_bundles(registry):
     ids = {b.id for b in registry}
     assert ids == {
         "spark-cpu-8gb", "ember-8gb-gpu", "forge-12gb", "oracle-gemma4-12gb",
         "titan-24gb", "hephaestus-code-24gb", "vibethinker-review-addon",
+        "cloud-hybrid",
     }
 
 
@@ -169,4 +170,35 @@ def test_quota_free_local_sessions_default_true(registry):
 
 def test_v2_built_in_dir_exists():
     assert BUILT_IN_DIR.is_dir()
-    assert len(list(BUILT_IN_DIR.glob("*.yaml"))) >= 7
+    assert len(list(BUILT_IN_DIR.glob("*.yaml"))) >= 8
+
+
+def test_cloud_hybrid_is_experimental_and_local_first(registry):
+    ch = next(b for b in registry if b.id == "cloud-hybrid")
+    assert ch.experimental is True
+    assert ch.runtime.provider == "ollama"
+    assert ch.runtime.unlimited_local_sessions is True
+    assert "cloud" in ch.description.lower()
+
+
+def test_bundles_inspect_cli_runs():
+    from typer.testing import CliRunner
+
+    from prometheus_cli.cli import app
+
+    runner = CliRunner()
+    result = runner.invoke(app, ["bundles", "inspect", "cloud-hybrid"])
+    assert result.exit_code == 0, result.stdout
+    assert "cloud-hybrid" in result.stdout
+    assert "experimental: True" in result.stdout
+
+
+def test_bundles_list_subcommand_runs():
+    from typer.testing import CliRunner
+
+    from prometheus_cli.cli import app
+
+    runner = CliRunner()
+    result = runner.invoke(app, ["bundles", "list", "--json"])
+    assert result.exit_code == 0, result.stdout
+    assert "cloud-hybrid" in result.stdout

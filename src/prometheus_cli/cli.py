@@ -8,7 +8,7 @@ from rich.console import Console
 from rich.panel import Panel
 from rich.prompt import Confirm, Prompt
 
-from .bundles import classify_registry, find_bundle, load_registry, sanitize_bundle
+from .bundles import classify_bundle, classify_registry, find_bundle, load_registry, sanitize_bundle
 from .config import ensure_home, load_bundle, load_settings, save_settings
 from .hardware import detect_hardware, recommended_profile
 from .installer import (
@@ -507,12 +507,10 @@ def memory(
         raise typer.Exit(code=1)
 
 
-@app.command()
-def bundles(
-    json_output: bool = typer.Option(False, "--json"),
-    installed: bool = typer.Option(False, "--installed", help="Show only bundles whose models are already pulled"),
-) -> None:
-    """List selectable model packages with hardware fit and status."""
+bundles_app = typer.Typer(help="List, inspect, and qualify model packages", invoke_without_command=True)
+
+
+def _print_bundles(json_output: bool, installed_only: bool) -> None:
     from .hardware import detect_hardware
     from .onboarding import check_ollama
 
@@ -523,7 +521,7 @@ def bundles(
     report = detect_hardware()
     ollama = check_ollama()
     classified = classify_registry(registry, report, ollama.models)
-    if installed:
+    if installed_only:
         classified = [c for c in classified if c.bundle.installed_fraction(ollama.models) > 0]
     if json_output:
         import json as _json
@@ -566,6 +564,98 @@ def bundles(
             console.print(f"    {role}: {spec.model}{opt}{pulled}")
         for reason in c.reasons:
             console.print(f"  [dim]• {reason}[/dim]")
+
+
+@bundles_app.callback()
+def bundles_default(
+    ctx: typer.Context,
+    json_output: bool = typer.Option(False, "--json"),
+    installed: bool = typer.Option(False, "--installed", help="Show only bundles whose models are already pulled"),
+) -> None:
+    """With no subcommand, list selectable model packages (alias for 'bundles list')."""
+    if ctx.invoked_subcommand is None:
+        _print_bundles(json_output, installed)
+
+
+@bundles_app.command("list")
+def bundles_list(
+    json_output: bool = typer.Option(False, "--json"),
+    installed: bool = typer.Option(False, "--installed", help="Show only bundles whose models are already pulled"),
+) -> None:
+    """List selectable model packages with hardware fit and status."""
+    _print_bundles(json_output, installed)
+
+
+@bundles_app.command("inspect")
+def bundles_inspect(
+    bundle_id: str = typer.Argument(..., help="Package id, e.g. ember-8gb-gpu"),
+) -> None:
+    """Show full details and hardware-fit reasoning for one package."""
+    registry = load_registry()
+    match = find_bundle(bundle_id, registry)
+    if match is None:
+        console.print(f"[red]No package '{bundle_id}'.[/red] Available: "
+                      f"{', '.join(b.id for b in registry)}")
+        raise typer.Exit(code=1)
+    from .hardware import detect_hardware
+    from .onboarding import check_ollama
+
+    report = detect_hardware()
+    ollama = check_ollama()
+    classified = classify_bundle(match, report, ollama.models)
+    console.print(Panel.fit(f"{match.name} ({match.id})"))
+    console.print(match.description)
+    console.print(f"experimental: {match.experimental} · add-on: {match.is_add_on}")
+    console.print(f"hardware floor: {match.hardware.minimum_ram_gb} GB RAM, "
+                  f"{match.hardware.minimum_vram_gb} GB VRAM, "
+                  f"{match.hardware.minimum_free_disk_gb} GB disk")
+    console.print(f"runtime: provider={match.runtime.provider} · "
+                  f"sequential={match.runtime.sequential_loading} · "
+                  f"max_loaded={match.runtime.maximum_loaded_models} · "
+                  f"context={match.runtime.default_context}")
+    console.print(f"download ~{match.total_download_gb():.1f} GB · "
+                  f"local sessions {'unlimited' if match.runtime.unlimited_local_sessions else 'metered'}")
+    console.print("[bold]Roles:[/bold]")
+    for role, spec in match.roles.items():
+        opt = " (optional)" if spec.optional else ""
+        pulled = " [installed]" if spec.model in ollama.models else ""
+        caps = ", ".join(spec.capabilities) or "(none)"
+        console.print(f"  {role}: {spec.model}{opt}{pulled} — caps: {caps} · keep_alive={spec.keep_alive}")
+    console.print("[bold]Licenses:[/bold]")
+    for lic in match.licenses:
+        console.print(f"  {lic.model}: {lic.license} ({lic.source})")
+    if match.qualification.required:
+        console.print(f"[bold]Qualification tests:[/bold] {', '.join(match.qualification.required)}")
+    console.print(f"[bold]Fit on this host:[/bold] {classified.status} — {classified.reasons[0]}")
+
+
+@bundles_app.command("qualify")
+def bundles_qualify(
+    bundle_id: str = typer.Argument(..., help="Package id to qualify"),
+    base_url: str = typer.Option("http://127.0.0.1:11434", "--base-url"),
+) -> None:
+    """Run capability tests against a package's controller model."""
+    from .onboarding import check_ollama
+    from .qualification import qualify_bundle
+
+    status = check_ollama(base_url)
+    if not status.running:
+        console.print(f"[red]Ollama service not responding at {base_url}.[/red]")
+        raise typer.Exit(code=1)
+    registry = load_registry()
+    target = find_bundle(bundle_id, registry)
+    if target is None:
+        console.print(f"[red]No bundle '{bundle_id}'.[/red]")
+        raise typer.Exit(code=1)
+    console.print(Panel.fit(f"Qualifying bundle [bold]{target.id}[/bold] (controller {target.controller_spec().model})"))
+    report = qualify_bundle(target, base_url)
+    for r in report.results:
+        mark = "[green]PASS[/green]" if r.passed else "[red]FAIL[/red]"
+        console.print(f"  {mark} {r.name} — {r.detail}")
+    verdict = "[green]QUALIFIED[/green]" if report.passed else "[yellow]PARTIAL[/yellow]"
+    console.print(f"\n{verdict}: {report.passed_count}/{len(report.results)} capability tests passed.")
+    if not report.passed:
+        raise typer.Exit(code=1)
 
 
 @app.command(name="use")
@@ -973,6 +1063,7 @@ def _load_mcp_registry(registry):
 app.add_typer(models_app, name="models")
 app.add_typer(mcp_app, name="mcp")
 app.add_typer(browser_app, name="browser")
+app.add_typer(bundles_app, name="bundles")
 
 
 @astronaut_app.command("start")

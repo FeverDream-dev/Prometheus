@@ -230,6 +230,38 @@
         {"model": "WeiboAI/VibeThinker-3B", "license": "MIT", "source": "https://huggingface.co/WeiboAI/VibeThinker-3B"},
         {"model": "prithivMLmods/VibeThinker-3B-GGUF", "license": "verify-community-quantization", "source": "https://huggingface.co/prithivMLmods/VibeThinker-3B-GGUF"}
       ]
+    },
+    {
+      "id": "cloud-hybrid",
+      "name": "Cloud-Hybrid",
+      "subtitle": "local-first with optional cloud fallback",
+      "tier": "hybrid",
+      "status": "experimental",
+      "experimental": true,
+      "addon": false,
+      "description": "Local Ollama controller by default; falls back to a cloud coder/reviewer only when the user explicitly configures a cloud endpoint. Local usage stays quota-free and private; cloud calls are provider-metered and clearly labeled.",
+      "recommended_for": ["users with intermittent cloud access", "hybrid teams"],
+      "min_ram_gb": 8,
+      "rec_ram_gb": 16,
+      "min_vram_gb": 0,
+      "min_disk_gb": 8,
+      "provider": "ollama",
+      "min_runtime_version": "0.13.3",
+      "default_context": 8192,
+      "context_ceiling": 32768,
+      "sequential_loading": true,
+      "unlimited_local_sessions": true,
+      "total_download_gb": 11.1,
+      "core_download_gb": 2.1,
+      "roles": [
+        {"role": "controller", "model": "granite4.1:3b", "download_gb": 2.1, "optional": false, "capabilities": ["text", "tools", "json", "coding"]},
+        {"role": "coder", "model": "qwen3-coder:latest", "download_gb": 9.0, "optional": true, "capabilities": ["text", "tools", "coding", "json"]},
+        {"role": "reviewer", "model": "qwen3-coder:latest", "download_gb": 0, "optional": true, "capabilities": ["text", "json", "thinking"], "prohibited_capabilities": ["tools"]}
+      ],
+      "licenses": [
+        {"model": "granite4.1:3b", "license": "Apache-2.0", "source": "https://ollama.com/library/granite4.1"},
+        {"model": "qwen3-coder:latest", "license": "verify-at-install", "source": "https://ollama.com/library/qwen3-coder"}
+      ]
     }
   ]
 }

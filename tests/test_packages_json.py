@@ -97,11 +97,11 @@ class PackagesJsonDriftTests(unittest.TestCase):
             expected = round(sum(required), 3)
             self.assertAlmostEqual(p["core_download_gb"], expected, places=2, msg=p["id"])
 
-    def test_seven_packages_with_expected_names(self):
+    def test_all_packages_with_expected_names(self):
         names = {p["name"] for p in self.packages}
         self.assertEqual(
             names,
-            {"Spark", "Ember", "Forge", "Oracle", "Titan", "Hephaestus", "VibeThinker"},
+            {"Spark", "Ember", "Forge", "Oracle", "Titan", "Hephaestus", "VibeThinker", "Cloud-Hybrid"},
         )
 
     def test_repo_field_is_correct(self):
