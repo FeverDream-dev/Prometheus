@@ -42,3 +42,7 @@ playwright-report/
 test-results/
 .browser-data/
 PROMETHEUS-Completion-Kit/
+
+# local spec archives / duplicate extracts (provenance kept as .md only)
+*.zip
+PROMETHEUS-Completion-Kit*
