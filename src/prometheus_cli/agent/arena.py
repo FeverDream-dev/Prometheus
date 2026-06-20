@@ -194,13 +194,22 @@ def make_default_verify(workspace):
         if test_cmd:
             out = tools.run_command(test_cmd, timeout=180)
             passed = "passed" in out and ("failed" not in out.lower() or " failed" not in out.lower())
-            last = out.strip().splitlines()[-1] if out.strip() else "(no output)"
-            return passed, last
+            return passed, _meaningful_pytest_line(out)
         diff = tools.git_diff() if hasattr(tools, "git_diff") else ""
         changed = bool(diff and diff.strip() and "fatal" not in diff.lower())
         return changed, ("patch applied (no test suite to verify)" if changed else "no change made")
 
     return verify
+
+
+def _meaningful_pytest_line(output: str) -> str:
+    import re
+
+    for line in output.splitlines():
+        if re.search(r"FAILED|AssertionError|assert\b|Error:|Exception", line):
+            return line.strip()[:160]
+    summary = [s.strip() for s in output.splitlines() if s.strip()]
+    return summary[-1] if summary else "(no output)"
 
 
 def _fact(summary: str, source: str, ref: str):

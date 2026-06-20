@@ -81,7 +81,19 @@ def doctor(json_output: bool = typer.Option(False, "--json")) -> None:
     else:
         console.print("Ollama: not installed")
     console.print(f"Docker: {'ready' if report.docker_installed else 'not installed'}")
-    console.print(f"Recommended bundle: [bold]{recommended_profile(report)}[/bold]")
+    v2_recommended = None
+    try:
+        from .onboarding import check_ollama as _check_ollama
+        ollama_models = _check_ollama().models
+        v2_recs = classify_registry(load_registry(), report, ollama_models)
+        v2_recommended = next((c for c in v2_recs if c.status == "recommended"), None)
+    except Exception:
+        pass
+    if v2_recommended is not None:
+        console.print(f"Recommended package: [bold]{v2_recommended.bundle.id}[/bold] "
+                      f"({v2_recommended.bundle.name})")
+    else:
+        console.print(f"Recommended bundle: [bold]{recommended_profile(report)}[/bold]")
     for note in report.notes:
         console.print(f"[dim]• {note}[/dim]")
 
@@ -274,6 +286,7 @@ def run(
     mode: AutonomyMode | None = typer.Option(None),
     resume: str | None = typer.Option(None, "--resume", help="Session ID to resume"),
     classic: bool = typer.Option(False, "--classic", help="Use the legacy one-shot orchestrator instead of the bounded-memory Arena"),
+    yes: bool = typer.Option(False, "--yes", help="Auto-approve mode-allowed actions (noninteractive/CI)"),
 ) -> None:
     """Run an evidence-driven coding session (bounded-memory Arena by default)."""
     settings = load_settings()
@@ -288,16 +301,17 @@ def run(
         settings.bundle_file = bundle_path
     home = ensure_home()
     store = SessionStore(home / "sessions" / "prometheus.db")
+    approve = (lambda _c, _r: True) if yes else _approval
     if classic:
-        orchestrator = Orchestrator(settings, load_bundle(bundle_path), approve=_approval, session_store=store)
+        orchestrator = Orchestrator(settings, load_bundle(bundle_path), approve=approve, session_store=store)
         result = orchestrator.run(objective, on_update=lambda line: console.print(f"[cyan]{line}[/cyan]"))
         store.close()
         console.print(Panel(result.message, title=f"{result.status} — {result.completion_percent}%"))
         return
-    _run_arena(objective, bundle_path, workspace, settings, store)
+    _run_arena(objective, bundle_path, workspace, settings, store, approve)
 
 
-def _run_arena(objective, bundle_path, workspace, settings, session_store) -> None:
+def _run_arena(objective, bundle_path, workspace, settings, session_store, approve_fn) -> None:
     from .agent import ArenaLoop, MicroStepEngine, make_default_verify
     from .memory import Intent, ProjectMemoryStore
     from .providers import create_provider
@@ -316,7 +330,7 @@ def _run_arena(objective, bundle_path, workspace, settings, session_store) -> No
     mem = ProjectMemoryStore(workspace)
     mem.set_intent(Intent(objective=objective, success_criteria=[]))
     tools = WorkspaceTools(workspace)
-    engine = MicroStepEngine(store=mem, tools=tools, settings=settings, approve=_approval)
+    engine = MicroStepEngine(store=mem, tools=tools, settings=settings, approve=approve_fn)
     arena = ArenaLoop(store=mem, tools=tools, engine=engine)
     verify = make_default_verify(workspace)
     providers = {"envoy": envoy, "forge": forge, "argus": argus}
