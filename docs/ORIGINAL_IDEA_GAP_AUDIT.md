@@ -5,6 +5,13 @@ Working map produced by the audit step required by
 every row was verified by reading source and running the test suite
 (`pytest -q` → **399 passed, 3 skipped**) on commit `883fbd6`.
 
+> **Post-implementation update (commit `770aa29`):** the gaps identified below
+> were then implemented and verified (`pytest -q` → **443 passed, 3 skipped**;
+> `ruff check src tests` clean). Rows marked `missing`/`partial`/`misleading-docs`
+> in the tables that have since been closed are noted inline with **✅ resolved**.
+> The live, current truth lives in `docs/IMPLEMENTATION_STATUS.md` (§17 matrix at
+> 79/80 ≈ 99%). This file is preserved as the audit-of-record per §1.
+
 Statuses: `done` · `partial` · `missing` · `broken` · `misleading-docs`
 
 Legend for "Evidence command": a command or file reference that proves the row.

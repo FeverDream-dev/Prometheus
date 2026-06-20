@@ -132,11 +132,11 @@ def settings_lines(settings, classified: list, installed_models: list[str] | Non
     quota = "unlimited" if settings.unlimited_local_sessions else "metered"
     cloud_key_status = "configured" if not settings.local_only else "disabled (local-only)"
     out = [
-        f"[bold]Settings[/bold] — stored in ~/.prometheus/config.yaml",
+        "[bold]Settings[/bold] — stored in ~/.prometheus/config.yaml",
         f"  autonomy mode: {settings.mode.value} (/mode to switch)",
         f"  default/active bundle: {active}",
         f"  provider: ollama (default) · cloud: {cloud_key_status}",
-        f"  Ollama URL: http://127.0.0.1:11434",
+        "  Ollama URL: http://127.0.0.1:11434",
         f"  install packages automatically: {'on' if settings.allow_package_install else 'off'}",
         f"  sandbox: {settings.effective_sandbox_tier().value}",
         f"  browser testing: {'enabled' if not settings.local_only else 'off (local-only)'}",

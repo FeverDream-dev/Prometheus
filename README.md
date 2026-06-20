@@ -48,6 +48,25 @@ prometheus update --check
 prometheus uninstall  # keeps your models, sessions, and config by default
 ```
 
+### Model packages, models, MCP, browser, astronaut
+
+```bash
+prometheus bundles                       # list packages with hardware fit
+prometheus bundles inspect ember-8gb-gpu  # full manifest + fit reasoning
+prometheus bundles qualify spark-cpu-8gb  # capability tests (needs Ollama)
+prometheus models list                    # installed Ollama models
+prometheus models pull --bundle spark-cpu-8gb   # pull a package's models
+prometheus models unload                  # evict models from VRAM (keeps weights)
+prometheus mcp list                       # configured MCP stdio servers
+prometheus mcp add echo -- python -m my_mcp_server
+prometheus mcp test echo                  # initialize + list tools
+prometheus browser test https://example.com   # Playwright evidence (console/network)
+prometheus astronaut start "objective" --workspace .  # long-run autonomous session
+prometheus astronaut status               # state + heartbeat + budgets
+prometheus astronaut pause                # writes .prometheus/PAUSE
+prometheus astronaut stop                 # writes .prometheus/STOP
+```
+
 `prometheus run` uses the bundle saved by `prometheus setup` (or pass
 `--bundle <path>`). `prometheus setup` detects Ollama, **offers to install it
 only after explicit consent** (showing the exact command), pulls approved
@@ -97,6 +116,22 @@ configured target (default 95%) is met **and** every critical criterion passes.
 - Ollama and OpenAI-compatible provider adapters.
 - Schema-constrained agent loop with five-failure escalation.
 - Sandbox broker (bubblewrap / sandbox-exec), Playwright browser tools, MCP client.
+- **Four-tier sandbox** (`off` / `basic` / `docker` / `native`): the `basic` tier
+  hard-denies catastrophic commands (`rm -rf /`, `mkfs`, `dd` to devices, fork
+  bombs); `native` confines via bubblewrap/sandbox-exec; `docker` is detected.
+- **Bounded project memory** (`.prometheus/memory.md` ≤ 1024 words + JSONL
+  ledgers for tasks/decisions/evidence/handoffs), atomic + crash-safe, read by
+  the orchestrator every turn.
+- **Three-seat Arena** (Envoy/Forge/Argus) with structured handoffs, five-block
+  escalation, and a deep-arena git-worktree mode; `multi_agent_review` default on.
+- **Astronaut long-run mode** (`prometheus astronaut start/status/pause/resume/stop`)
+  with `.prometheus/STOP`+`PAUSE` control files, heartbeat state, step/runtime
+  budgets, and periodic Git checkpoints.
+- **`prometheus models`** (list/pull/unload), **`prometheus mcp`**
+  (list/add/remove/test + `~/.prometheus/mcp.json`), **`prometheus browser test`**,
+  and **`prometheus bundles`** sub-app (list/inspect/qualify).
+- TUI slash commands: `/help /settings /models /bundles /memory /mcp /tools
+  /sessions /qualify /use /modes /permissions /doctor /clear /resume /mode /exit`.
 - Rotating ASCII splash engine (3 sizes, 16-24 frames; non-TTY and reduced-motion safe).
 - **Real-Ollama inference proven** against `llama3.2:latest` (opt-in E2E test).
 
@@ -139,7 +174,7 @@ configured target (default 95%) is met **and** every critical criterion passes.
 ```bash
 uv venv .venv --python 3.11 && . .venv/bin/activate
 uv pip install -e '.[dev,tui]'
-pytest -q                       # 247 tests (+ 2 opt-in real-Ollama)
+pytest -q                       # 443 tests (+ 3 opt-in real-Ollama)
 ruff check src tests
 prometheus doctor
 ```

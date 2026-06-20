@@ -893,7 +893,7 @@ def models_unload(
         target = model or "all resident models"
         console.print(f"[green]Unloaded {target} from VRAM.[/green] Weights remain on disk.")
     else:
-        console.print(f"[red]Unload failed.[/red]")
+        console.print("[red]Unload failed.[/red]")
         raise typer.Exit(code=1)
 
 
