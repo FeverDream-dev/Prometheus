@@ -8,6 +8,7 @@ dist/
 build/
 *.egg-info/
 .prometheus/
+**/.prometheus/
 *.log
 .env
 
@@ -46,3 +47,9 @@ PROMETHEUS-Completion-Kit/
 # local spec archives / duplicate extracts (provenance kept as .md only)
 *.zip
 PROMETHEUS-Completion-Kit*
+
+# VibeThinker sandbox hygiene: caches + runtime state never committed.
+models/
+.ollama/
+.cache/huggingface/
+sandbox-test-report.json

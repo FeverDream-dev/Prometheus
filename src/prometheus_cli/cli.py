@@ -1142,7 +1142,8 @@ def sandbox_test(
 
     ollama_model = model
     if not ollama_model and bundle:
-        ollama_model = load_bundle(bundle).controller_spec().model
+        from .bundles import load_bundle as load_bundle_v2
+        ollama_model = load_bundle_v2(bundle).controller_spec().model
     report = run_suite(workspace, ollama_model=ollama_model, base_url=base_url, include_optional=all_optional)
     if json_output:
         import json as _json
@@ -1205,7 +1206,8 @@ def provider_smoke(
 
         try:
             if provider == "ollama":
-                payload = {"model": model, "prompt": "Reply with exactly: PROMETHEUS_SANDBOX_READY", "stream": False}
+                payload = {"model": model, "prompt": "Reply with exactly: PROMETHEUS_SANDBOX_READY",
+                           "stream": False, "options": {"num_predict": 16, "temperature": 0}}
                 r = client.post(f"{endpoint.rstrip('/')}/api/generate", json=payload)
             else:
                 payload = {"model": model, "messages": [{"role": "user", "content": "Reply with exactly: PROMETHEUS_SANDBOX_READY"}], "stream": False}

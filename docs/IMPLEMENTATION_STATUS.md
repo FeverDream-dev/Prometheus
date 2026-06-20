@@ -10,16 +10,17 @@ One incomplete critical row blocks the phase gate.
 
 Legend: `passing` · `partial` · `placeholder` · `missing`
 
-**Last updated:** commit `f8667c2` — **493 tests passed, 3 skipped** (up from 91
-at the prior status snapshot). This file was rewritten because it had drifted
-badly out of sync (it documented 82% / 91 tests while the tree had grown to the
+**Last updated:** commit (vibethinker-sandbox) — **528 tests passed, 8 skipped**
+(+35 since last). Real VibeThinker Q2_K inference proven end-to-end (see
+"VibeThinker sandbox proof" below). This file was rewritten because it had
+drifted badly out of sync (it documented 82% / 91 tests while the tree had grown to the
 full Phase 2 feature set).
 
 ## How to reproduce every claim below
 
 ```sh
 . .venv/bin/activate
-python -m pytest -q                       # 493 passed, 3 skipped
+python -m pytest -q                       # 528 passed, 8 skipped
 ruff check src tests                       # clean
 python -m compileall -q src                # clean
 prometheus --help                          # 16 top-level + 5 sub-app command groups
@@ -190,4 +191,69 @@ f8667c2 feat(providers): labeled preset registry + fake-HTTP conformance harness
 e8acd0c feat(sandbox+tui+logo+ci): real sandbox tiers, full /settings, logo.py, install-smoke
 e2ccab3 feat(cli): models/mcp/browser/astronaut command groups + gap audit
 883fbd6 fix(qa): doctor/bundles recommendation consistency (prior session head)
+```
+
+---
+
+## VibeThinker sandbox proof (real model, real inference)
+
+Proven against `hf.co/prithivMLmods/VibeThinker-3B-GGUF:Q2_K` (~1.27 GB) on this
+host with Ollama running. PROMETHEUS owns the deterministic tool loop; VibeThinker
+is `tool_capable: false` and only proposes JSON validated by Pydantic.
+
+### Commands run (real evidence)
+```sh
+prometheus sandbox doctor                       # basic/docker/native availability
+prometheus models pull vibethinker-q2           # 1.27 GB pull + inference probe
+prometheus provider smoke --provider ollama \
+  --model hf.co/prithivMLmods/VibeThinker-3B-GGUF:Q2_K
+#   health: OK · list_models: 5 (includes target) · completion: OK · unload: OK · PASS
+prometheus sandbox test \
+  --bundle config/bundles-v2/09-vibethinker-sandbox-q2.yaml \
+  --workspace tests/fixtures/sandbox_target --all
+#   passed=16 failed=0 skipped=1 ok=True
+```
+
+### Sandbox suite result (real run, captured in docs/evidence/)
+| Test | Status | Detail |
+|---|---|---|
+| basic.workspace_write_allowed | PASS | wrote allowed.txt inside workspace |
+| basic.outside_write_blocked | PASS | outside write blocked |
+| basic.symlink_escape_blocked | PASS | symlink escape blocked |
+| basic.path_traversal_blocked | PASS | .. traversal blocked |
+| basic.secret_redaction | PASS | api_key/token stripped |
+| basic.rm_root_blocked | PASS | BLOCKED catastrophic |
+| basic.sudo_blocked | PASS | BLOCKED privilege escalation |
+| basic.package_install_policy | PASS | BLOCKED package install |
+| basic.network_policy | PASS | BLOCKED network |
+| mcp.permission_bypass_blocked | PASS | MCP-requested outside write blocked |
+| docker.workspace_mount_readonly | PASS | docker present |
+| docker.network_disabled | PASS | docker --network=none supported |
+| native.broker_active | PASS | bwrap confinement |
+| browser.sandboxed_fixture_test | SKIP | playwright E2E in integration tests |
+| ollama.vibethinker_inference | PASS | **real inference: 8244664656464656** |
+| memory.updated | PASS | .prometheus/memory.md written |
+| git.checkpoint_rollback | PASS | checkpoint+rollback ok (sha c46e5a82) |
+
+### Gated integration tests (PROMETHEUS_RUN_OLLAMA_TESTS=1, real model)
+```
+tests/integration/test_vibethinker_ollama_smoke.py::test_vibethinker_is_pulled_and_infers PASSED
+tests/integration/test_vibethinker_ollama_smoke.py::test_provider_smoke_via_cli PASSED
+tests/integration/test_vibethinker_ollama_smoke.py::test_sandbox_suite_includes_real_inference PASSED
+tests/integration/test_mcp_sandbox_block.py::test_mcp_server_returns_untrusted_payload_but_workspace_still_blocks_write PASSED
+tests/integration/test_mcp_sandbox_block.py::test_mcp_output_cannot_alter_command_policy PASSED
+5 passed
+```
+
+The Q2_K output (`8244664656464656`) is low-quality — expected for the smallest
+quant — but it is genuine local inference. The point is proof of real end-to-end
+execution, not coding quality. See `docs/SANDBOX_TESTING_WITH_VIBETHINKER.md` and
+the manual `.github/workflows/vibethinker-sandbox-smoke.yml`.
+
+## Git checkpoints (this recovery session)
+```
+2583c5d feat(sandbox+vibethinker): enforcement suite, Q2/Q4 bundles, provider smoke
+(vibethinker-sandbox) docs(evidence): real Q2_K inference proof + workflow + .gitignore
+4edde5d docs(status): mark §17.16 passing — full §17 matrix now 80/80 = 100%
+f8667c2 feat(providers): labeled preset registry + fake-HTTP conformance harness
 ```

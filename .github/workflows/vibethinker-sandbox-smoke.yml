@@ -1,0 +1,87 @@
+name: VibeThinker sandbox smoke (real model)
+
+on:
+  workflow_dispatch:
+    inputs:
+      model:
+        description: "Ollama model tag (Q2_K default)"
+        required: false
+        default: "hf.co/prithivMLmods/VibeThinker-3B-GGUF:Q2_K"
+
+permissions:
+  contents: read
+
+jobs:
+  vibethinker-sandbox:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      PROMETHEUS_RUN_OLLAMA_TESTS: "1"
+      PROMETHEUS_TEST_MODEL: ${{ github.event.inputs.model || 'hf.co/prithivMLmods/VibeThinker-3B-GGUF:Q2_K' }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install PROMETHEUS (editable)
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e '.[dev,browser]'
+
+      - name: Install Ollama
+        run: curl -fsSL https://ollama.com/install.sh | sh
+
+      - name: Start Ollama service
+        run: |
+          nohup ollama serve > /tmp/ollama.log 2>&1 &
+          for i in $(seq 1 30); do
+            curl -sf http://127.0.0.1:11434/api/tags >/dev/null && break
+            sleep 1
+          done
+          curl -sf http://127.0.0.1:11434/api/tags >/dev/null || (echo "Ollama did not start"; cat /tmp/ollama.log; exit 1)
+
+      - name: Pull VibeThinker Q2_K
+        run: |
+          echo "Pulling $PROMETHEUS_TEST_MODEL (this can take a few minutes)..."
+          ollama pull "$PROMETHEUS_TEST_MODEL"
+
+      - name: doctor + sandbox doctor + bundles
+        run: |
+          prometheus doctor
+          prometheus sandbox doctor
+          prometheus bundles inspect vibethinker-sandbox-q2
+          prometheus models inspect vibethinker-q2
+
+      - name: provider smoke (real inference)
+        run: |
+          prometheus provider smoke --provider ollama --model "$PROMETHEUS_TEST_MODEL"
+
+      - name: sandbox test suite (real inference)
+        run: |
+          prometheus sandbox test \
+            --bundle config/bundles-v2/09-vibethinker-sandbox-q2.yaml \
+            --workspace tests/fixtures/sandbox_target --all
+
+      - name: Run gated integration tests
+        run: |
+          pytest tests/integration/test_vibethinker_ollama_smoke.py tests/integration/test_sandbox_vibethinker_task.py -v
+
+      - name: Upload sandbox evidence artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: sandbox-evidence
+          path: |
+            tests/fixtures/sandbox_target/.prometheus/sandbox-test-report.json
+            tests/fixtures/sandbox_target/.prometheus/evidence.jsonl
+            tests/fixtures/sandbox_target/.prometheus/memory.md
+          if-no-files-found: warn
+
+      - name: Guard — no model weights committed
+        run: |
+          if git ls-files | grep -E '\.(gguf|safetensors|bin)$'; then
+            echo "ERROR: model weight staged in git"; exit 1
+          fi
+          echo "No weights tracked in git."

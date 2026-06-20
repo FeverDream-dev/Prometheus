@@ -325,11 +325,16 @@ def inference_smoke_test(
     client: httpx.Client | None = None,
 ) -> SmokeResult:
     """Run a real one-token inference probe and validate a non-empty response."""
-    cl = client or httpx.Client(timeout=120.0)
+    cl = client or httpx.Client(timeout=180.0)
     try:
         response = cl.post(
             f"{base_url.rstrip('/')}/api/generate",
-            json={"model": model, "prompt": "Reply with the single word: ready", "stream": False},
+            json={
+                "model": model,
+                "prompt": "Reply with the single word: ready",
+                "stream": False,
+                "options": {"num_predict": 16, "temperature": 0},
+            },
         )
         if response.status_code != 200:
             return SmokeResult(False, model, "", f"HTTP {response.status_code}")

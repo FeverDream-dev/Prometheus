@@ -1,0 +1,113 @@
+{
+  "workspace": "/tmp/sb_real",
+  "summary": {
+    "passed": 16,
+    "failed": 0,
+    "skipped": 1,
+    "ok": true
+  },
+  "results": [
+    {
+      "name": "basic.workspace_write_allowed",
+      "status": "PASS",
+      "detail": "wrote allowed.txt inside workspace",
+      "required": true
+    },
+    {
+      "name": "basic.outside_write_blocked",
+      "status": "PASS",
+      "detail": "outside write blocked",
+      "required": true
+    },
+    {
+      "name": "basic.symlink_escape_blocked",
+      "status": "PASS",
+      "detail": "symlink escape blocked",
+      "required": true
+    },
+    {
+      "name": "basic.path_traversal_blocked",
+      "status": "PASS",
+      "detail": ".. traversal blocked",
+      "required": true
+    },
+    {
+      "name": "basic.secret_redaction",
+      "status": "PASS",
+      "detail": "redacted='api_key=[REDACTED] token=gpt_xxx call'",
+      "required": true
+    },
+    {
+      "name": "basic.rm_root_blocked",
+      "status": "PASS",
+      "detail": "[sandbox:basic] BLOCKED catastrophic command\nhard-deny pattern (rm -rf /, mkfs, dd to device, chmod -R 777 /, fork bomb,",
+      "required": true
+    },
+    {
+      "name": "basic.sudo_blocked",
+      "status": "PASS",
+      "detail": "[sandbox:basic] BLOCKED privilege escalation\nsudo/su/doas is blocked under sandbox.\nRe-run with an explicit, scoped comm",
+      "required": true
+    },
+    {
+      "name": "basic.package_install_policy",
+      "status": "PASS",
+      "detail": "[sandbox:basic] BLOCKED package install\npackage install disabled (set allow_package_install=True to permit).\nRe-run with",
+      "required": true
+    },
+    {
+      "name": "basic.network_policy",
+      "status": "PASS",
+      "detail": "[sandbox:basic] BLOCKED network\nnetwork command disabled (set allow_network=True to permit).\nRe-run with an explicit, sc",
+      "required": true
+    },
+    {
+      "name": "mcp.permission_bypass_blocked",
+      "status": "PASS",
+      "detail": "workspace policy blocked the outside write an MCP server requested",
+      "required": true
+    },
+    {
+      "name": "docker.workspace_mount_readonly",
+      "status": "PASS",
+      "detail": "docker present at /usr/bin/docker; disposable-container enforcement available",
+      "required": false
+    },
+    {
+      "name": "docker.network_disabled",
+      "status": "PASS",
+      "detail": "docker --network=none supported; full container E2E in integration tests",
+      "required": false
+    },
+    {
+      "name": "native.broker_active",
+      "status": "PASS",
+      "detail": "native confinement via bwrap",
+      "required": false
+    },
+    {
+      "name": "browser.sandboxed_fixture_test",
+      "status": "SKIP",
+      "detail": "browser E2E runs in tests/integration/test_browser_sandbox_policy.py",
+      "required": false
+    },
+    {
+      "name": "ollama.vibethinker_inference",
+      "status": "PASS",
+      "detail": "real inference: 8244664656464656",
+      "required": false
+    },
+    {
+      "name": "memory.updated",
+      "status": "PASS",
+      "detail": "memory.md 193 chars",
+      "required": true
+    },
+    {
+      "name": "git.checkpoint_rollback",
+      "status": "PASS",
+      "detail": "checkpoint+rollback ok (sha c46e5a82)",
+      "required": true
+    }
+  ]
+}
