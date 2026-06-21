@@ -8,7 +8,7 @@
 
 *Bring your own models. Keep your code local.*
 
-[![Tests](https://img.shields.io/badge/tests-597%20passed%20%7C%208%20skipped-DAA520?style=for-the-badge)]()
+[![Tests](https://img.shields.io/badge/tests-648%20passed%20%7C%208%20skipped-DAA520?style=for-the-badge)]()
 [![License](https://img.shields.io/badge/license-dual%20%28community%20%2B%20commercial%29-B8860B?style=for-the-badge)]()
 [![Python](https://img.shields.io/badge/python-3.11%2B-C5A572?style=for-the-badge)]()
 [![Platform](https://img.shields.io/badge/platform-Linux%20%7C%20macOS%20%7C%20WSL%202-8B7355?style=for-the-badge)]()
@@ -44,10 +44,17 @@ irm https://feverdream-dev.github.io/Prometheus/install.ps1 | iex
 > less install.sh && sh install.sh
 > ```
 
-The installer downloads a SHA-256-verified release archive, creates an isolated
-venv under `~/.local/share/prometheus/`, places `prometheus` on your PATH, and
-runs `prometheus doctor`. It never touches system Python, never uses PyPI, and
+The installer creates an isolated, versioned venv under
+`~/.local/share/prometheus/`, places `prometheus` on your PATH, and runs
+`prometheus doctor`. It never touches system Python, never uses PyPI, and
 never needs `sudo`.
+
+> **Release status (v0.1.0):** No `v*` Git tag has been pushed yet. Until the
+> first tag is pushed, the installer downloads the source archive from the
+> `main` branch (with a loud checksum warning) and installs from source. After
+> `v0.1.0` is tagged, the installer will automatically prefer the
+> SHA-256-verified release sdist from the GitHub Release. Both paths are tested.
+> See [`docs/INSTALLER_PROOF.md`](docs/INSTALLER_PROOF.md) for details.
 
 ## 30-second quick start
 
@@ -238,7 +245,7 @@ git clone https://github.com/FeverDream-dev/Prometheus.git
 cd Prometheus
 uv venv .venv --python 3.11 && . .venv/bin/activate
 uv pip install -e '.[dev,tui,browser]'
-pytest -q                       # 597 passed, 8 skipped
+pytest -q                       # 648 passed, 8 skipped
 ruff check src tests            # clean
 prometheus doctor               # full hardware report
 ```
@@ -267,7 +274,7 @@ website/               # GitHub Pages static install site
 config/bundles/        # model bundle manifests
 docs/images/           # AI-generated visual assets (FeverDream.dev style)
 docs/                  # specifications, status, image prompts
-tests/                 # 597 passing tests (unit + integration + e2e)
+tests/                 # 648 passing tests (unit + integration + e2e)
 ```
 
 ## Visual assets

@@ -27,10 +27,34 @@ jobs:
         uses: actions/configure-pages@v5
         with:
           enablement: true
-      - name: Copy public install scripts
+      - name: Copy public install scripts into website
         run: |
           cp public/install.sh website/install.sh
           cp public/install.ps1 website/install.ps1
+      - name: Verify required website assets exist
+        run: |
+          set -e
+          for f in install.sh install.ps1 index.html robots.txt sitemap.xml favicon.svg; do
+            test -f "website/$f" || { echo "MISSING: website/$f"; exit 1; }
+          done
+          bash -n website/install.sh
+          echo "All required website assets verified."
+      - name: Verify installer URLs point to Pages (not raw.githubusercontent)
+        run: |
+          set -e
+          if grep -q "raw.githubusercontent.com" website/install.sh; then
+            echo "ERROR: install.sh contains raw.githubusercontent.com URL"
+            exit 1
+          fi
+          echo "Installer URLs verified: no raw.githubusercontent references."
+      - name: Verify SEO metadata present
+        run: |
+          set -e
+          grep -q 'name="description"' website/index.html
+          grep -q 'property="og:title"' website/index.html
+          grep -q 'rel="canonical"' website/index.html
+          grep -q 'application/ld+json' website/index.html
+          echo "SEO metadata verified."
       - name: Upload website artifact
         uses: actions/upload-pages-artifact@v3
         with:

@@ -21,6 +21,7 @@ SLASH_COMMANDS = {
     "/vision": "vision element inspection (/vision inspect <selector>)",
     "/assets": "AssetForge local image generation (/assets generate <kind>)",
     "/astronaut": "astronaut sentinel status (/astronaut start|pause|stop|report)",
+    "/setup": "first-run setup guide (hardware, bundle, configure)",
     "/clear": "clear the log",
     "/exit": "exit the TUI",
     "/help": "show this help",
@@ -205,13 +206,125 @@ def resume_lines(session_id: str) -> list[str]:
         store.close()
 
 
+def sandbox_lines() -> list[str]:
+    from .sandbox import docker_available, tier_available
+
+    out = ["[bold]Sandbox enforcement tiers:[/bold]"]
+    for tier in ("off", "basic", "docker", "native"):
+        ok, reason = tier_available(tier)
+        mark = "[green]available[/green]" if ok else "[red]unavailable[/red]"
+        out.append(f"  {tier:<7} {mark} — {reason}")
+    out.append(f"  docker binary: {'present' if docker_available() else 'absent'}")
+    out.append("[dim]CLI: prometheus sandbox test --workspace <dir> --all[/dim]")
+    return out
+
+
+def vision_lines() -> list[str]:
+    from .vision import vision_doctor
+
+    info = vision_doctor()
+    pw = info["playwright_available"]
+    out = ["[bold]Vision inspector:[/bold]"]
+    out.append(f"  Playwright: {'available' if pw else '[red]not installed[/red]'}")
+    driver = info.get("driver") or {}
+    if driver.get("browsers"):
+        out.append(f"  Browsers: {', '.join(driver['browsers'])}")
+    if driver.get("error"):
+        out.append(f"  [yellow]{driver['error']}[/yellow]")
+    out.append(f"  Fixture UI: {'available' if info['fixture_available'] else '[yellow]not found[/yellow]'}")
+    out.append(f"  Evidence dir: {info['vision_dir']}")
+    if not pw:
+        out.append("[dim]Install: pip install 'prometheus-local-agent[browser]' && playwright install chromium[/dim]")
+    return out
+
+
+def assets_lines() -> list[str]:
+    from .assets import doctor
+
+    info = doctor()
+    out = ["[bold]AssetForge:[/bold]"]
+    for key, label in [("torch_available", "torch"), ("diffusers_available", "diffusers"),
+                       ("rembg_available", "rembg (bg removal)")]:
+        out.append(f"  {label}: {'available' if info[key] else '[yellow]not installed[/yellow]'}")
+    out.append(f"  image tests: {'enabled' if info['image_tests_enabled'] else 'disabled'}")
+    out.append(f"[dim]{info['env_var']}=1 to enable image generation[/dim]")
+    return out
+
+
+def astronaut_lines(workspace) -> list[str]:
+    from pathlib import Path
+
+    from .astronaut import read_state
+
+    ws = Path(workspace)
+    stop = (ws / ".prometheus" / "STOP").exists()
+    pause = (ws / ".prometheus" / "PAUSE").exists()
+    state = read_state(ws)
+    out = ["[bold]Astronaut session:[/bold]"]
+    out.append(f"  status: [bold]{state.status}[/bold]")
+    if state.objective:
+        out.append(f"  objective: {state.objective[:60]}")
+    out.append(f"  macro attempts: {state.macro_attempts} · checkpoints: {state.checkpoints}")
+    if state.final_status:
+        out.append(f"  final: {state.final_status}")
+    if pause:
+        out.append("  [yellow]PAUSE control file present[/yellow]")
+    if stop:
+        out.append("  [red]STOP control file present[/red]")
+    out.append("[dim]CLI: prometheus astronaut start|pause|resume|stop|tick|report[/dim]")
+    return out
+
+
+def setup_lines(settings, classified) -> list[str]:
+    from .hardware import detect_hardware, recommended_profile
+
+    report = detect_hardware()
+    active = settings.active_bundle_id
+    out = ["[bold]PROMETHEUS first-run setup[/bold]"]
+    out.append(f"  OS: {report.os} {report.architecture}" + (" (WSL)" if report.wsl else ""))
+    out.append(f"  RAM: {report.ram_gb} GB | GPU: {report.gpu_name or 'CPU mode'}")
+    recommended = recommended_profile(report)
+    out.append(f"  Recommended bundle: [bold]{recommended}[/bold]")
+    if active:
+        out.append(f"  [green]Active bundle: {active}[/green]")
+    else:
+        out.append("  [yellow]No bundle active yet.[/yellow]")
+    out.append("")
+    out.append("[bold]Available bundles:[/bold]")
+    for c in classified:
+        tag = _STATUS_TAG.get(c.status, c.status)
+        add_on = " (add-on)" if c.bundle.is_add_on else ""
+        out.append(f"  /use {c.bundle.id:<20} {c.bundle.name}{add_on} — {tag}")
+    out.append("")
+    out.append("Type [bold]/use <bundle-id>[/bold] to select, then enter an objective to start coding.")
+    out.append("Type [bold]/help[/bold] for all commands.")
+    return out
+
+
+def first_run_banner(settings) -> list[str]:
+    if settings.active_bundle_id:
+        return []
+    return [
+        "[bold yellow]Welcome to PROMETHEUS![/bold yellow]",
+        "No model bundle configured yet. Type [bold]/setup[/bold] to pick a bundle,",
+        "or [bold]/help[/bold] to see all commands.",
+        "",
+    ]
+
+
 __all__ = [
     "SLASH_COMMANDS",
+    "astronaut_lines",
+    "assets_lines",
     "doctor_lines",
+    "first_run_banner",
     "help_lines",
     "mode_switch_lines",
     "modes_lines",
     "models_lines",
     "resume_lines",
+    "sandbox_lines",
     "settings_lines",
+    "setup_lines",
+    "vision_lines",
 ]

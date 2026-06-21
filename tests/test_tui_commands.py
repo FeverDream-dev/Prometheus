@@ -150,3 +150,80 @@ def test_mode_switch_rejects_invalid_mode():
 def test_resume_lines_without_id_errors():
     lines = tui_commands.resume_lines("")
     assert "needs a session id" in "".join(lines)
+
+
+def test_help_lists_setup_and_sandbox():
+    joined = "\n".join(tui_commands.help_lines())
+    for cmd in ("/setup", "/sandbox", "/vision", "/assets", "/astronaut"):
+        assert cmd in joined
+
+
+def test_sandbox_lines_reports_tiers():
+    lines = tui_commands.sandbox_lines()
+    joined = "\n".join(lines)
+    assert "Sandbox" in joined
+    for tier in ("off", "basic", "docker", "native"):
+        assert tier in joined
+
+
+def test_vision_lines_reports_playwright():
+    lines = tui_commands.vision_lines()
+    joined = "\n".join(lines)
+    assert "Playwright" in joined
+    assert "Vision" in joined
+
+
+def test_assets_lines_reports_dependencies():
+    lines = tui_commands.assets_lines()
+    joined = "\n".join(lines)
+    assert "AssetForge" in joined
+    assert "torch" in joined
+    assert "image tests" in joined
+
+
+def test_astronaut_lines_shows_status(tmp_path):
+    lines = tui_commands.astronaut_lines(tmp_path)
+    joined = "\n".join(lines)
+    assert "Astronaut" in joined
+    assert "status" in joined
+    assert "macro attempts" in joined
+
+
+def test_setup_lines_shows_recommended_and_use_hints():
+    classified = classify_registry(load_registry(), _hw(ram=8, vram=0, disk=200))
+    settings = Settings()
+    lines = tui_commands.setup_lines(settings, classified)
+    joined = "\n".join(lines)
+    assert "first-run setup" in joined
+    assert "/use" in joined
+    assert "spark-cpu-8gb" in joined
+
+
+def test_setup_lines_shows_active_when_configured():
+    classified = classify_registry(load_registry(), _hw(ram=8, vram=0, disk=200))
+    settings = Settings(active_bundle_id="spark-cpu-8gb")
+    lines = tui_commands.setup_lines(settings, classified)
+    assert any("Active bundle: spark-cpu-8gb" in line for line in lines)
+
+
+def test_first_run_banner_shows_when_no_bundle():
+    lines = tui_commands.first_run_banner(Settings())
+    assert len(lines) > 0
+    joined = "\n".join(lines)
+    assert "Welcome" in joined
+    assert "/setup" in joined
+
+
+def test_first_run_banner_empty_when_bundle_set():
+    lines = tui_commands.first_run_banner(Settings(active_bundle_id="spark-cpu-8gb"))
+    assert lines == []
+
+
+def test_every_slash_command_has_tui_dispatch_handler():
+    import inspect
+
+    from prometheus_cli.tui import PrometheusApp
+
+    source = inspect.getsource(PrometheusApp._handle_slash)
+    missing = [cmd for cmd in tui_commands.SLASH_COMMANDS if cmd not in source]
+    assert not missing, f"Commands registered in SLASH_COMMANDS but not dispatched in _handle_slash: {missing}"

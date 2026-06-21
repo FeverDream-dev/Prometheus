@@ -2,7 +2,7 @@
 # PROMETHEUS public POSIX installer (Linux / macOS / WSL).
 #
 # Public one-liner:
-#   curl -fsSL https://raw.githubusercontent.com/FeverDream-dev/Prometheus/main/install.sh | sh
+#   curl -fsSL https://feverdream-dev.github.io/Prometheus/install.sh | sh
 #
 # This is a small, auditable bootstrap. It does NOT run arbitrary remote code
 # beyond the PROMETHEUS source archive from the official GitHub repository. It
@@ -228,16 +228,36 @@ INSTALL_DIR="$VERSIONS_DIR/$RESOLVED"
 VENV_DIR="$INSTALL_DIR/venv"
 WRAPPER="$BIN_DIR/prometheus"
 
-if [ "$RESOLVED" = main ]; then
-  TARBALL_URL="$GH_BRANCH_BASE/main.tar.gz"
+# Track whether we are installing from a checksum-verifiable release artifact.
+# 0 = source archive (cannot verify), 1 = release sdist (must verify).
+VERIFY_CHECKSUM=0
+
+if [ "$RESOLVED" = main ] || [ "$RESOLVED" = master ]; then
+  TARBALL_URL="$GH_BRANCH_BASE/$RESOLVED.tar.gz"
   ARCHIVE="$INSTALL_DIR/source.tar.gz"
-  SRC_SUB="Prometheus-main"
+  SRC_SUB="Prometheus-$RESOLVED"
+  SHA_URL=""
+elif [ "$IS_RELEASE" = 1 ]; then
+  # For releases, prefer the GitHub Release sdist (has a .sha256 sidecar
+  # published by release.yml).  This is a python -m build artifact with a
+  # stable, published checksum — unlike GitHub source archives which are
+  # generated dynamically and cannot be checksum-verified.
+  VER_NUM="${RESOLVED#v}"
+  PKG_NAME="prometheus_local_agent"
+  GH_RELEASE_BASE="https://github.com/$REPO/releases/download/$RESOLVED"
+  TARBALL_URL="$GH_RELEASE_BASE/${PKG_NAME}-${VER_NUM}.tar.gz"
+  SHA_URL="$GH_RELEASE_BASE/${PKG_NAME}-${VER_NUM}.tar.gz.sha256"
+  ARCHIVE="$INSTALL_DIR/${PKG_NAME}-${VER_NUM}.tar.gz"
+  SRC_SUB="${PKG_NAME}-${VER_NUM}"
+  VERIFY_CHECKSUM=1
+  # Fallback: GitHub source archive (not checksum-verifiable).
+  SOURCE_FALLBACK_URL="$GH_TAG_BASE/$RESOLVED.tar.gz"
 else
   TARBALL_URL="$GH_TAG_BASE/$RESOLVED.tar.gz"
   ARCHIVE="$INSTALL_DIR/source.tar.gz"
   SRC_SUB="Prometheus-${RESOLVED#v}"
+  SHA_URL=""
 fi
-SHA_URL="$TARBALL_URL.sha256"   # sidecar published by the release workflow
 
 say "${C_BOLD}=== PROMETHEUS installer ===${C_RESET}"
 info "repository : $REPO"
@@ -252,7 +272,11 @@ info "launcher   : $WRAPPER"
 if [ "$DRY_RUN" = 1 ]; then
   say "${C_YELLOW}DRY RUN${C_RESET} — no changes will be made."
   info "would download: $TARBALL_URL"
-  info "would verify  : $SHA_URL (if present)"
+  if [ -n "$SHA_URL" ]; then
+    info "would verify  : $SHA_URL"
+  else
+    info "would verify  : (source archive — no checksum sidecar)"
+  fi
   info "would create  : $VENV_DIR"
   info "would install : PROMETHEUS$( [ "$INSTALL_TUI" = 1 ] && printf '[tui]' )"
   info "would write   : $WRAPPER"
@@ -269,8 +293,22 @@ fetch() {
 
 log "downloading $TARBALL_URL"
 if ! fetch "$TARBALL_URL" "$ARCHIVE"; then
-  rm -f "$ARCHIVE"
-  fail "download failed: $TARBALL_URL\nCheck connectivity, or pin PROMETHEUS_VERSION, or check the repo is public."
+  if [ -n "${SOURCE_FALLBACK_URL:-}" ]; then
+    warn "Release artifact not found: $TARBALL_URL"
+    warn "Falling back to GitHub source archive (not checksum-verifiable)."
+    TARBALL_URL="$SOURCE_FALLBACK_URL"
+    ARCHIVE="$INSTALL_DIR/source.tar.gz"
+    SRC_SUB="Prometheus-${RESOLVED#v}"
+    SHA_URL=""
+    VERIFY_CHECKSUM=0
+    if ! fetch "$TARBALL_URL" "$ARCHIVE"; then
+      rm -f "$ARCHIVE"
+      fail "download failed: $TARBALL_URL\nCheck connectivity, or pin PROMETHEUS_VERSION, or check the repo is public."
+    fi
+  else
+    rm -f "$ARCHIVE"
+    fail "download failed: $TARBALL_URL\nCheck connectivity, or pin PROMETHEUS_VERSION, or check the repo is public."
+  fi
 fi
 
 # Checksum verification.
@@ -282,27 +320,30 @@ compute_sha256() {
 verify_checksum() {
   [ -n "$SHA256_CMD" ] || { warn "No sha256 tool; skipping verification."; return 0; }
   local_expected=""
-  if fetch "$SHA_URL" "$ARCHIVE.sha256" 2>/dev/null && [ -s "$ARCHIVE.sha256" ]; then
+  if [ -n "$SHA_URL" ] && fetch "$SHA_URL" "$ARCHIVE.sha256" 2>/dev/null && [ -s "$ARCHIVE.sha256" ]; then
     local_expected="$(awk '{print $1}' "$ARCHIVE.sha256" | tr -d '[:space:]' | head -n1 | tr '[:upper:]' '[:lower:]')"
   fi
-  actual="$(compute_sha256 "$ARCHIVE" | tr '[:upper:]' '[:lower:]')"
+  actual="$(compute_sha256 "$ARCHIVE" | tr -d '[:upper:]' | tr '[:upper:]' '[:lower:]')"
   if [ -n "$local_expected" ]; then
     if [ "$actual" != "$local_expected" ]; then
       rm -f "$ARCHIVE" "$ARCHIVE.sha256"
       fail "checksum mismatch for $TARBALL_URL\n  expected $local_expected\n  got      $actual"
     fi
     info "checksum verified: $actual"
-    log "checksum verified (release sidecar): $actual"
-  elif [ "$IS_RELEASE" = 1 ]; then
-    # Released version MUST verify; missing sidecar is a hard failure for releases.
-    rm -f "$ARCHIVE"
-    fail "release checksum missing ($SHA_URL).\nThe release is incomplete or the server removed the sidecar. Refusing to install unverified release."
+    log "checksum verified: $actual"
+  elif [ "$VERIFY_CHECKSUM" = 1 ]; then
+    rm -f "$ARCHIVE" "$ARCHIVE.sha256"
+    fail "release checksum missing ($SHA_URL).\nThe release is incomplete. Refusing to install unverified release artifact."
   else
-    # Unreleased 'main': cannot pin a moving target. Compute + display, warn loudly.
-    warn "Unreleased build ('main'): no stable checksum to verify against."
+    warn "Source archive: no stable checksum to verify against."
     warn "Computed sha256: $actual"
-    warn "For a verified install, pin a version:  PROMETHEUS_VERSION=v0.1.0 sh install.sh"
-    log "checksum unverified (main): $actual"
+    if [ "$IS_RELEASE" = 1 ]; then
+      warn "Release $RESOLVED: release artifacts not yet available; using source archive."
+      warn "Re-run after the release workflow completes for a verified install."
+    else
+      warn "For a verified install, pin a version:  PROMETHEUS_VERSION=v0.1.0 sh install.sh"
+    fi
+    log "checksum unverified (source archive): $actual"
   fi
 }
 verify_checksum

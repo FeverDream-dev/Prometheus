@@ -124,7 +124,11 @@ class PrometheusApp(App):
         yield Footer()
 
     def on_mount(self) -> None:
+        from . import tui_commands
+
         self._render_hardware()
+        for line in tui_commands.first_run_banner(load_settings()):
+            self._log(line)
         self.status = "ready"
 
     def _render_hardware(self) -> None:
@@ -230,6 +234,23 @@ class PrometheusApp(App):
         if cmd == "/memory":
             self.run_worker(self._run_memory, parts[1] if len(parts) > 1 else "status",
                             parts[2] if len(parts) > 2 else None)
+            return
+        if cmd == "/sandbox":
+            _emit(tui_commands.sandbox_lines())
+            return
+        if cmd == "/vision":
+            _emit(tui_commands.vision_lines())
+            return
+        if cmd == "/assets":
+            _emit(tui_commands.assets_lines())
+            return
+        if cmd == "/astronaut":
+            _emit(tui_commands.astronaut_lines(self.workspace))
+            return
+        if cmd == "/setup":
+            ollama = check_ollama()
+            classified = classify_registry(load_registry(), detect_hardware(), ollama.models)
+            _emit(tui_commands.setup_lines(load_settings(), classified))
             return
         _emit([f"[yellow]Unknown command:[/yellow] {cmd}. Try [bold]/help[/bold]."])
 

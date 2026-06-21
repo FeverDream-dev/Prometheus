@@ -10,20 +10,45 @@ One incomplete critical row blocks the phase gate.
 
 Legend: `passing` · `partial` · `placeholder` · `missing`
 
-**Last updated:** this session — **638 tests passed, 8 skipped** (+41 since last).
-Sandbox QA vertical slice: CLI command groups verified, sandbox enforcement test
-suite expanded (19 PASS / 0 FAIL / 1 SKIP on fixture workspace), env-var secret
-filtering added, Rich MarkupError in `bundles list` fixed, QA smoke script +
-CI workflow created, installer URLs updated to GitHub Pages. Provider list
-subcommand + `/sandbox` TUI slash command added. New CLI test coverage:
-`test_cli_command_groups.py`, `test_provider_smoke.py`, `test_memory_cli.py`,
-`test_astronaut_cli.py`, `test_vision_cli.py`, `test_assets_cli.py`.
+**Last updated:** this session — **648 tests passed, 8 skipped**, verified in a
+fresh session against the working tree. Sandbox QA vertical slice confirmed
+PASS (19 PASS / 0 FAIL / 1 SKIP on fixture workspace) with no code changes to
+that slice — see `docs/QA_SANDBOX_REPORT.md` for the full re-verification
+evidence. TUI product-feel slice completed: 4 orphaned slash commands wired
+(`/sandbox`, `/vision`, `/assets`, `/astronaut`), `/setup` first-run guide
+added, first-run welcome banner on TUI launch, dispatch-coverage test prevents
+future orphans. Installer URLs unified to `feverdream-dev.github.io/Prometheus`
+(no `raw.githubusercontent` references remain in `public/`). Release pipeline
+prepared: installer fixed to prefer release sdist with checksum verification,
+source archive fallback tested, wheel/sdist/SBOM built locally, clean-venv
+install verified, `release.yml`/`pages.yml` improved, `install-release-smoke.yml`
+added, `scripts/release_smoke.sh` generates `docs/RELEASE_READINESS.md`.
+**Blocker:** no `v*` tag pushed yet — see `docs/INSTALLER_PROOF.md`.
+
+**What passed this pass (re-verified):** compileall, pytest (648/8), ruff,
+`prometheus --help` (14 top-level + 9 sub-apps), doctor, bundles list, sandbox
+doctor, sandbox test (19/1), memory inspect, vision doctor, assets doctor,
+git status (clean), MCP malicious-fixture block.
+
+**What skipped (with exact reasons):** provider smoke (dead endpoint, optional),
+browser sandbox E2E (Playwright install in CI), 5× real-Ollama E2E
+(`PROMETHEUS_E2E_OLLAMA=1`), 2× AssetForge image gen
+(`PROMETHEUS_RUN_IMAGE_TESTS=1`).
+
+**What remains (active next slice):** release artifacts are not published yet
+(no `v*` tag pushed). The installer has been fixed and tested for both paths:
+(1) release sdist download with SHA-256 checksum verification (activates after
+the first tag), and (2) source archive fallback (works now, warns about
+unverified checksums). Local wheel + sdist + SBOM build verified, clean-venv
+install from wheel verified, source archive install verified. The next gate is
+pushing `v0.1.0` to trigger `release.yml`, which will create the GitHub Release
+with wheel + sdist + SHA256SUMS + SBOM + release manifest.
 
 ## How to reproduce every claim below
 
 ```sh
 . .venv/bin/activate
-python -m pytest -q                       # 638 passed, 8 skipped
+python -m pytest -q                       # 648 passed, 8 skipped
 ruff check src tests                       # clean
 python -m compileall -q src                # clean
 prometheus --help                          # 14 top-level + 9 sub-app command groups
@@ -378,7 +403,7 @@ README only (skip_reason documented).
 ### Full test count
 
 ```
-638 passed, 8 skipped in 28s
+648 passed, 8 skipped in 28s
 ruff check src tests — clean
 python -m compileall src — clean
 ```

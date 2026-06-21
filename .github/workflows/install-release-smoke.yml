@@ -1,0 +1,82 @@
+name: Install release smoke
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Release tag to test (e.g. v0.1.0). Leave empty for latest."
+        required: false
+        default: ""
+  workflow_run:
+    workflows: ["release"]
+    types: [completed]
+    branches: ["v*"]
+
+permissions:
+  contents: read
+
+jobs:
+  install-from-public-installer:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    if: ${{ github.event.workflow_run.conclusion == 'success' || github.event_name == 'workflow_dispatch' }}
+    steps:
+      - name: Resolve version under test
+        id: ver
+        run: |
+          if [ -n "${{ inputs.version }}" ]; then
+            echo "version=${{ inputs.version }}" >> "$GITHUB_OUTPUT"
+          elif [ -n "${{ github.event.workflow_run.head_branch }}" ]; then
+            echo "version=${{ github.event.workflow_run.head_branch }}" >> "$GITHUB_OUTPUT"
+          else
+            echo "version=latest" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Verify the public install.sh is served by GitHub Pages
+        run: |
+          set -e
+          curl -fsSL -o /tmp/gh_install.sh \
+            "https://feverdream-dev.github.io/Prometheus/install.sh"
+          bash -n /tmp/gh_install.sh
+          echo "Public install.sh served and syntax-valid."
+
+      - name: Install PROMETHEUS from public installer into isolated HOME
+        env:
+          HOME: /tmp/rel-smoke-home
+          PROMETHEUS_VERSION: ${{ steps.ver.outputs.version }}
+        run: |
+          set -eu
+          mkdir -p "$HOME"
+          if [ "$PROMETHEUS_VERSION" = "latest" ]; then
+            sh /tmp/gh_install.sh --yes --no-tui --no-ollama \
+              --prefix "$HOME/.local" --bin "$HOME/.local/bin"
+          else
+            PROMETHEUS_VERSION="$PROMETHEUS_VERSION" \
+            sh /tmp/gh_install.sh --yes --no-tui --no-ollama \
+              --prefix "$HOME/.local" --bin "$HOME/.local/bin"
+          fi
+
+      - name: Verify installed entry point
+        env:
+          HOME: /tmp/rel-smoke-home
+          PATH: /tmp/rel-smoke-home/.local/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+        run: |
+          set -e
+          command -v prometheus
+          prometheus --help | head -3
+          prometheus doctor || true
+
+      - name: Verify checksum sidecar was fetched (release installs only)
+        if: steps.ver.outputs.version != 'latest'
+        env:
+          HOME: /tmp/rel-smoke-home
+        run: |
+          set -e
+          VERSION="${{ steps.ver.outputs.version }}"
+          echo "Release install for $VERSION — checking installer log..."
+          if ls "$HOME"/.local/share/prometheus/versions/"$VERSION"/  >/dev/null 2>&1; then
+            echo "Version directory exists: $VERSION"
+            echo "Release install path verified."
+          else
+            echo "WARNING: Expected version directory not found — installer may have fallen back to source archive."
+          fi

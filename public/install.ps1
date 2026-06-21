@@ -1,7 +1,7 @@
 # PROMETHEUS public Windows entry point (delegates to WSL).
 #
 # Public one-liner:
-#   irm https://raw.githubusercontent.com/FeverDream-dev/Prometheus/main/install.ps1 | iex
+#   irm https://feverdream-dev.github.io/Prometheus/install.ps1 | iex
 #
 # PROMETHEUS on Windows runs inside WSL for the current MVP (native Windows is a
 # later phase gate, per docs/INSTALLATION.md). If WSL is installed, this script
@@ -17,7 +17,7 @@ param(
 
 $ErrorActionPreference = "Stop"
 $Repo = "FeverDream-dev/Prometheus"
-$BootstrapUrl = "https://raw.githubusercontent.com/FeverDream-dev/Prometheus/main/install.sh"
+$BootstrapUrl = "https://feverdream-dev.github.io/Prometheus/install.sh"
 
 function Write-Section($msg) { Write-Host "=== $msg ===" -ForegroundColor Cyan }
 function Write-Ok($msg)      { Write-Host $msg -ForegroundColor Green }

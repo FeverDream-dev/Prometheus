@@ -36,11 +36,10 @@ jobs:
         run: python -m pip install --upgrade build cyclonedx-py
       - name: Build sdist + wheel
         run: python -m build
-      - name: Generate SHA256SUMS
+      - name: Generate SHA256SUMS + per-asset sidecars
         run: |
           cd dist
           sha256sum * > SHA256SUMS
-          # Also publish per-asset sidecars the installer verifies against.
           for f in *; do
             [ "$f" = "SHA256SUMS" ] && continue
             sha256sum "$f" | awk '{print $1}' > "$f.sha256"
@@ -48,8 +47,23 @@ jobs:
           cat SHA256SUMS
       - name: Generate SBOM (CycloneDX)
         run: |
-          cyclonedx-py environment -o dist/sbom.cyclonedx.json --schema-version 1.5 || \
+          cyclonedx-py environment -o dist/sbom.cyclonedx.json --sv 1.5 \
+            "$(which python)" || \
             echo "::warning::SBOM generation skipped (cyclonedx-py unavailable)"
+      - name: Generate release manifest
+        run: |
+          python -c "
+          import hashlib, json, pathlib, sys
+          dist = pathlib.Path('dist')
+          manifest = {'version': '${{ github.ref_name }}', 'artifacts': {}}
+          for f in sorted(dist.iterdir()):
+              if f.is_file() and f.name != 'release-manifest.json':
+                  manifest['artifacts'][f.name] = hashlib.sha256(f.read_bytes()).hexdigest()
+          manifest['source_archive_url'] = 'https://github.com/${{ github.repository }}/archive/refs/tags/${{ github.ref_name }}.tar.gz'
+          manifest['release_assets_base'] = 'https://github.com/${{ github.repository }}/releases/download/${{ github.ref_name }}'
+          pathlib.Path('dist/release-manifest.json').write_text(json.dumps(manifest, indent=2) + '\n')
+          print(json.dumps(manifest, indent=2))
+          "
       - uses: actions/upload-artifact@v4
         with:
           name: dist
@@ -77,6 +91,7 @@ jobs:
             dist/SHA256SUMS
             dist/*.sha256
             dist/sbom.cyclonedx.json
+            dist/release-manifest.json
 
   smoke:
     needs: build
@@ -86,7 +101,7 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.11"
-      - name: Install the just-built wheel in a clean venv
+      - name: Download just-built artifacts
         uses: actions/download-artifact@v4
         with:
           name: dist
@@ -105,14 +120,14 @@ jobs:
           /tmp/clean/bin/prometheus --help
           /tmp/clean/bin/prometheus doctor
       - name: Bootstrap smoke test (public install.sh against this tag)
+        if: startsWith(github.ref, 'refs/tags/v')
+        env:
+          HOME: /tmp/bs-home
         run: |
           set -eu
-          TAG="${GITHUB_REF_NAME:-$(python -c 'import re,sys; print(re.search(r"refs/tags/(v[^ ]+)", open("/dev/stdin").read()) and "")' 2>/dev/null || echo main)}"
-          # If triggered by a tag, run the public one-liner pointed at this tag.
-          if [ "${GITHUB_REF_TYPE:-}" = "tag" ]; then
-            PROMETHEUS_VERSION="$GITHUB_REF_NAME" PROMETHEUS_INSTALL_ROOT=/tmp/bs PROMETHEUS_BIN=/tmp/bsbin \
-              sh install.sh --yes --no-ollama
-            /tmp/bsbin/prometheus --help
-          else
-            echo "workflow_dispatch: skipping bootstrap smoke (no tag)."
-          fi
+          mkdir -p "$HOME"
+          PROMETHEUS_VERSION="$GITHUB_REF_NAME" \
+          PROMETHEUS_INSTALL_ROOT="$HOME/.local/share/prometheus" \
+          PROMETHEUS_BIN="$HOME/.local/bin" \
+          sh install.sh --yes --no-ollama --no-tui
+          "$HOME/.local/bin/prometheus" --help
