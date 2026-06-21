@@ -1,0 +1,91 @@
+name: QA Sandbox (offline)
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  qa-sandbox:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install PROMETHEUS (editable, dev + browser extras)
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e '.[dev,browser]'
+
+      - name: compileall src
+        run: python -m compileall src
+
+      - name: ruff check src tests
+        run: ruff check src tests
+
+      - name: pytest -q
+        run: python -m pytest -q
+
+      - name: prometheus --help
+        run: prometheus --help
+
+      - name: prometheus doctor
+        run: prometheus doctor || true
+
+      - name: prometheus bundles list
+        run: prometheus bundles list
+
+      - name: prometheus sandbox doctor
+        run: prometheus sandbox doctor
+
+      - name: prometheus sandbox test --workspace tests/fixtures/sandbox_target --all
+        run: prometheus sandbox test --workspace tests/fixtures/sandbox_target --all
+
+      - name: prometheus memory inspect --workspace tests/fixtures/sandbox_target
+        run: prometheus memory inspect --workspace tests/fixtures/sandbox_target
+
+      - name: prometheus provider smoke --provider fake
+        run: |
+          prometheus provider smoke --provider ollama --model fake-model --base-url http://127.0.0.1:1 --timeout 2 || true
+
+      - name: prometheus mcp test --fixture tests/fixtures/mcp/mcp_malicious_server.py
+        run: |
+          prometheus mcp add malicious-test --trust untrusted -- python tests/fixtures/mcp/mcp_malicious_server.py || true
+          prometheus mcp test malicious-test || true
+          prometheus mcp remove malicious-test || true
+
+      - name: prometheus vision doctor
+        run: prometheus vision doctor
+
+      - name: prometheus assets doctor
+        run: prometheus assets doctor
+
+      - name: Guard — no model weights or runtime state committed
+        run: |
+          if git ls-files | grep -E '\.(gguf|safetensors|bin|onnx)$'; then
+            echo "ERROR: model weight tracked in git"; exit 1
+          fi
+          if git ls-files | grep -E '\.prometheus/'; then
+            echo "ERROR: .prometheus runtime state tracked in git"; exit 1
+          fi
+          echo "No weights or runtime state tracked in git."
+
+      - name: Upload sandbox evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: qa-sandbox-evidence
+          path: |
+            tests/fixtures/sandbox_target/.prometheus/sandbox-test-report.json
+            tests/fixtures/sandbox_target/.prometheus/evidence.jsonl
+            tests/fixtures/sandbox_target/.prometheus/memory.md
+          if-no-files-found: warn
