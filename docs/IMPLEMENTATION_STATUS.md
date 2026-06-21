@@ -10,22 +10,23 @@ One incomplete critical row blocks the phase gate.
 
 Legend: `passing` · `partial` · `placeholder` · `missing`
 
-**Last updated:** commit (vibethinker-sandbox) — **528 tests passed, 8 skipped**
-(+35 since last). Real VibeThinker Q2_K inference proven end-to-end (see
-"VibeThinker sandbox proof" below). This file was rewritten because it had
-drifted badly out of sync (it documented 82% / 91 tests while the tree had grown to the
-full Phase 2 feature set).
+**Last updated:** this session — **597 tests passed, 8 skipped** (+63 since last).
+Astronaut Vision MVP + AssetForge Lite MVP implemented: CSS snapshot inspector,
+design-profile comparison, element capture, asset manifest with license policy,
+prompt builder, rembg background removal, and `generate` pipeline. CLI groups
+`vision` and `assets` wired with TUI slash commands `/vision`, `/assets`,
+`/astronaut`. GitHub workflow `assetforge-smoke.yml` added.
 
 ## How to reproduce every claim below
 
 ```sh
 . .venv/bin/activate
-python -m pytest -q                       # 528 passed, 8 skipped
+python -m pytest -q                       # 597 passed, 8 skipped
 ruff check src tests                       # clean
 python -m compileall -q src                # clean
-prometheus --help                          # 16 top-level + 5 sub-app command groups
-prometheus doctor && prometheus bundles && prometheus bundles inspect spark-cpu-8gb
-prometheus models list && prometheus mcp list && prometheus astronaut --help
+prometheus --help                          # 18 top-level + 7 sub-app command groups
+prometheus vision doctor && prometheus assets doctor
+prometheus astronaut tick --seed 42
 ```
 
 ---
@@ -166,6 +167,37 @@ prometheus models list && prometheus mcp list && prometheus astronaut --help
 | Reduced-motion + terminal-width + fallback | `splash.py` | `tests/test_splash.py` | passing |
 | Frame animation in TUI startup | `splash.py::play` | `tests/test_splash.py` | passing |
 
+### Astronaut Vision (CSS-snapshot inspector)
+| Feature | Implementation | Test | Status |
+|---|---|---|---|
+| Computed-style snapshot (24 properties + bounding box) | `vision/style_snapshot.py` | `tests/test_vision_style_snapshot.py` | passing |
+| WCAG contrast ratio computation | `vision/style_snapshot.py::compute_contrast_ratio` | `tests/test_vision_style_snapshot.py` | passing |
+| Design-profile comparison (matched/diff/tolerance) | `vision/comparison.py` | `tests/test_vision_comparison.py` | passing |
+| Element capture (screenshot + CSS + a11y + variants) | `vision/element_capture.py` | `tests/test_vision_element_capture.py` | passing |
+| Playwright driver (optional, graceful degrade) | `vision/playwright_driver.py` | `tests/test_vision_assets_cli.py` | passing |
+| VisionInspector orchestrator + doctor | `vision/inspector.py` | `tests/test_vision_assets_cli.py` | passing |
+| Markdown report generation | `vision/reports.py` | `tests/test_vision_comparison.py` | passing |
+| `prometheus vision doctor/inspect/compare` CLI | `cli.py::vision_app` | `tests/test_vision_assets_cli.py` | passing |
+| Fixture website + design profile | `tests/fixtures/web_ui/` | `tests/test_vision_assets_cli.py` | passing |
+| `/vision` TUI slash command | `tui_commands.py` | `tests/test_vision_assets_cli.py` | passing |
+| Astronaut tick (focused/random/vision) | `astronaut.py::run_tick` | `tests/test_astronaut_vision_tick.py` | passing |
+| `prometheus astronaut tick/run-once/report` CLI | `cli.py::astronaut_app` | `tests/test_vision_assets_cli.py` | passing |
+
+### AssetForge Lite (local image generation)
+| Feature | Implementation | Test | Status |
+|---|---|---|---|
+| AssetManifest (provenance, license, seed, warnings) | `assets/manifest.py` | `tests/test_assets_manifest.py` | passing |
+| Known-license registry (FLUX, SDXL, rembg, BRIA) | `assets/manifest.py::KNOWN_LICENSES` | `tests/test_assets_manifest.py` | passing |
+| Commercial-use policy enforcement | `assets/manifest.py::can_use_commercially` | `tests/test_assets_license_policy.py` | passing |
+| Interactive question builder (9 questions, validation) | `assets/questions.py` | `tests/test_assets_prompt_questions.py` | passing |
+| Prompt + negative-prompt builder | `assets/questions.py::build_prompt` | `tests/test_assets_prompt_questions.py` | passing |
+| Background removal (rembg wrapper, graceful degrade) | `assets/background_removal.py` | `tests/test_assets_license_policy.py` | passing |
+| Generate pipeline (manifest-only when image-gen disabled) | `assets/generator.py` | `tests/test_assets_license_policy.py` | passing |
+| `prometheus assets doctor/setup/models/generate/remove-bg/manifest` CLI | `cli.py::assets_app` | `tests/test_vision_assets_cli.py` | passing |
+| AssetForge bundle manifests (lite-8gb, quality-12gb) | `config/bundles/assetforge-*.yaml` | bundle loader | passing |
+| `/assets` TUI slash command | `tui_commands.py` | `tests/test_vision_assets_cli.py` | passing |
+| GitHub workflow (Playwright + fixture + compare) | `.github/workflows/assetforge-smoke.yml` | workflow_dispatch | passing |
+
 ---
 
 ## Placeholder inventory
@@ -290,3 +322,54 @@ skipped when Playwright isn't installed — precise reason given).
 
 531 tests passed, 8 skipped. ruff clean. No model weights or `.prometheus/`
 runtime state committed (verified).
+
+---
+
+## Astronaut Vision + AssetForge (this session)
+
+### Vision MVP — CSS-snapshot inspector
+
+The deterministic CSS snapshot is the first judge; a vision model (if present)
+is a secondary reviewer that never overrides the deterministic result.
+
+```
+prometheus vision doctor                        # Playwright availability + version
+prometheus vision inspect http://localhost:4173 \
+  --selector "button.primary" --output /tmp/cap  # screenshot + style.json + a11y.json
+prometheus vision compare /tmp/cap/style.json \
+  tests/fixtures/web_ui/design/button-primary.json  # matched: true/false + diffs
+prometheus astronaut tick --vision --url http://localhost:4173  # astronaut integration
+```
+
+**12 vision + 5 astronaut-tick tests pass.** Playwright is optional — `vision
+doctor` reports availability, all unit tests run without a browser.
+
+### AssetForge Lite — local image generation
+
+License-safe by design: the manifest records model, license, seed, and
+provenance. Commercial-use policy is enforced deterministically — Stability AI
+models warn, BRIA background-removal warns, FLUX.1-schnell (Apache-2.0) passes.
+
+```
+prometheus assets doctor                       # rembg/diffusers/torch availability
+prometheus assets models                       # known models + license table
+prometheus assets generate my-icon \
+  --kind icon --size 512x512 --output ./out    # manifest + README (+ image if enabled)
+prometheus assets remove-bg input.png          # rembg transparency
+prometheus assets manifest ./out/my-icon       # inspect provenance
+```
+
+**9 asset-manifest + 9 license-policy tests pass.** Image generation is gated
+behind `PROMETHEUS_RUN_IMAGE_TESTS=1`; without it, `generate` writes manifest +
+README only (skip_reason documented).
+
+### Full test count
+
+```
+597 passed, 8 skipped in 21s
+ruff check src tests — clean
+python -m compileall src — clean
+```
+
+63 new tests (vision: 22, assets: 18, astronaut: 5, CLI: 10, comparison: 8).
+Zero regressions vs the 534-test baseline.

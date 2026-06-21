@@ -1,0 +1,103 @@
+name: AssetForge smoke (vision + asset pipeline)
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "0 6 * * 1"  # weekly Monday 06:00 UTC
+
+permissions:
+  contents: read
+
+jobs:
+  assetforge-smoke:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      PROMETHEUS_RUN_IMAGE_TESTS: "1"
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install PROMETHEUS (editable + browser)
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e '.[dev,browser]'
+
+      - name: Install Playwright browsers
+        run: python -m playwright install --with-deps chromium
+
+      - name: ruff check
+        run: ruff check src/prometheus_cli/vision src/prometheus_cli/assets
+
+      - name: Run vision + assets unit tests
+        run: |
+          pytest tests/test_vision_style_snapshot.py \
+                 tests/test_vision_element_capture.py \
+                 tests/test_vision_comparison.py \
+                 tests/test_assets_manifest.py \
+                 tests/test_assets_prompt_questions.py \
+                 tests/test_assets_license_policy.py \
+                 tests/test_astronaut_vision_tick.py \
+                 tests/test_vision_assets_cli.py \
+                 -v
+
+      - name: Vision doctor (no Playwright required at this layer)
+        run: prometheus vision doctor
+
+      - name: Assets doctor
+        run: prometheus assets doctor
+
+      - name: Assets models list
+        run: prometheus assets models
+
+      - name: Astronaut tick (focused, no browser)
+        run: prometheus astronaut tick --seed 42
+
+      - name: Start fixture web server
+        run: |
+          cd tests/fixtures/web_ui
+          python -m http.server 4173 &
+          echo $! > /tmp/fixture.pid
+          sleep 2
+          curl -sf http://127.0.0.1:4173/index.html >/dev/null
+
+      - name: Vision inspect (Playwright + fixture site)
+        run: |
+          prometheus vision inspect http://127.0.0.1:4173/index.html \
+            --selector "button.primary" \
+            --output /tmp/vision-capture
+
+      - name: Vision compare against design profile
+        run: |
+          prometheus vision compare /tmp/vision-capture/style.json \
+            tests/fixtures/web_ui/design/button-primary.json
+
+      - name: Generate manifest-only asset (no GPU needed)
+        run: |
+          prometheus assets generate test-icon --kind icon --size 512x512 \
+            --output /tmp/asset-test
+
+      - name: Stop fixture server
+        if: always()
+        run: |
+          if [ -f /tmp/fixture.pid ]; then
+            kill "$(cat /tmp/fixture.pid)" 2>/dev/null || true
+          fi
+
+      - name: Upload vision capture artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: vision-capture
+          path: /tmp/vision-capture/
+          if-no-files-found: warn
+
+      - name: Guard — no model weights committed
+        run: |
+          if git ls-files | grep -E '\.(gguf|safetensors|bin|onnx)$'; then
+            echo "ERROR: model weight staged in git"; exit 1
+          fi
+          echo "No weights tracked in git."

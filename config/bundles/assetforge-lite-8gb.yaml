@@ -1,0 +1,40 @@
+name: assetforge-lite-8gb
+description: AssetForge Lite — SDXL-Turbo icon/hero generation for 8 GB+ systems
+minimum_ram_gb: 8
+minimum_vram_gb: 0
+sequential_loading: true
+add_on: true
+experimental: true
+runtime:
+  provider: local
+  unlimited_local_sessions: true
+  sequential_loading: true
+  maximum_loaded_models: 1
+  default_context: 4096
+models:
+  - provider: diffusers
+    model: stabilityai/sdxl-turbo
+    role: image_generator
+    context_window: 4096
+    keep_alive: 0
+    tool_capable: false
+    capabilities:
+      - image_generation
+      - icon
+      - hero
+      - illustration
+  - provider: rembg
+    model: u2netp
+    role: background_removal
+    context_window: 0
+    keep_alive: 0
+    tool_capable: false
+    capabilities:
+      - background_removal
+licenses:
+  - model: stabilityai/sdxl-turbo
+    license: STABILITY-AI
+    source: https://huggingface.co/stabilityai/sdxl-turbo
+  - model: u2netp
+    license: MIT
+    source: https://github.com/danielgatis/rembg

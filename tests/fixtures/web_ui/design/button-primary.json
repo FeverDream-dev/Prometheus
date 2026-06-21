@@ -1,0 +1,14 @@
+{
+  "name": "button-primary",
+  "description": "Primary action button style for the fixture UI",
+  "contrast_ratio_min": 4.5,
+  "properties": {
+    "background-color": "rgb(79, 70, 229)",
+    "color": "rgb(255, 255, 255)",
+    "border-color": "rgb(79, 70, 229)",
+    "border-radius": "6px",
+    "font-size": "14px",
+    "font-weight": "600",
+    "cursor": "pointer"
+  }
+}

@@ -53,3 +53,13 @@ models/
 .ollama/
 .cache/huggingface/
 sandbox-test-report.json
+
+# Local export artifacts (not project config).
+exported-bundle.yaml
+
+# AssetForge: generated asset binaries never committed (manifests + READMEs are OK).
+assets/generated/**/source.png
+assets/generated/**/transparent.png
+assets/generated/**/web-*.png
+assets/generated/**/preview.webp
+.u2net/

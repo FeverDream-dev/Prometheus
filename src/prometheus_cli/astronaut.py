@@ -208,6 +208,127 @@ def read_state(workspace: Path) -> AstronautState:
         return AstronautState()
 
 
+def _astronaut_dir(workspace: Path) -> Path:
+    d = workspace.resolve() / ".prometheus" / "astronaut"
+    d.mkdir(parents=True, exist_ok=True)
+    return d
+
+
+def _append_event(workspace: Path, event: dict) -> Path:
+    d = _astronaut_dir(workspace)
+    events_path = d / "events.jsonl"
+    with events_path.open("a", encoding="utf-8") as f:
+        f.write(json.dumps(event, default=str) + "\n")
+    return events_path
+
+
+def _write_report(workspace: Path, text: str) -> Path:
+    d = _astronaut_dir(workspace)
+    report_path = d / "report.md"
+    report_path.write_text(text, encoding="utf-8")
+    return report_path
+
+
+def run_tick(
+    workspace: Path,
+    seed: int = 0,
+    vision: bool = False,
+    url: str = "",
+    selector: str = "",
+    profile: Path | None = None,
+) -> dict:
+    """Run one Astronaut Sentinel test tick.
+
+    Returns the event dict that was also appended to events.jsonl.
+    """
+    import random
+    import subprocess
+    import time as _time
+
+    if seed == 0:
+        seed = int(_time.time() * 1000) % (2**31)
+    rng = random.Random(seed)
+
+    tick_type = "focused"
+    if vision or url:
+        tick_type = "vision"
+    elif rng.random() < 0.3:
+        tick_type = "random"
+
+    event: dict = {
+        "type": f"astronaut_{tick_type}_test",
+        "seed": seed,
+        "timestamp": _time.time(),
+    }
+
+    if tick_type == "vision":
+        event["selected_area"] = selector or "button.primary"
+        event["url"] = url or "http://localhost:4173"
+        if profile and profile.exists():
+            event["profile"] = str(profile)
+        try:
+            from .vision import VisionInspector
+            inspector = VisionInspector(headless=True)
+            out_dir = workspace / ".prometheus" / "vision"
+            report = inspector.inspect(
+                url=url or "http://localhost:4173",
+                selector=selector or "button.primary",
+                profile=profile,
+                out_dir=out_dir,
+            )
+            if "error" in report:
+                event["result"] = "fail"
+                event["detail"] = report["error"]
+            else:
+                event["result"] = "pass" if report.get("verdict") == "pass" else "fail"
+                event["detail"] = report.get("comparison", {}).get("summary", report.get("verdict", ""))
+        except ImportError:
+            event["result"] = "skip"
+            event["detail"] = "playwright not installed"
+        except Exception as exc:
+            event["result"] = "fail"
+            event["detail"] = str(exc)[:200]
+    else:
+        pytest_args = ["python", "-m", "pytest", "-q", "--no-header", "--tb=line"]
+        if tick_type == "random":
+            event["reason"] = "random sample tick"
+            event["commands"] = ["pytest -q (random sample)"]
+        else:
+            event["reason"] = "focused test tick"
+            event["commands"] = ["pytest -q"]
+        event["commands_run"] = pytest_args
+        try:
+            proc = subprocess.run(
+                pytest_args, cwd=str(workspace),
+                capture_output=True, text=True, timeout=120,
+            )
+            event["result"] = "pass" if proc.returncode == 0 else "fail"
+            event["exit_code"] = proc.returncode
+            event["detail"] = (proc.stdout + proc.stderr).strip()[-300:]
+        except subprocess.TimeoutExpired:
+            event["result"] = "fail"
+            event["detail"] = "pytest timed out (120s)"
+        except FileNotFoundError:
+            event["result"] = "skip"
+            event["detail"] = "pytest not found in PATH"
+        except Exception as exc:
+            event["result"] = "fail"
+            event["detail"] = str(exc)[:200]
+
+    _append_event(workspace, event)
+    report_lines = [
+        "# Astronaut Sentinel Report",
+        "",
+        f"Last tick: {event['type']} (seed {seed})",
+        f"Result: **{event['result']}**",
+        "",
+    ]
+    if event.get("detail"):
+        report_lines.append(f"Detail: {event['detail'][:200]}")
+    _write_report(workspace, "\n".join(report_lines) + "\n")
+    return event
+
+
 __all__ = [
     "AstronautController",
     "AstronautResult",
@@ -218,4 +339,5 @@ __all__ = [
     "read_state",
     "request_pause",
     "request_stop",
+    "run_tick",
 ]

@@ -795,6 +795,8 @@ browser_app = typer.Typer(help="Browser automation (Playwright)")
 astronaut_app = typer.Typer(help="Long-running autonomous sessions")
 sandbox_app = typer.Typer(help="Sandbox doctor + enforcement test suite")
 provider_app = typer.Typer(help="Provider smoke probes")
+vision_app = typer.Typer(help="Vision element inspection (Playwright + computed CSS)")
+assets_app = typer.Typer(help="AssetForge — local image generation package")
 
 
 @models_app.command("list")
@@ -1363,7 +1365,313 @@ def astronaut_stop(
     console.print("[dim]The astronaut process will exit at the next safe point.[/dim]")
 
 
+@astronaut_app.command("tick")
+def astronaut_tick(
+    workspace: Path = typer.Option(Path.cwd(), "--workspace", exists=True, file_okay=False),
+    vision: bool = typer.Option(False, "--vision", help="Run vision-based UI inspection in this tick"),
+    seed: int = typer.Option(0, "--seed", help="Random seed for reproducible test selection (0 = time-based)"),
+    url: str = typer.Option("", "--url", help="URL for vision inspection (implies --vision)"),
+    selector: str = typer.Option("", "--selector", help="CSS selector for vision inspection"),
+    profile: Path | None = typer.Option(None, "--profile", exists=True, readable=True,
+                                        help="Design profile JSON for vision comparison"),
+) -> None:
+    """Run one Astronaut Sentinel test tick (focused, random, or vision)."""
+    from .astronaut import run_tick
+
+    use_vision = vision or bool(url)
+    result = run_tick(workspace, seed=seed, vision=use_vision, url=url, selector=selector,
+                      profile=profile)
+    console.print(Panel.fit("Astronaut tick"))
+    console.print(f"  type: {result['type']}")
+    console.print(f"  seed: {result.get('seed', 'N/A')}")
+    console.print(f"  result: {result['result']}")
+    if result.get("detail"):
+        console.print(f"  detail: {result['detail']}")
+    console.print(f"[dim]evidence -> {workspace}/.prometheus/astronaut/events.jsonl[/dim]")
+
+
+@astronaut_app.command("run-once")
+def astronaut_run_once(
+    objective: str = typer.Argument(..., help="Outcome for this one-shot session"),
+    workspace: Path = typer.Option(Path.cwd(), "--workspace", exists=True, file_okay=False),
+    bundle: Path | None = typer.Option(None, "--bundle", exists=True, readable=True),
+    yes: bool = typer.Option(False, "--yes", help="Auto-approve mode-allowed actions"),
+) -> None:
+    """Run a single astronaut macro-attempt (one Arena loop), then stop."""
+    from .agent import ArenaLoop, MicroStepEngine, make_default_verify
+    from .memory import Intent, ProjectMemoryStore
+    from .providers import create_provider
+    from .tools.workspace import WorkspaceTools
+
+    settings = load_settings()
+    settings.mode = AutonomyMode.ASTRONAUT
+    settings.workspace = workspace.resolve()
+    bundle_path = bundle or settings.bundle_file
+    if not bundle_path:
+        console.print("[red]No bundle configured. Run 'prometheus setup' or pass --bundle.[/red]")
+        raise typer.Exit(code=1)
+    bundle_obj = load_bundle(bundle_path)
+    controller_spec = bundle_obj.for_role("controller")
+    forge = create_provider(controller_spec)
+    envoy = create_provider(controller_spec)
+    argus = create_provider(controller_spec)
+    mem = ProjectMemoryStore(workspace)
+    mem.set_intent(Intent(objective=objective, success_criteria=[]))
+    tools = WorkspaceTools(workspace)
+    approve = (lambda _c, _r: True) if yes else _approval
+    engine = MicroStepEngine(store=mem, tools=tools, settings=settings, approve=approve)
+    arena = ArenaLoop(store=mem, tools=tools, engine=engine)
+    verify = make_default_verify(workspace)
+    providers = {"envoy": envoy, "forge": forge, "argus": argus}
+    console.print(Panel.fit(f"Astronaut run-once\nObjective: {objective}"))
+    result = arena.run(providers, verify, on_update=lambda line: console.print(f"[cyan]{line}[/cyan]"))
+    verdict = "[green]COMPLETE[/green]" if result.accepted else f"[yellow]{result.final_status.upper()}[/yellow]"
+    console.print(Panel(
+        f"accepted={result.accepted} · attempts={result.attempts}",
+        title=f"{verdict} — run-once"))
+
+
+@astronaut_app.command("report")
+def astronaut_report(
+    workspace: Path = typer.Option(Path.cwd(), "--workspace", exists=True, file_okay=False),
+) -> None:
+    """Show the astronaut session report."""
+    from .astronaut import read_state
+
+    state = read_state(workspace)
+    report_path = workspace / ".prometheus" / "astronaut" / "report.md"
+    events_path = workspace / ".prometheus" / "astronaut" / "events.jsonl"
+    console.print(Panel.fit("Astronaut report"))
+    console.print(f"Status: [bold]{state.status}[/bold]")
+    console.print(f"Objective: {state.objective or '(none)'}")
+    console.print(f"Macro attempts: {state.macro_attempts}")
+    console.print(f"Checkpoints: {state.checkpoints}")
+    if events_path.exists():
+        lines = events_path.read_text(encoding="utf-8").strip().split("\n")
+        console.print(f"Events logged: {len(lines)}")
+        import json as _json
+        ticks = [ln for ln in lines if ln.strip()]
+        passed = sum(1 for ln in ticks if _json.loads(ln).get("result") == "pass")
+        console.print(f"Ticks passed: {passed}/{len(ticks)}")
+    if report_path.exists():
+        console.print(f"\n[bold]Report file:[/bold] {report_path}")
+        console.print(report_path.read_text(encoding="utf-8")[:500])
+
+
 app.add_typer(astronaut_app, name="astronaut")
+
+
+@vision_app.command("doctor")
+def vision_doctor_cmd() -> None:
+    """Report vision inspection capabilities (Playwright, browsers, fixtures)."""
+    from .vision import vision_doctor
+
+    info = vision_doctor()
+    console.print(Panel.fit("PROMETHEUS vision doctor"))
+    pw = info["playwright_available"]
+    console.print(f"  Playwright: {'available' if pw else '[red]not installed[/red]'}")
+    if info.get("driver"):
+        d = info["driver"]
+        if d.get("browsers"):
+            console.print(f"  Browsers: {', '.join(d['browsers'])}")
+        if d.get("error"):
+            console.print(f"  [yellow]{d['error']}[/yellow]")
+    console.print(f"  Fixture UI: {'available' if info['fixture_available'] else '[yellow]not found[/yellow]'}")
+    console.print(f"  Vision evidence dir: {info['vision_dir']}")
+    if not pw:
+        console.print("\n[yellow]Install:[/yellow] pip install 'prometheus-local-agent[browser]' && playwright install chromium")
+
+
+@vision_app.command("inspect")
+def vision_inspect(
+    url: str = typer.Option(..., "--url", help="URL to inspect (http:// or file://)"),
+    selector: str = typer.Option(None, "--selector", help="CSS selector, e.g. 'button.primary'"),
+    role: str = typer.Option(None, "--role", help="ARIA role to locate (e.g. button)"),
+    name: str = typer.Option(None, "--name", help="Accessible name to match with --role"),
+    test_id: str = typer.Option(None, "--test-id", help="data-testid to locate"),
+    profile: Path | None = typer.Option(None, "--profile", exists=True, readable=True,
+                                        help="Design profile JSON for comparison"),
+    workspace: Path = typer.Option(Path.cwd(), "--workspace", exists=True, file_okay=False),
+    headless: bool = typer.Option(True, "--headless/--headed"),
+    full_page: bool = typer.Option(False, "--full-page", help="Also capture a full-page screenshot"),
+) -> None:
+    """Inspect a UI element: element-only screenshot, computed CSS, accessibility."""
+    from .vision import VisionInspector
+
+    out_dir = workspace / ".prometheus" / "vision"
+    inspector = VisionInspector(headless=headless)
+    report = inspector.inspect(
+        url=url, selector=selector, role=role, name=name, test_id=test_id,
+        profile=profile, out_dir=out_dir, include_full_page=full_page,
+    )
+    if "error" in report:
+        console.print(f"[red]Vision error:[/red] {report['error']}")
+        if "hint" in report:
+            console.print(f"[yellow]{report['hint']}[/yellow]")
+        raise typer.Exit(code=1)
+    console.print(Panel.fit(f"Vision inspect — {report['selector']}"))
+    console.print(f"  Verdict: {report['verdict']}")
+    a11y = report.get("element", {}).get("accessibility", {})
+    if a11y:
+        console.print(f"  Role: {a11y.get('role', '?')} · Name: {a11y.get('name', '?')}")
+    comp = report.get("comparison")
+    if comp:
+        icon = "[green]PASS[/green]" if comp["matched"] else "[red]FAIL[/red]"
+        console.print(f"  Comparison: {icon} — {comp['summary']}")
+    console.print(f"  [dim]Evidence -> {out_dir}/[/dim]")
+    if comp and not comp["matched"]:
+        raise typer.Exit(code=1)
+
+
+@vision_app.command("compare")
+def vision_compare(
+    actual: Path = typer.Argument(..., exists=True, readable=True,
+                                   help="Path to actual style.json from a vision inspect"),
+    expected: Path = typer.Argument(..., exists=True, readable=True,
+                                     help="Path to expected design profile JSON"),
+) -> None:
+    """Compare an actual style snapshot against an expected design profile."""
+    from .vision import VisionInspector
+
+    inspector = VisionInspector()
+    result = inspector.compare(actual, expected)
+    icon = "[green]PASS[/green]" if result.matched else "[red]FAIL[/red]"
+    console.print(Panel.fit(f"Vision compare — {icon}"))
+    console.print(f"  {result.summary}")
+    if not result.matched:
+        diffs = [d for d in result.diffs if not d.matched]
+        for d in diffs:
+            console.print(f"    {d.property}: expected '{d.expected}' got '{d.actual}'")
+        raise typer.Exit(code=1)
+
+
+app.add_typer(vision_app, name="vision")
+
+
+@assets_app.command("doctor")
+def assets_doctor() -> None:
+    """Report AssetForge capabilities (rembg, diffusers, torch)."""
+    from .assets import doctor
+
+    info = doctor()
+    console.print(Panel.fit("AssetForge doctor"))
+    console.print(f"  torch: {'available' if info['torch_available'] else '[yellow]not installed[/yellow]'}")
+    console.print(f"  diffusers: {'available' if info['diffusers_available'] else '[yellow]not installed[/yellow]'}")
+    console.print(f"  rembg (bg removal): {'available' if info['rembg_available'] else '[yellow]not installed[/yellow]'}")
+    console.print(f"  image tests enabled: {info['image_tests_enabled']}")
+    console.print(f"  [dim]env var: {info['env_var']}=1 to enable image generation[/dim]")
+
+
+@assets_app.command("setup")
+def assets_setup() -> None:
+    """Show the install commands needed to enable AssetForge image generation."""
+    from .assets import setup
+
+    result = setup()
+    if result["ready"]:
+        console.print("[green]All dependencies installed.[/green]")
+    else:
+        console.print("[yellow]Install these to enable image generation:[/yellow]")
+        for cmd in result["commands"]:
+            console.print(f"  {cmd}")
+
+
+@assets_app.command("models")
+def assets_models() -> None:
+    """List supported AssetForge model packages."""
+    from .assets.manifest import KNOWN_LICENSES
+
+    console.print(Panel.fit("AssetForge models"))
+    for model, info in sorted(KNOWN_LICENSES.items()):
+        console.print(f"  [bold]{model}[/bold]")
+        console.print(f"    license: {info['license']} · commercial: {info['commercial']}")
+        console.print(f"    {info['source']}")
+
+
+@assets_app.command("generate")
+def assets_generate(
+    name: str = typer.Argument(..., help="Asset name (no spaces)"),
+    kind: str = typer.Option("icon", "--kind", help="icon|hero|illustration|logo|dashboard|mockup|background"),
+    size: str = typer.Option("512x512", "--size", help="WxH (256x256, 512x512, 1024x1024, 1536x864, 1920x1080)"),
+    transparent: bool = typer.Option(False, "--transparent", help="Remove background after generation"),
+    model: str = typer.Option("stabilityai/sdxl-turbo", "--model", help="HuggingFace model id"),
+    style: str = typer.Option("", "--style"),
+    colors: str = typer.Option("", "--colors"),
+    seed: int = typer.Option(0, "--seed", help="0 = random"),
+    steps: int = typer.Option(4, "--steps"),
+    output_dir: Path = typer.Option(Path("assets/generated"), "--output-dir"),
+) -> None:
+    """Generate a web asset (icon, hero, illustration) via local image model."""
+    from .assets import generate
+
+    result = generate(
+        name=name, kind=kind, size=size, transparent=transparent,
+        model=model, style=style, colors=colors, seed=seed, steps=steps,
+        output_dir=output_dir,
+    )
+    if "error" in result:
+        console.print(f"[red]{result['error']}[/red]")
+        raise typer.Exit(code=1)
+    console.print(Panel.fit(f"AssetForge generate — {name}"))
+    console.print(f"  Kind: {kind} · Size: {size} · Transparent: {transparent}")
+    console.print(f"  Model: {model} · Seed: {result['seed']}")
+    console.print(f"  Prompt: {result['prompt']}")
+    console.print(f"  Image generated: {result['image_generated']}")
+    if result.get("skip_reason"):
+        console.print(f"  [yellow]{result['skip_reason']}[/yellow]")
+    for w in result.get("answers_warnings", []):
+        console.print(f"  [yellow]warning: {w}[/yellow]")
+    console.print(f"  Manifest: {result['manifest_path']}")
+    console.print(f"  [dim]Asset dir: {result['asset_dir']}[/dim]")
+
+
+@assets_app.command("remove-bg")
+def assets_remove_bg(
+    input: Path = typer.Argument(..., exists=True, readable=True),
+    out: Path = typer.Option(None, "--out", help="Output path (default: <input>-transparent.png)"),
+) -> None:
+    """Remove background from an image using rembg (MIT-licensed)."""
+    from .assets import is_available, remove_background
+
+    if not is_available():
+        console.print("[red]rembg not installed. Run: pip install rembg[/red]")
+        raise typer.Exit(code=1)
+    output_path = out or input.with_stem(input.stem + "-transparent")
+    result = remove_background(input, output_path)
+    if result["success"]:
+        console.print(f"[green]Background removed:[/green] {result['output']}")
+        console.print(f"  {result['input_bytes']} -> {result['output_bytes']} bytes")
+    else:
+        console.print(f"[red]Failed:[/red] {result['error']}")
+        raise typer.Exit(code=1)
+
+
+@assets_app.command("manifest")
+def assets_manifest(
+    asset_dir: Path = typer.Argument(..., exists=True, file_okay=False,
+                                     help="Directory containing generated assets"),
+) -> None:
+    """Show the provenance manifest for a generated asset."""
+    mp = asset_dir / "manifest.json"
+    if not mp.exists():
+        console.print(f"[red]No manifest.json in {asset_dir}[/red]")
+        raise typer.Exit(code=1)
+    import json as _json
+    data = _json.loads(mp.read_text(encoding="utf-8"))
+    console.print(Panel.fit(f"Asset manifest — {data.get('name', '?')}"))
+    console.print(f"  Kind: {data.get('kind')}")
+    console.print(f"  Model: {data.get('model')}")
+    console.print(f"  License: {data.get('license_id', 'unknown')} · Commercial: {data.get('commercial_use')}")
+    console.print(f"  Seed: {data.get('seed')} · Size: {data.get('size')}")
+    console.print(f"  Transparent: {data.get('transparent')}")
+    console.print(f"  Files: {', '.join(data.get('files', []))}")
+    if data.get("warnings"):
+        console.print("  [yellow]Warnings:[/yellow]")
+        for w in data["warnings"]:
+            console.print(f"    • {w}")
+
+
+app.add_typer(assets_app, name="assets")
 
 
 if __name__ == "__main__":
