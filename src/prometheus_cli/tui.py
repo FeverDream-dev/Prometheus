@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import os
 import queue
 import threading
 from pathlib import Path
@@ -7,23 +8,24 @@ from pathlib import Path
 from rich.text import Text
 from textual.app import App, ComposeResult
 from textual.binding import Binding
-from textual.containers import Vertical
+from textual.containers import Horizontal, Vertical
 from textual.reactive import reactive
 from textual.widgets import (
     Footer,
     Header,
     Input,
-    Log,
+    RichLog,
     Static,
 )
 
 from .config import ensure_home, load_bundle, load_settings
-from .hardware import detect_hardware, recommended_profile
+from .hardware import detect_hardware
 from .models import Risk, ToolCall
 from .orchestrator import Orchestrator
 from .session import SessionStore
 
 BUNDLES_DIR = Path(__file__).resolve().parent.parent.parent / "config" / "bundles"
+TELEMETRY_REFRESH_S = 1.5
 
 
 class StatusBar(Static):
@@ -34,7 +36,7 @@ class StatusBar(Static):
     def render(self) -> Text:
         return Text(
             f" Mode: {self.mode}  |  Completion: {self.completion:.0f}%  |  Status: {self.status} ",
-            style="bold white on blue",
+            style="bold white on #1f6f8c",
         )
 
 
@@ -61,24 +63,56 @@ class ApprovalPrompt(Static):
         self.update("")
 
 
+def _env_truthy(name: str) -> bool:
+    return os.environ.get(name, "").strip().lower() in ("1", "true", "yes", "on")
+
+
 class PrometheusApp(App):
     CSS = """
     Screen {
+        layout: vertical;
+        background: #0e0f13;
+    }
+    Header {
+        background: #1f6f8c 70%;
+    }
+    #workspace {
+        height: 1fr;
+        layout: horizontal;
+    }
+    .sidebar {
+        background: #14161c;
+        border: solid #2a2e3a;
+        padding: 0 1;
+        overflow: auto auto;
+        color: #cfd3dc;
+    }
+    #sidebar-left {
+        width: 22;
+        min-width: 18;
+    }
+    #telemetry-right {
+        width: 30;
+        min-width: 24;
+    }
+    #main-center {
+        width: 1fr;
         layout: vertical;
     }
     #hardware-panel {
         height: auto;
         padding: 0 1;
-        background: $surface;
-        border: solid $primary;
-        margin-bottom: 1;
-    }
-    #main-area {
-        height: 1fr;
+        background: #14161c;
+        border: solid #2a2e3a;
+        margin-bottom: 0;
+        color: #e2e5ea;
     }
     #log-panel {
-        border: solid $accent;
+        height: 1fr;
+        border: solid #2a2e3a;
         padding: 0 1;
+        background: #0e0f13;
+        margin-bottom: 0;
     }
     #approval-panel {
         height: auto;
@@ -89,6 +123,8 @@ class PrometheusApp(App):
     #input-bar {
         height: 3;
         dock: bottom;
+        background: #14161c;
+        border: solid #2a2e3a;
     }
     StatusBar {
         dock: bottom;
@@ -105,45 +141,103 @@ class PrometheusApp(App):
     completion: reactive[float] = reactive(0.0)
     status: reactive[str] = reactive("idle")
 
-    def __init__(self, bundle_path: Path | None = None, workspace: Path | None = None):
+    def __init__(
+        self,
+        bundle_path: Path | None = None,
+        workspace: Path | None = None,
+        no_animation: bool = False,
+    ):
         super().__init__()
         self.bundle_path = bundle_path
         self.workspace = workspace or Path.cwd()
+        self.no_animation = no_animation
         self._approval = ApprovalPrompt()
         self._session_id: str | None = None
         self._store: SessionStore | None = None
 
     def compose(self) -> ComposeResult:
         yield Header()
-        yield Static(id="hardware-panel")
-        with Vertical(id="main-area"):
-            yield Log(id="log-panel")
-            yield self._approval
-        yield Input(placeholder="Enter an objective and press Enter…", id="input-bar")
+        with Horizontal(id="workspace"):
+            yield Vertical(id="sidebar-left", classes="sidebar")
+            with Vertical(id="main-center"):
+                yield Static(id="hardware-panel")
+                yield RichLog(id="log-panel")
+                yield self._approval
+            yield Vertical(id="telemetry-right", classes="sidebar")
+        yield Input(
+            placeholder="Enter an objective or /command and press Enter…",
+            id="input-bar",
+        )
         yield StatusBar()
         yield Footer()
 
     def on_mount(self) -> None:
         from . import tui_commands
 
+        self._render_sidebar()
         self._render_hardware()
         for line in tui_commands.first_run_banner(load_settings()):
             self._log(line)
+        self._refresh_telemetry()
         self.status = "ready"
+        settings = load_settings()
+        if settings.tui_telemetry_panel:
+            self.set_interval(TELEMETRY_REFRESH_S, self._refresh_telemetry)
+
+    def _render_sidebar(self) -> None:
+        from . import tui_commands
+
+        lines: list[str] = ["[bold cyan]Commands[/bold cyan]", ""]
+        for cmd, desc in tui_commands.SLASH_COMMANDS.items():
+            lines.append(f"[bold]{cmd}[/bold]")
+            if len(desc) > 22:
+                lines.append(f"  [dim]{desc[:21]}…[/dim]")
+            else:
+                lines.append(f"  [dim]{desc}[/dim]")
+        lines.extend(["", "[dim]Ctrl+C / q to exit[/dim]"])
+        widget = self.query_one("#sidebar-left", Static)
+        widget.update("\n".join(lines))
+        if self.size.width < 90:
+            widget.styles.display = False
 
     def _render_hardware(self) -> None:
         report = detect_hardware()
+        settings = load_settings()
+        bundle_id = settings.active_bundle_id or "(none — /setup)"
+        provider = "ollama-only" if settings.local_only else "ollama + cloud-capable"
+        mode = settings.mode.value
         lines = [
-            "[bold]PROMETHEUS[/bold] — local-first coding agent",
-            f"OS: {report.os} {report.architecture}" + (" (WSL)" if report.wsl else ""),
-            f"RAM: {report.ram_gb} GB | GPU: {report.gpu_name or 'CPU mode'}",
-            f"Recommended bundle: [bold]{recommended_profile(report)}[/bold]",
+            "[bold cyan]PROMETHEUS[/bold cyan] · [dim]local-first coding agent[/dim]",
+            f"project: [bold]{self.workspace.name}[/bold]  ·  mode: [bold]{mode}[/bold]"
+            f"  ·  provider: {provider}",
+            f"bundle: [bold]{bundle_id}[/bold]"
+            f"  ·  GPU: {report.gpu_name or 'CPU mode'}"
+            f"  ·  RAM: {report.ram_gb:.0f} GB",
         ]
         self.query_one("#hardware-panel", Static).update("\n".join(lines))
 
+    def _refresh_telemetry(self) -> None:
+        try:
+            widget = self.query_one("#telemetry-right", Static)
+        except Exception:
+            return
+        if self.size.width < 110:
+            widget.styles.display = False
+            return
+        widget.styles.display = True
+        try:
+            from .telemetry import collect_snapshot, render_telemetry_lines
+
+            snapshot = collect_snapshot(
+                workspace=str(self.workspace), gpu_timeout_s=1.0, cpu_interval_s=0.0,
+            )
+            compact = render_telemetry_lines(snapshot)[:14]
+            widget.update("\n".join(compact))
+        except Exception as exc:
+            widget.update(f"[dim]telemetry error: {str(exc)[:80]}[/dim]")
+
     def _log(self, message: str) -> None:
-        log = self.query_one("#log-panel", Log)
-        log.write_line(message)
+        self.query_one("#log-panel", RichLog).write(message)
 
     def on_input_submitted(self, event: Input.Submitted) -> None:
         text = event.value.strip()
@@ -178,11 +272,11 @@ class PrometheusApp(App):
 
         parts = text.split()
         cmd = parts[0].lower()
-        log = self.query_one("#log-panel", Log)
+        log = self.query_one("#log-panel", RichLog)
 
         def _emit(lines):
             for line in lines:
-                log.write_line(line)
+                log.write(line)
 
         if cmd in ("/help", "/?"):
             _emit(tui_commands.help_lines())
@@ -190,7 +284,7 @@ class PrometheusApp(App):
         if cmd == "/clear":
             log.clear()
             return
-        if cmd in ("/doctor", "/models", "/modes", "/tools", "/mcp", "/providers", "/permissions", "/sessions"):
+        if cmd in ("/doctor", "/models", "/modes", "/tools", "/mcp", "/provider", "/providers", "/permissions", "/sessions", "/telemetry", "/logo", "/diagnose"):
             if cmd == "/doctor":
                 _emit(tui_commands.doctor_lines(detect_hardware(), check_ollama()))
             elif cmd == "/models":
@@ -201,10 +295,16 @@ class PrometheusApp(App):
                 _emit(tui_commands.tools_lines())
             elif cmd == "/mcp":
                 _emit(tui_commands.mcp_lines())
-            elif cmd == "/providers":
-                _emit(tui_commands.providers_lines(load_settings()))
+            elif cmd in ("/provider", "/providers"):
+                _emit(tui_commands.provider_lines(load_settings()))
             elif cmd == "/permissions":
                 _emit(tui_commands.permissions_lines(load_settings()))
+            elif cmd == "/telemetry":
+                _emit(tui_commands.telemetry_lines())
+            elif cmd == "/logo":
+                _emit(tui_commands.logo_lines())
+            elif cmd == "/diagnose":
+                _emit(tui_commands.diagnose_lines())
             else:
                 _emit(tui_commands.sessions_lines())
             return
@@ -252,7 +352,7 @@ class PrometheusApp(App):
             classified = classify_registry(load_registry(), detect_hardware(), ollama.models)
             _emit(tui_commands.setup_lines(load_settings(), classified))
             return
-        _emit([f"[yellow]Unknown command:[/yellow] {cmd}. Try [bold]/help[/bold]."])
+        _emit(tui_commands.unknown_command_lines(cmd))
 
     def _run_memory(self, action: str, arg: str | None) -> None:
         from .memory import ProjectMemoryStore
@@ -429,6 +529,12 @@ class PrometheusApp(App):
             pass
 
 
-def launch_tui(bundle_path: Path | None = None, workspace: Path | None = None) -> None:
-    app = PrometheusApp(bundle_path=bundle_path, workspace=workspace)
+def launch_tui(
+    bundle_path: Path | None = None,
+    workspace: Path | None = None,
+    no_animation: bool = False,
+) -> None:
+    app = PrometheusApp(
+        bundle_path=bundle_path, workspace=workspace, no_animation=no_animation,
+    )
     app.run()

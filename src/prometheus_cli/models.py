@@ -83,6 +83,8 @@ class Settings(BaseModel):
     memory_safety_floor_gb: float = Field(default=2.0, ge=0)
     cloud_monthly_budget_usd: float | None = Field(default=None, ge=0)
     checkpoint_interval_steps: int = Field(default=10, ge=1)
+    reduced_motion: bool = False
+    tui_telemetry_panel: bool = True
 
     def step_limit(self) -> int | None:
         return None if self.max_steps == 0 else self.max_steps
