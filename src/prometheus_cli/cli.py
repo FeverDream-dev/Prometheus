@@ -382,6 +382,57 @@ def resume(session_id: str) -> None:
 
 
 @app.command()
+def telemetry(
+    json_output: bool = typer.Option(False, "--json", help="Emit machine-readable JSON"),
+    workspace: Path = typer.Option(Path.cwd(), "--workspace", exists=True, file_okay=False),
+    gpu_timeout: float = typer.Option(1.5, "--gpu-timeout", help="Max seconds for nvidia-smi/rocm-smi"),
+    no_color: bool = typer.Option(False, "--no-color", help="Strip color from bars"),
+) -> None:
+    """Live CPU/RAM/disk/GPU/VRAM/Ollama/git/sandbox snapshot."""
+    from .telemetry import collect_snapshot, render_telemetry_lines
+
+    snapshot = collect_snapshot(
+        workspace=str(workspace), gpu_timeout_s=gpu_timeout, cpu_interval_s=0.1
+    )
+    if json_output:
+        console.print(snapshot.as_json())
+        return
+    console.print(Panel.fit("PROMETHEUS telemetry"))
+    lines = render_telemetry_lines(snapshot)
+    for line in lines:
+        if no_color:
+            stripped = line.replace("[bold]", "").replace("[/bold]", "")
+            for tag in ("yellow", "green", "red", "dim", "cyan", "magenta"):
+                stripped = stripped.replace(f"[{tag}]", "").replace(f"[/{tag}]", "")
+            console.print(stripped)
+        else:
+            console.print(line)
+
+
+@app.command()
+def diagnose(
+    since: str = typer.Option(None, "--since", help="Window like '30m', '2h', '1d' (default: all)"),
+    export: Path | None = typer.Option(None, "--export", help="Write a diagnostics zip to this path"),
+    json_output: bool = typer.Option(False, "--json", help="Emit machine-readable JSON"),
+) -> None:
+    """Collect sanitized PROMETHEUS diagnostics (versions, config, errors, git, ollama)."""
+    from .diagnostics import collect_diagnostics, export_zip, render_diagnostics_lines
+
+    diag = collect_diagnostics(since_str=since)
+    if export:
+        out = export_zip(diag, export)
+        console.print(f"[green]Exported:[/green] {out}")
+        return
+    if json_output:
+        import json as _json
+        console.print(_json.dumps(diag, indent=2, default=str))
+        return
+    console.print(Panel.fit("PROMETHEUS diagnose"))
+    for line in render_diagnostics_lines(diag):
+        console.print(line)
+
+
+@app.command()
 def tui(
     bundle: Path | None = typer.Option(None, "--bundle", exists=True, readable=True),
     workspace: Path = typer.Option(Path.cwd(), exists=True, file_okay=False),
@@ -400,9 +451,10 @@ def tui(
         console.print("[yellow]No bundle configured. Run 'prometheus setup' first.[/yellow]")
         console.print("Or pass --bundle <path>")
         raise typer.Exit(code=1)
-    if should_animate(no_animation=no_animation):
+    disable_anim = no_animation or settings.reduced_motion
+    if should_animate(no_animation=disable_anim):
         play_splash(pick_size_for_terminal(), duration_s=1.0, fps=12)
-    launch_tui(bundle_path=bundle_path, workspace=workspace)
+    launch_tui(bundle_path=bundle_path, workspace=workspace, no_animation=disable_anim)
 
 
 @app.command()
@@ -797,6 +849,7 @@ sandbox_app = typer.Typer(help="Sandbox doctor + enforcement test suite")
 provider_app = typer.Typer(help="Provider smoke probes")
 vision_app = typer.Typer(help="Vision element inspection (Playwright + computed CSS)")
 assets_app = typer.Typer(help="AssetForge — local image generation package")
+logo_app = typer.Typer(help="PROMETHEUS brand logo preview and generation")
 
 
 @models_app.command("list")
@@ -1697,6 +1750,52 @@ def assets_manifest(
 
 
 app.add_typer(assets_app, name="assets")
+
+
+@logo_app.command("preview")
+def logo_preview(
+    width: int = typer.Option(64, "--width", min=16, max=160, help="Target character width"),
+    animated: bool = typer.Option(False, "--animated", help="Play the rotating-highlight startup animation"),
+    no_animation: bool = typer.Option(False, "--no-animation", help="Force static even with --animated"),
+    no_color: bool = typer.Option(False, "--no-color", help="Strip ANSI color"),
+) -> None:
+    """Preview the PROMETHEUS brand logo (static or animated)."""
+    from .logo import preview_logo, should_animate_logo
+
+    use_color = not no_color
+    if animated and not should_animate_logo(no_animation=no_animation):
+        console.print("[dim]tty not detected; showing static fallback[/dim]")
+    preview_logo(
+        width=width, animated=animated, color=use_color,
+        no_animation=no_animation,
+    )
+
+
+@logo_app.command("generate")
+def logo_generate(
+    source: Path = typer.Option(
+        Path("assets/branding/feverducation.png"),
+        "--source", exists=True, readable=True,
+        help="Source image (PNG/JPG) to derive ASCII art from",
+    ),
+    out: Path = typer.Option(
+        Path("src/prometheus_cli/generated_logo.py"),
+        "--out", help="Output Python module path",
+    ),
+) -> None:
+    """Generate a Python module with ASCII art derived from a brand image."""
+    from .logo import generate_logo
+
+    ok, message = generate_logo(source=source, out_path=out)
+    if ok:
+        console.print(f"[green]Generated:[/green] {out}")
+        console.print(f"[dim]{message}[/dim]")
+    else:
+        console.print(f"[yellow]Fallback:[/yellow] {message}")
+        console.print(f"[dim]Wrote: {out}[/dim]")
+
+
+app.add_typer(logo_app, name="logo")
 
 
 if __name__ == "__main__":

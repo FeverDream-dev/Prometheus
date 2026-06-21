@@ -2,37 +2,82 @@ from __future__ import annotations
 
 
 SLASH_COMMANDS = {
+    "/help": "show grouped command help",
+    "/setup": "first-run setup guide (hardware, bundle, configure)",
     "/settings": "show all editable settings and their current values",
     "/bundles": "show model packages and active config",
     "/models": "show installed Ollama models",
-    "/providers": "show configured providers",
-    "/sandbox": "sandbox enforcement tier and policy status",
+    "/provider": "show configured providers",
+    "/use": "select the active package (/use <id>, e.g. /use spark-cpu-8gb)",
+    "/mode": "switch autonomy mode (/mode copilot|pilot|astronaut)",
+    "/modes": "autonomy modes",
+    "/memory": "bounded project memory (/memory inspect|why|rebuild|export|reset)",
     "/mcp": "show MCP server status",
     "/tools": "list built-in tools",
     "/permissions": "show autonomy mode and policy",
-    "/doctor": "hardware + Ollama service report",
-    "/sessions": "list recent coding sessions",
-    "/resume": "resume a session (/resume <id>)",
-    "/mode": "switch autonomy mode (/mode copilot|pilot|astronaut)",
-    "/qualify": "qualify the first installed model or a bundle (/qualify <id>)",
-    "/use": "select the active package (/use <id>, e.g. /use spark-cpu-8gb)",
-    "/memory": "bounded project memory status (/memory inspect|why|rebuild|export|reset)",
-    "/modes": "autonomy modes",
+    "/sandbox": "sandbox enforcement tier and policy status",
     "/vision": "vision element inspection (/vision inspect <selector>)",
     "/assets": "AssetForge local image generation (/assets generate <kind>)",
     "/astronaut": "astronaut sentinel status (/astronaut start|pause|stop|report)",
-    "/setup": "first-run setup guide (hardware, bundle, configure)",
+    "/telemetry": "live CPU/RAM/GPU/disk/Ollama snapshot",
+    "/logo": "show the PROMETHEUS brand mark",
+    "/diagnose": "collect sanitized diagnostics (versions, errors, git, ollama)",
+    "/doctor": "hardware + Ollama service report",
+    "/sessions": "list recent coding sessions",
+    "/resume": "resume a session (/resume <id>)",
+    "/qualify": "qualify the first installed model or a bundle (/qualify <id>)",
     "/clear": "clear the log",
     "/exit": "exit the TUI",
-    "/help": "show this help",
 }
 
 
+_COMMAND_GROUPS: list[tuple[str, list[str]]] = [
+    ("Setup", ["/setup", "/use", "/bundles", "/provider", "/models", "/doctor"]),
+    ("Models & Coding", ["/mode", "/modes", "/qualify", "/sessions", "/resume", "/memory"]),
+    ("Safety", ["/sandbox", "/permissions", "/tools", "/mcp"]),
+    ("Browser & Vision", ["/vision", "/astronaut", "/assets"]),
+    ("System", ["/telemetry", "/logo", "/diagnose", "/settings", "/help", "/clear", "/exit"]),
+]
+
+
 def help_lines() -> list[str]:
-    out = ["[bold]Slash commands:[/bold]"]
-    for cmd, desc in SLASH_COMMANDS.items():
-        out.append(f"  {cmd:<12} {desc}")
+    out = ["[bold cyan]PROMETHEUS command palette[/bold cyan]", ""]
+    catalog = dict(SLASH_COMMANDS)
+    for group_name, cmds in _COMMAND_GROUPS:
+        out.append(f"[bold]{group_name}[/bold]")
+        for cmd in cmds:
+            desc = catalog.get(cmd, "")
+            out.append(f"  {cmd:<13} {desc}")
+        out.append("")
     return out
+
+
+def suggest_command(typed: str) -> str | None:
+    """Return the closest matching slash command for a typo, or None."""
+    import difflib
+
+    if not typed:
+        return None
+    typed_low = typed.lower()
+    if typed_low in SLASH_COMMANDS:
+        return typed_low
+    cmds = list(SLASH_COMMANDS.keys())
+    matches = difflib.get_close_matches(typed_low, cmds, n=1, cutoff=0.6)
+    return matches[0] if matches else None
+
+
+def unknown_command_lines(typed: str) -> list[str]:
+    suggestion = suggest_command(typed)
+    if suggestion:
+        return [
+            f"[yellow]Unknown command:[/yellow] {typed}",
+            f"Did you mean [bold]{suggestion}[/bold]?",
+            "Type [bold]/help[/bold] to see all commands.",
+        ]
+    return [
+        f"[yellow]Unknown command:[/yellow] {typed}",
+        "Type [bold]/help[/bold] to see all commands.",
+    ]
 
 
 def doctor_lines(report, ollama) -> list[str]:
@@ -312,19 +357,107 @@ def first_run_banner(settings) -> list[str]:
     ]
 
 
+def onboarding_lines(settings) -> list[str]:
+    """Polished first-run panel: logo header, system summary, recommended bundle,
+    Ollama status, and next-action commands. Used in on_mount when no bundle is
+    active, and by the /setup command."""
+    from .hardware import detect_hardware, recommended_profile
+    from .onboarding import check_ollama
+
+    report = detect_hardware()
+    ollama = check_ollama()
+    recommended = recommended_profile(report)
+    out: list[str] = []
+    out.append("[bold cyan]╔════════════════════════════════════════╗[/bold cyan]")
+    out.append("[bold cyan]║      P R O M E T H E U S                ║[/bold cyan]")
+    out.append("[bold cyan]║      local-first coding agent           ║[/bold cyan]")
+    out.append("[bold cyan]╚════════════════════════════════════════╝[/bold cyan]")
+    out.append("")
+    out.append("[bold]System summary[/bold]")
+    out.append(f"  OS:     {report.os} {report.architecture}" + (" (WSL)" if report.wsl else ""))
+    out.append(f"  CPU:    {report.cpu_brand or 'unknown'}")
+    out.append(f"  RAM:    {report.ram_gb:.0f} GB")
+    out.append(f"  GPU:    {report.gpu_name or 'CPU-only mode'}")
+    if report.gpu_vendor and report.vram_gb:
+        out.append(f"  VRAM:   {report.vram_gb:.1f} GB ({report.gpu_vendor})")
+    out.append(f"  Disk:   {report.disk_free_gb:.0f} GB free")
+    out.append("")
+    out.append(f"[bold]Recommended bundle:[/bold] [bold green]{recommended}[/bold green]")
+    provider = "ollama-only" if settings.local_only else "ollama (default) · cloud-capable"
+    out.append(f"[bold]Provider:[/bold] {provider}")
+    ollama_state = "[green]running[/green]" if ollama.running else "[yellow]not running[/yellow]"
+    out.append(f"[bold]Ollama:[/bold] {ollama_state} · {len(ollama.models)} models")
+    if not ollama.running:
+        out.append("  [dim]start with: ollama serve[/dim]")
+    out.append("")
+    if settings.active_bundle_id:
+        out.append(f"[bold green]Active bundle:[/bold green] {settings.active_bundle_id}")
+        out.append("Type an objective to start, or [bold]/help[/bold] for all commands.")
+    else:
+        out.append("[yellow]No model bundle configured.[/yellow]")
+        out.append(f"[bold]Next:[/bold] type [bold]/setup[/bold] or [bold]/use {recommended}[/bold] to begin.")
+    out.append("")
+    out.append("[bold]Quick commands[/bold]")
+    out.append("  [bold]/setup[/bold]      pick a bundle and configure")
+    out.append("  [bold]/models[/bold]     list installed Ollama models")
+    out.append("  [bold]/bundles[/bold]    browse all model packages")
+    out.append("  [bold]/telemetry[/bold]  live CPU/RAM/GPU snapshot")
+    out.append("  [bold]/help[/bold]       full command palette")
+    return out
+
+
+def telemetry_lines() -> list[str]:
+    from .telemetry import collect_snapshot, render_telemetry_lines
+
+    snapshot = collect_snapshot(cpu_interval_s=0.05)
+    return render_telemetry_lines(snapshot)
+
+
+def logo_lines() -> list[str]:
+    from .logo import render_logo
+
+    art = render_logo(0, size="compact", color=False)
+    return art.splitlines()
+
+
+def diagnose_lines() -> list[str]:
+    from .diagnostics import collect_diagnostics, render_diagnostics_lines
+
+    diag = collect_diagnostics()
+    return render_diagnostics_lines(diag)
+
+
+def provider_lines(settings) -> list[str]:
+    out = ["[bold]Providers:[/bold]", "  ollama (default, local, quota-free) — http://127.0.0.1:11434"]
+    if not settings.local_only:
+        out.append("  openai-compatible (cloud, metered) — configured per-bundle")
+        out.append("  [dim]Cloud use requires explicit configuration and is provider-metered.[/dim]")
+    else:
+        out.append("  [dim]Cloud providers disabled (local_only mode).[/dim]")
+    return out
+
+
 __all__ = [
     "SLASH_COMMANDS",
     "astronaut_lines",
     "assets_lines",
+    "diagnose_lines",
     "doctor_lines",
     "first_run_banner",
     "help_lines",
+    "logo_lines",
     "mode_switch_lines",
     "modes_lines",
     "models_lines",
+    "onboarding_lines",
+    "provider_lines",
+    "providers_lines",
     "resume_lines",
     "sandbox_lines",
     "settings_lines",
     "setup_lines",
+    "suggest_command",
+    "telemetry_lines",
+    "unknown_command_lines",
     "vision_lines",
 ]
