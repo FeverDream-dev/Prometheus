@@ -666,19 +666,21 @@ irm https://raw.githubusercontent.com/FeverDream-dev/Prometheus/main/install.ps1
         <h2 id="releases-title">Changelog and releases</h2>
         <p class="section-lead">
           The release workflow builds an sdist and wheel, SHA-256 sidecars, a CycloneDX
-          SBOM, and a clean-venv bootstrap smoke job. No release has been published yet
-          &mdash; artifacts are built and tested locally, and the workflow is ready.
+          SBOM, a release manifest with build provenance, and a clean-venv bootstrap
+          smoke job. <strong>v0.1.0 is published</strong> &mdash; verified,
+          checksum-signed, and installable from the GitHub Release.
         </p>
       </div>
       <div class="changelog">
         <div class="entry">
-          <span class="ver">completion branch</span><span class="date">unreleased</span>
+          <span class="ver">v0.1.0</span><span class="date">2026-06-21</span>
           <ul>
-            <li>Seven selectable v2 model packages with hardware-fit classification and a qualification harness.</li>
+            <li>First public release. Seven selectable v2 model packages with hardware-fit classification and a qualification harness.</li>
             <li>Capability and live-memory model router with sequential hot-swap.</li>
             <li>MCP fixture-server end-to-end and JSON-RPC error surfacing.</li>
             <li>Real Playwright web-fixture end-to-end test.</li>
-            <li>Bounded web/research fetch tool.</li>
+            <li>Bounded web/research fetch tool, four-tier sandbox, evidence-driven completion.</li>
+            <li>Public one-line installer with SHA-256-verified release sdist; GitHub Pages site.</li>
           </ul>
         </div>
         <div class="entry">

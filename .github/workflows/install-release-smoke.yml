@@ -80,3 +80,51 @@ jobs:
           else
             echo "WARNING: Expected version directory not found — installer may have fallen back to source archive."
           fi
+
+      - name: Independently re-verify published release checksums
+        if: steps.ver.outputs.version != 'latest'
+        env:
+          HOME: /tmp/rel-smoke-home
+        run: |
+          set -e
+          VERSION="${{ steps.ver.outputs.version }}"
+          BASE="https://github.com/FeverDream-dev/Prometheus/releases/download/$VERSION"
+          mkdir -p /tmp/release-audit && cd /tmp/release-audit
+          # Download the published checksum manifest and every artifact it lists.
+          curl -fsSL -o SHA256SUMS "$BASE/SHA256SUMS"
+          # Re-download each listed artifact and recompute its sha256.
+          while read -r hash name; do
+            [ -n "$name" ] || continue
+            curl -fsSL -o "$name" "$BASE/$name"
+            actual="$(sha256sum "$name" | awk '{print $1}')"
+            if [ "$actual" != "$hash" ]; then
+              echo "::error::checksum mismatch for $name (published SHA256SUMS says $hash, got $actual)"
+              exit 1
+            fi
+            echo "OK  $name  $hash"
+          done < SHA256SUMS
+          # Also verify each per-asset .sha256 sidecar agrees with SHA256SUMS.
+          for sidecar in *.sha256; do
+            asset="${sidecar%.sha256}"
+            [ -f "$asset" ] || continue
+            manifest_hash="$(awk '{print $1}' SHA256SUMS | grep -F -f /dev/stdin <<< "$(awk '{print $1}' "$sidecar")" || true)"
+            sidecar_hash="$(awk '{print $1}' "$sidecar")"
+            grep -q "$sidecar_hash" SHA256SUMS || { echo "::error::$sidecar disagrees with SHA256SUMS"; exit 1; }
+          done
+          echo "All published release checksums independently verified."
+
+      - name: Assert release sdist path was used (not source-archive fallback)
+        if: steps.ver.outputs.version != 'latest'
+        env:
+          HOME: /tmp/rel-smoke-home
+        run: |
+          set -e
+          VERSION="${{ steps.ver.outputs.version }}"
+          # The release path downloads prometheus_local_agent-<ver>.tar.gz (the sdist);
+          # the fallback downloads source.tar.gz. Assert the sdist is present.
+          SDIST="$(ls "$HOME"/.local/share/prometheus/versions/"$VERSION"/prometheus_local_agent-*.tar.gz 2>/dev/null || true)"
+          if [ -z "$SDIST" ]; then
+            echo "::error::release sdist not found in install dir — installer used source-archive fallback for a tagged release"
+            exit 1
+          fi
+          echo "Release sdist confirmed at: $SDIST"

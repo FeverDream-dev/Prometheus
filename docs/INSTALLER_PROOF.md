@@ -1,160 +1,212 @@
-# Installer proof — what is verified and what requires the first tag
+# Installer proof — what is verified and what the release tag changed
 
 ## Summary
 
-The PROMETHEUS installer has two install paths. Both are tested locally. One
-path (release sdist) requires a `v*` Git tag to produce artifacts via
-`.github/workflows/release.yml`. The other (source archive) works right now.
+`v0.1.0` is **published** (tag pushed, GitHub Release live at
+<https://github.com/FeverDream-dev/Prometheus/releases/tag/v0.1.0>, published
+2026-06-21T04:27:42Z). Both installer paths were verified this session against
+the live release:
 
-| Path | When it activates | Checksum verified? | Tested locally? |
+| Path | When it activates | Checksum verified? | Tested this session? |
 |---|---|---|---|
-| Release sdist (from GitHub Release) | After `v*` tag is pushed + release.yml completes | Yes — SHA-256 sidecar | Not yet (no tag pushed) |
-| Source archive fallback | Always available (main branch or release tag fallback) | No — GitHub generates dynamically | Yes — verified this session |
-| Local wheel install | Developer/CI path | Verified via SHA256SUMS | Yes — verified this session |
+| **Release sdist (from GitHub Release)** | `v*` tag exists + release assets uploaded | **Yes** — SHA-256 sidecar, strict fail on mismatch/missing | **Yes — verified end-to-end against the live v0.1.0 release** |
+| Source archive fallback | No release found, or `PROMETHEUS_VERSION=main` | No (GitHub generates dynamically) — warns loudly | Yes — verified this session |
+| Local wheel install | Developer/CI path | Verified via `SHA256SUMS` | Yes — verified this session |
 
-## What is proven (this session, real evidence)
+The installer prefers the release sdist whenever the resolved version starts
+with `v`. With `v0.1.0` now published, the default resolution
+(`api.github.com/.../releases/latest`) returns `v0.1.0`, so **the default
+one-liner now installs the verified release sdist** — not the source archive.
 
-### 1. Source archive fallback install
+## What is proven this session (real evidence)
 
-```sh
-# Simulated: git archive creates the same tarball GitHub serves
-git archive --format=tar.gz --prefix=Prometheus-main/ HEAD -o /tmp/source.tar.gz
-tar -xzf /tmp/source.tar.gz -C /tmp/extracted
-python3 -m venv /tmp/clean_venv
-/tmp/clean_venv/bin/python -m pip install "/tmp/extracted/Prometheus-main[tui]"
-/tmp/clean_venv/bin/prometheus --help     # PASS
-/tmp/clean_venv/bin/prometheus doctor     # PASS
-```
-
-This is the path the public installer takes when no release exists (resolves
-to `main`). Verified: download, extract, venv, pip install, CLI entry point,
-doctor — all succeed.
-
-### 2. Local wheel install (clean venv)
+### 1. Release sdist install with checksum verification (the default path now)
 
 ```sh
-python -m build                            # wheel + sdist
-python3 -m venv /tmp/clean_venv
-/tmp/clean_venv/bin/python -m pip install "dist/prometheus_local_agent-0.1.0-py3-none-any.whl[tui]"
-/tmp/clean_venv/bin/prometheus --help      # PASS
-/tmp/clean_venv/bin/prometheus doctor      # PASS
+$ ISOLATED_HOME=/tmp/rel-install-home
+$ rm -rf "$ISOLATED_HOME" && mkdir -p "$ISOLATED_HOME"
+$ HOME="$ISOLATED_HOME" PROMETHEUS_VERSION=v0.1.0 \
+    sh public/install.sh --yes --no-ollama --no-tui \
+       --bin "$ISOLATED_HOME/.local/bin" \
+       --prefix "$ISOLATED_HOME/.local/share/prometheus"
+=== PROMETHEUS installer ===
+repository : FeverDream-dev/Prometheus
+version    : v0.1.0
+install to : /tmp/rel-install-home/.local/share/prometheus/versions/v0.1.0
+launcher   : /tmp/rel-install-home/.local/bin/prometheus
+checksum verified: 84fa97575f43baa42dae4ae43fa8ff4bfaf6de59d7bb8d1b66dfac8f7a779ff7
+=== Installation complete ===
 ```
 
-This is the path `release.yml` smoke job uses. The release workflow runs this
-same check against the just-built wheel in CI.
+The downloaded sdist's SHA-256 matches the published
+`prometheus_local_agent-0.1.0.tar.gz.sha256` sidecar exactly
+(`84fa97575f43baa42dae4ae43fa8ff4bfaf6de59d7bb8d1b66dfac8f7a779ff7`). The
+installed entry point works:
 
-### 3. Installer dry-run
+```sh
+$ "$ISOLATED_HOME/.local/bin/prometheus" --help          # PASS
+$ "$ISOLATED_HOME/.local/bin/prometheus" doctor           # PASS — full hardware report
+```
+
+This is the **default path** for new users now that `v0.1.0` is published: the
+GitHub Releases API returns `v0.1.0` as latest, so a plain
+`curl ... | sh` with no `PROMETHEUS_VERSION` env resolves to this verified
+release sdist.
+
+### 2. Default resolution now picks the release (dry-run proof)
 
 ```sh
 $ sh public/install.sh --dry-run
 === PROMETHEUS installer ===
-version    : main  (unreleased)
-would download: https://github.com/FeverDream-dev/Prometheus/archive/refs/heads/main.tar.gz
-would verify  : (source archive — no checksum sidecar)
-DRY RUN — no changes will be made.  EXIT: 0
+version    : v0.1.0
+DRY RUN — no changes will be made.
+would download: https://github.com/FeverDream-dev/Prometheus/releases/download/v0.1.0/prometheus_local_agent-0.1.0.tar.gz
+would verify  : https://github.com/FeverDream-dev/Prometheus/releases/download/v0.1.0/prometheus_local_agent-0.1.0.tar.gz.sha256
+EXIT: 0
+```
 
+No `PROMETHEUS_VERSION` was set. The installer queried
+`api.github.com/.../releases/latest`, got `tag_name: v0.1.0`, and selected the
+release sdist + checksum path.
+
+### 3. Explicit `PROMETHEUS_VERSION=v0.1.0` (release path)
+
+```sh
 $ PROMETHEUS_VERSION=v0.1.0 sh public/install.sh --dry-run
-=== PROMETHEUS installer ===
 version    : v0.1.0
 would download: https://github.com/FeverDream-dev/Prometheus/releases/download/v0.1.0/prometheus_local_agent-0.1.0.tar.gz
 would verify  : https://github.com/FeverDream-dev/Prometheus/releases/download/v0.1.0/prometheus_local_agent-0.1.0.tar.gz.sha256
-DRY RUN — no changes will be made.  EXIT: 0
+EXIT: 0
 ```
 
-### 4. No unpublished PyPI dependencies
+### 4. Source-archive fallback (`PROMETHEUS_VERSION=main`)
 
+```sh
+$ PROMETHEUS_VERSION=main sh public/install.sh --dry-run
+version    : main  (unreleased)
+would download: https://github.com/FeverDream-dev/Prometheus/archive/refs/heads/main.tar.gz
+would verify  : (source archive — no checksum sidecar)
+EXIT: 0
 ```
-annotated-types==0.7.0    pydantic==2.13.4      rich==14.3.4
-anyio==4.14.0             PyYAML==6.0.3         shellingham==1.5.4
-httpx==0.28.1             textual==1.0.0        typer==0.26.7
+
+A real install through this path also succeeds and warns loudly about the
+unverified checksum:
+
+```sh
+$ HOME="$ISOLATED_HOME" PROMETHEUS_VERSION=main sh public/install.sh --yes --no-ollama --no-tui ...
+! Source archive: no stable checksum to verify against.
+! Computed sha256: d6c8df4fe1cbc90e0b9ef37f8ecb023e2dd4547baed5923887f58f77aa4e226c
+! For a verified install, pin a version:  PROMETHEUS_VERSION=v0.1.0 sh install.sh
+=== Installation complete ===
 ```
 
-All runtime + TUI dependencies are standard, published PyPI packages. The
-installer never installs from PyPI — it installs PROMETHEUS from the GitHub
-source archive or release sdist. Dependencies are resolved by pip from PyPI
-normally (httpx, pydantic, rich, typer, textual — all stable, widely-used).
+### 5. Direct download of the source archive (manual fallback path)
 
-### 5. No placeholder URLs
+The exact URL from the task —
+`https://github.com/FeverDream-dev/Prometheus/archive/refs/heads/main.tar.gz` —
+was downloaded, extracted, and installed into a clean venv:
 
+```sh
+$ curl -fsSL -o main.tar.gz \
+    https://github.com/FeverDream-dev/Prometheus/archive/refs/heads/main.tar.gz
+downloaded main.tar.gz (32971585 bytes)
+$ tar -xzf main.tar.gz && ls -d Prometheus-main/
+$ python3 -m venv clean_venv
+$ clean_venv/bin/python -m pip install "Prometheus-main[tui]"
+$ clean_venv/bin/prometheus --help     # PASS
+$ clean_venv/bin/prometheus doctor     # PASS
 ```
-grep -r 'prometheus/local-agent' install.sh public/install.sh install.ps1 public/install.ps1
+
+This path works. Note the size difference: the **release sdist is 167 KB**
+(Python source only, via `python -m build`), while the **GitHub source archive
+is ~33 MB** (includes all git-tracked images and docs). The release sdist is the
+smaller, cleaner, checksum-verifiable install path — which is why the installer
+prefers it.
+
+### 6. No placeholder URLs
+
+```sh
+$ grep -r 'prometheus/local-agent' install.sh public/install.sh install.ps1 public/install.ps1
 # (no matches)
 ```
 
-All installer scripts use the real repo: `FeverDream-dev/Prometheus`.
+All installer scripts use the real repo `FeverDream-dev/Prometheus`.
 
-## What requires pushing the first tag (v0.1.0)
+### 7. install.ps1 (Windows → WSL delegate)
 
-### Release sdist download with checksum verification
+Static structure verified (PowerShell syntax is validated by the
+`windows-latest` job in CI; `pwsh` is not installed in this Linux sandbox):
 
-When `PROMETHEUS_VERSION=v0.1.0` (or when the GitHub Releases API returns a
-tag), the installer attempts to download from:
+- `FeverDream-dev/Prometheus` is the repo (1 reference).
+- Zero `raw.githubusercontent` references in `install.ps1` itself.
+- Delegates to WSL (`wsl.exe` referenced 5×).
+- Bootstrap URL is the GitHub Pages host:
+  `https://feverdream-dev.github.io/Prometheus/install.sh`.
+- If WSL is missing, prints exact `wsl --install` steps and exits non-zero
+  rather than falling back to a placeholder.
 
-```
-https://github.com/FeverDream-dev/Prometheus/releases/download/v0.1.0/prometheus_local_agent-0.1.0.tar.gz
-```
+## What the release tag changed
 
-This URL returns 404 until the release workflow creates the GitHub Release and
-uploads the sdist as a release asset. The checksum sidecar at `.sha256` is also
-served from the same releases/download/ path.
+Before `v0.1.0` was pushed, the installer's default path resolved to `main` and
+warned that release artifacts were not yet available. Now that `v0.1.0` is
+published:
 
-If the release sdist is not found (404), the installer falls back to the GitHub
-source archive with a loud warning — so the installer will not break, but the
-install will be unverified.
-
-### GitHub Release page
-
-The release page at
-`https://github.com/FeverDream-dev/Prometheus/releases/tag/v0.1.0` does not
-exist until the tag is pushed and `release.yml` completes. The release workflow
-creates the release with auto-generated notes and uploads:
-- `prometheus_local_agent-0.1.0.tar.gz` (sdist)
-- `prometheus_local_agent-0.1.0-py3-none-any.whl` (wheel)
-- `SHA256SUMS`
-- `*.sha256` (per-asset sidecars)
-- `sbom.cyclonedx.json` (CycloneDX SBOM)
-- `release-manifest.json` (provenance manifest)
-
-### SBOM and provenance
-
-The CycloneDX SBOM (`dist/sbom.cyclonedx.json`) was generated locally and
-verified. The release workflow generates it in CI using the same
-`cyclonedx-py environment` command. The release manifest
-(`release-manifest.json`) is generated by the workflow with SHA-256 hashes of
-all artifacts.
+- **Default install is now checksum-verified.** The installer downloads the
+  release sdist from `releases/download/v0.1.0/`, fetches the `.sha256` sidecar,
+  and hard-fails on any mismatch or missing sidecar. It no longer falls back to
+  the source archive for the default path.
+- **The source-archive fallback still exists** for `PROMETHEUS_VERSION=main`
+  and for the (now-impossible) case where a `v*` tag exists but the release
+  assets 404. It remains explicitly unverified and warns about it.
+- **`prometheus update`** and the installer's auto-update path now resolve to a
+  real release rather than `main`.
 
 ## Installer checksum logic (how it works)
 
 | Scenario | `VERIFY_CHECKSUM` | `SHA_URL` | Behavior |
 |---|---|---|---|
-| Release sdist available | 1 | Set (releases/download/) | Hard-fail if sidecar missing; verify strictly |
+| Release sdist available (default now) | 1 | Set (`releases/download/`) | Hard-fail if sidecar missing; verify strictly |
 | Release sdist 404 → source archive fallback | 0 | Empty | Warn loudly; compute + display hash |
 | `main` branch install | 0 | Empty | Warn loudly; compute + display hash |
 
-This means:
-- Release installs are checksum-verified (hard-fail on mismatch/missing)
-- Source archive installs are honest about being unverified
-- The installer never silently installs unverified release artifacts
+Consequences:
+- Release installs are checksum-verified (hard-fail on mismatch/missing).
+- Source archive installs are honest about being unverified.
+- The installer never silently installs an unverified release artifact.
 
-## Exact commands to complete the release
+## Published release checksums (for manual verification)
+
+```
+# From https://github.com/FeverDream-dev/Prometheus/releases/download/v0.1.0/SHA256SUMS
+f8065326d8c3808fcb8db74dd28b1bd51f4a9270595388da137fdebf255b404d  prometheus_local_agent-0.1.0-py3-none-any.whl
+84fa97575f43baa42dae4ae43fa8ff4bfaf6de59d7bb8d1b66dfac8f7a779ff7  prometheus_local_agent-0.1.0.tar.gz
+```
 
 ```sh
-# 1. Ensure all changes are committed and pushed
-git add -A
-git commit -m "release: v0.1.0 release pipeline readiness"
+# Manual verification a user can run after download:
+sha256sum -c SHA256SUMS
+```
+
+## Exact commands for the next release (v0.1.1)
+
+`v0.1.0` is shipped and must not be deleted or re-tagged. The next release is
+`v0.1.1`, which has **not** been tagged yet. A human runs, when ready:
+
+```sh
+# 1. Bump version and push main.
+$EDITOR pyproject.toml           # version = "0.1.1"
+git add pyproject.toml
+git commit -m "release: bump version to 0.1.1"
 git push origin main
 
-# 2. Tag the release
-git tag v0.1.0
-git push origin v0.1.0
+# 2. Tag and push (triggers release.yml).
+git tag v0.1.1
+git push origin v0.1.1
 
-# 3. Watch the release workflow
-#    https://github.com/FeverDream-dev/Prometheus/actions/workflows/release.yml
+# 3. After release.yml completes, verify the installer finds the new assets:
+PROMETHEUS_VERSION=v0.1.1 sh install.sh --dry-run
+# Expected: would download .../releases/download/v0.1.1/prometheus_local_agent-0.1.1.tar.gz
 
-# 4. After the release completes, verify the installer finds the artifacts:
-PROMETHEUS_VERSION=v0.1.0 sh install.sh --dry-run
-# Should show: releases/download/v0.1.0/prometheus_local_agent-0.1.0.tar.gz
-
-# 5. Run the release smoke workflow manually:
-#    GitHub Actions → install-release-smoke → Run workflow → v0.1.0
+# 4. Run the manual release smoke workflow:
+#    Actions → install-release-smoke → Run workflow → v0.1.1
 ```

@@ -55,17 +55,53 @@ jobs:
           cyclonedx-py environment -o dist/sbom.cyclonedx.json --sv 1.5 \
             "$(which python)" || \
             echo "::warning::SBOM generation skipped (cyclonedx-py unavailable)"
-      - name: Generate release manifest
+      - name: Assert required release artifacts exist
+        run: |
+          set -e
+          # A release is incomplete without these. Fail fast rather than upload
+          # a partial release (the v0.1.0 release shipped all of them).
+          WHEEL="$(ls dist/*.whl 2>/dev/null || true)"
+          SDIST="$(ls dist/*.tar.gz 2>/dev/null || true)"
+          [ -n "$WHEEL" ] || { echo "::error::no wheel in dist/"; exit 1; }
+          [ -n "$SDIST" ] || { echo "::error::no sdist in dist/"; exit 1; }
+          [ -s dist/SHA256SUMS ] || { echo "::error::missing SHA256SUMS"; exit 1; }
+          [ -s "$WHEEL.sha256" ] || { echo "::error::missing $WHEEL.sha256 sidecar"; exit 1; }
+          [ -s "$SDIST.sha256" ] || { echo "::error::missing $SDIST.sha256 sidecar"; exit 1; }
+          [ -s dist/sbom.cyclonedx.json ] || { echo "::error::missing SBOM"; exit 1; }
+          if ! python -c "import json; json.load(open('dist/sbom.cyclonedx.json'))" 2>/dev/null; then
+            echo "::error::SBOM is not valid JSON — release blocked (cyclonedx-py must succeed for releases)"
+            exit 1
+          fi
+          # Re-verify checksums are internally consistent before upload.
+          (cd dist && sha256sum -c SHA256SUMS)
+          echo "All required release artifacts present, non-empty, and checksum-consistent."
+      - name: Generate release manifest (with build provenance)
         run: |
           python -c "
-          import hashlib, json, pathlib, sys
+          import datetime, hashlib, json, os, pathlib, platform, sys
           dist = pathlib.Path('dist')
-          manifest = {'version': '${{ github.ref_name }}', 'artifacts': {}}
+          ref = os.environ.get('GITHUB_REF_NAME', 'unknown')
+          repo = os.environ.get('GITHUB_REPOSITORY', 'FeverDream-dev/Prometheus')
+          sha = os.environ.get('GITHUB_SHA', 'unknown')
+          run_id = os.environ.get('GITHUB_RUN_ID', '')
+          manifest = {
+            'version': ref,
+            'artifacts': {},
+            'provenance': {
+              'commit_sha': sha,
+              'built_at': datetime.datetime.now(datetime.timezone.utc).isoformat(),
+              'builder': 'github-actions',
+              'repository': repo,
+              'workflow_run_id': run_id,
+              'python_version': platform.python_version(),
+              'runner_os': platform.platform(),
+            },
+          }
           for f in sorted(dist.iterdir()):
               if f.is_file() and f.name != 'release-manifest.json':
                   manifest['artifacts'][f.name] = hashlib.sha256(f.read_bytes()).hexdigest()
-          manifest['source_archive_url'] = 'https://github.com/${{ github.repository }}/archive/refs/tags/${{ github.ref_name }}.tar.gz'
-          manifest['release_assets_base'] = 'https://github.com/${{ github.repository }}/releases/download/${{ github.ref_name }}'
+          manifest['source_archive_url'] = f'https://github.com/{repo}/archive/refs/tags/{ref}.tar.gz'
+          manifest['release_assets_base'] = f'https://github.com/{repo}/releases/download/{ref}'
           pathlib.Path('dist/release-manifest.json').write_text(json.dumps(manifest, indent=2) + '\n')
           print(json.dumps(manifest, indent=2))
           "

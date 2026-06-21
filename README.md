@@ -49,12 +49,13 @@ The installer creates an isolated, versioned venv under
 `prometheus doctor`. It never touches system Python, never uses PyPI, and
 never needs `sudo`.
 
-> **Release status (v0.1.0):** No `v*` Git tag has been pushed yet. Until the
-> first tag is pushed, the installer downloads the source archive from the
-> `main` branch (with a loud checksum warning) and installs from source. After
-> `v0.1.0` is tagged, the installer will automatically prefer the
-> SHA-256-verified release sdist from the GitHub Release. Both paths are tested.
-> See [`docs/INSTALLER_PROOF.md`](docs/INSTALLER_PROOF.md) for details.
+> **Release status:** `v0.1.0` is **published**
+> ([GitHub Release](https://github.com/FeverDream-dev/Prometheus/releases/tag/v0.1.0),
+> published 2026-06-21). The installer automatically prefers the
+> SHA-256-verified release sdist from the GitHub Release for the default path.
+> The source-archive fallback (`PROMETHEUS_VERSION=main`) remains available and
+> is clearly marked as unverified. Both paths are tested — see
+> [`docs/INSTALLER_PROOF.md`](docs/INSTALLER_PROOF.md) for the full evidence.
 
 ## 30-second quick start
 

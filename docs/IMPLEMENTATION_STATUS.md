@@ -19,30 +19,43 @@ evidence. TUI product-feel slice completed: 4 orphaned slash commands wired
 added, first-run welcome banner on TUI launch, dispatch-coverage test prevents
 future orphans. Installer URLs unified to `feverdream-dev.github.io/Prometheus`
 (no `raw.githubusercontent` references remain in `public/`). Release pipeline
-prepared: installer fixed to prefer release sdist with checksum verification,
-source archive fallback tested, wheel/sdist/SBOM built locally, clean-venv
-install verified, `release.yml`/`pages.yml` improved, `install-release-smoke.yml`
-added, `scripts/release_smoke.sh` generates `docs/RELEASE_READINESS.md`.
-**Blocker:** no `v*` tag pushed yet — see `docs/INSTALLER_PROOF.md`.
+shipped and verified: **`v0.1.0` is PUBLISHED** (GitHub Release live at
+<https://github.com/FeverDream-dev/Prometheus/releases/tag/v0.1.0>, published
+2026-06-21T04:27:42Z, tag commit `8954a5e` == `HEAD`). The release carries 7
+assets: wheel, sdist, both `.sha256` sidecars, `SHA256SUMS`, CycloneDX SBOM,
+`release-manifest.json` — all internally checksum-consistent and independently
+re-verified this session. The default installer path now resolves to the
+release sdist with SHA-256 verification. The next planned release is `v0.1.1`
+(tag not created yet). See `docs/RELEASE_READINESS.md` and
+`docs/INSTALLER_PROOF.md` for full evidence.
 
 **What passed this pass (re-verified):** compileall, pytest (648/8), ruff,
 `prometheus --help` (14 top-level + 9 sub-apps), doctor, bundles list, sandbox
 doctor, sandbox test (19/1), memory inspect, vision doctor, assets doctor,
-git status (clean), MCP malicious-fixture block.
+git status (clean), MCP malicious-fixture block. **Release verification:**
+local wheel+sdist+SBOM built; published v0.1.0 assets downloaded and
+checksum-verified (`sha256sum -c SHA256SUMS` OK; manifest consistent); source
+diff between local and published sdist = 0 differing files (only outer-container
+metadata differs, expected); real install from the live v0.1.0 release sdist
+succeeded with checksum `84fa97575f43...` verified; source-archive fallback
+install succeeded with loud unverified-checksum warning.
 
 **What skipped (with exact reasons):** provider smoke (dead endpoint, optional),
 browser sandbox E2E (Playwright install in CI), 5× real-Ollama E2E
 (`PROMETHEUS_E2E_OLLAMA=1`), 2× AssetForge image gen
 (`PROMETHEUS_RUN_IMAGE_TESTS=1`).
 
-**What remains (active next slice):** release artifacts are not published yet
-(no `v*` tag pushed). The installer has been fixed and tested for both paths:
-(1) release sdist download with SHA-256 checksum verification (activates after
-the first tag), and (2) source archive fallback (works now, warns about
-unverified checksums). Local wheel + sdist + SBOM build verified, clean-venv
-install from wheel verified, source archive install verified. The next gate is
-pushing `v0.1.0` to trigger `release.yml`, which will create the GitHub Release
-with wheel + sdist + SHA256SUMS + SBOM + release manifest.
+**What remains (active next slice):** `v0.1.0` is shipped and verified. The next
+release is `v0.1.1` (tag not pushed yet). Release-prep improvements landed this
+session: `release.yml` now enriches `release-manifest.json` with build
+provenance (commit SHA, built_at, builder, runner OS, Python version) and adds
+an "Assert required release artifacts exist" step that fails the build if
+wheel/sdist/checksums/SBOM are missing or checksum-inconsistent; `pages.yml`
+adds sitemap.xml + JSON-LD parse validation and a drift guard that the copied
+`website/install.{sh,ps1}` match `public/`; `install-release-smoke.yml` adds
+independent re-verification of the published `SHA256SUMS` and an assertion that
+the release sdist (not the source-archive fallback) was used for tagged
+installs. Bumping `pyproject.toml` to `0.1.1` and tagging is a human step.
 
 ## How to reproduce every claim below
 

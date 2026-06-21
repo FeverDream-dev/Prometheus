@@ -52,9 +52,50 @@ jobs:
           set -e
           grep -q 'name="description"' website/index.html
           grep -q 'property="og:title"' website/index.html
+          grep -q 'property="og:description"' website/index.html
+          grep -q 'property="og:image"' website/index.html
+          grep -q 'name="twitter:card"' website/index.html
+          grep -q 'name="twitter:image"' website/index.html
           grep -q 'rel="canonical"' website/index.html
           grep -q 'application/ld+json' website/index.html
           echo "SEO metadata verified."
+      - name: Validate sitemap.xml and robots.txt
+        run: |
+          set -e
+          python -c "
+          import xml.etree.ElementTree as ET, pathlib, sys
+          s = pathlib.Path('website/sitemap.xml')
+          root = ET.parse(s).getroot()  # raises on malformed XML
+          ns = '{http://www.sitemaps.org/schemas/sitemap/0.9}'
+          locs = [e.text for e in root.iter(f'{ns}loc')]
+          assert locs, 'sitemap has no <loc>'
+          assert any('feverdream-dev.github.io/Prometheus' in (l or '') for l in locs), \
+              'sitemap must reference the Pages URL'
+          print('sitemap OK:', len(locs), 'URL(s)')
+          "
+          grep -q '^User-agent:' website/robots.txt
+          grep -q '^Sitemap:' website/robots.txt
+          echo "robots.txt OK"
+      - name: Validate JSON-LD structured data parses
+        run: |
+          set -e
+          python -c "
+          import json, pathlib, re
+          html = pathlib.Path('website/index.html').read_text(encoding='utf-8')
+          m = re.search(r'<script type=\"application/ld\+json\">(.*?)</script>', html, re.S)
+          assert m, 'no JSON-LD block found'
+          data = json.loads(m.group(1))  # raises on invalid JSON
+          assert isinstance(data, dict) and '@graph' in data, 'JSON-LD missing @graph'
+          types = {n.get('@type') for n in data['@graph']}
+          assert 'SoftwareApplication' in types and 'SoftwareSourceCode' in types, types
+          print('JSON-LD OK:', sorted(t for t in types if t))
+          "
+      - name: Drift guard — copied installers match public/
+        run: |
+          set -e
+          diff -q public/install.sh website/install.sh
+          diff -q public/install.ps1 website/install.ps1
+          echo "website/install.{sh,ps1} match public/ originals."
       - name: Upload website artifact
         uses: actions/upload-pages-artifact@v3
         with:
