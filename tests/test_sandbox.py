@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import shutil
+import subprocess
 import sys
 from pathlib import Path
 from unittest import mock
@@ -7,6 +9,20 @@ from unittest import mock
 import pytest
 
 from prometheus_cli.sandbox import SandboxBroker
+
+
+def _bwrap_functional() -> bool:
+    binary = shutil.which("bwrap")
+    if not binary:
+        return False
+    try:
+        subprocess.run(
+            [binary, "--unshare-user", "--bind", "/", "/", "true"],
+            capture_output=True, timeout=5,
+        )
+        return True
+    except Exception:
+        return False
 
 
 @pytest.fixture
@@ -122,6 +138,7 @@ class TestWrapPassthrough:
 
 
 class TestWorkspaceIntegration:
+    @pytest.mark.skipif(not _bwrap_functional(), reason="bwrap not functional (user namespaces restricted)")
     def test_run_command_uses_sandbox_when_active(self, workspace: Path, tmp_path: Path):
         workspace.mkdir(parents=True)
         (workspace / "test.py").write_text("print('ok')")
