@@ -548,7 +548,7 @@ def _print_bundles(json_output: bool, installed_only: bool) -> None:
     for c in classified:
         tag = {
             "recommended": "[green]recommended[/green]",
-            "installed": "[bold green]installed[/bold]",
+            "installed": "[bold green]installed[/bold green]",
             "available": "available",
             "experimental": "[yellow]experimental[/yellow]",
             "incompatible": "[red]incompatible[/red]",
@@ -560,7 +560,7 @@ def _print_bundles(json_output: bool, installed_only: bool) -> None:
                       f"local sessions {'unlimited' if c.bundle.runtime.unlimited_local_sessions else 'metered'}")
         for role, spec in c.bundle.roles.items():
             opt = " (optional)" if spec.optional else ""
-            pulled = " [installed]" if spec.model in ollama.models else ""
+            pulled = " [green]installed[/green]" if spec.model in ollama.models else ""
             console.print(f"    {role}: {spec.model}{opt}{pulled}")
         for reason in c.reasons:
             console.print(f"  [dim]• {reason}[/dim]")
