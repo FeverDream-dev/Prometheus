@@ -1165,6 +1165,31 @@ def sandbox_test(
         raise typer.Exit(code=1)
 
 
+@provider_app.command("list")
+def provider_list(
+    json_output: bool = typer.Option(False, "--json"),
+) -> None:
+    """List known provider presets (local + cloud)."""
+    from .providers.presets import PRESETS
+
+    if json_output:
+        import json as _json
+
+        print(_json.dumps([
+            {"id": p.id, "label": p.label, "base_url": p.base_url,
+             "kind": p.kind, "api_key_env": p.api_key_env, "notes": p.notes}
+            for p in PRESETS.values()
+        ], indent=2))
+        return
+    console.print(Panel.fit(f"Provider presets ({len(PRESETS)})"))
+    for p in PRESETS.values():
+        marker = " [local, quota-free]" if p.kind == "local" else " [cloud, metered]"
+        console.print(f"  [bold]{p.id:<12}[/bold] {p.label}{marker}")
+        console.print(f"    endpoint: {p.base_url}")
+        if p.api_key_env:
+            console.print(f"    api key:  ${p.api_key_env}")
+
+
 @provider_app.command("smoke")
 def provider_smoke(
     provider: str = typer.Option("ollama", "--provider", help="Provider preset id (ollama, openai, mistral, ...)"),

@@ -6,6 +6,7 @@ SLASH_COMMANDS = {
     "/bundles": "show model packages and active config",
     "/models": "show installed Ollama models",
     "/providers": "show configured providers",
+    "/sandbox": "sandbox enforcement tier and policy status",
     "/mcp": "show MCP server status",
     "/tools": "list built-in tools",
     "/permissions": "show autonomy mode and policy",
