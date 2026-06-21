@@ -16,11 +16,11 @@ def _bwrap_functional() -> bool:
     if not binary:
         return False
     try:
-        subprocess.run(
+        result = subprocess.run(
             [binary, "--unshare-user", "--bind", "/", "/", "true"],
             capture_output=True, timeout=5,
         )
-        return True
+        return result.returncode == 0
     except Exception:
         return False
 
