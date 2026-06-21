@@ -463,3 +463,45 @@ the closing tag was `[/bold]` (mismatched). Fixed to `[/bold green]`.
 Additionally, the inline `[installed]` marker for pulled models was changed to
 `[green]installed[/green]` to prevent Rich from treating `installed` as an
 unknown style tag.
+
+### TUI polish + live telemetry slice (this session, completion branch)
+
+The TUI was leaking literal Rich markup (e.g. `[bold yellow]Welcome to
+PROMETHEUS![/bold yellow]` showing up as raw text) and looked like a developer
+debug panel rather than a product. This slice delivered:
+
+- **Markup leak fix**: `tui.py` `Log` widget → `RichLog` (which parses Rich
+  markup). 18 regression tests in `tests/test_tui_markup_regression.py` pin the
+  fix at both source and render layers.
+- **`prometheus_cli/telemetry.py`**: optional-psutil CPU/RAM/disk + subprocess-
+  with-timeout NVIDIA/AMD/Intel GPU probes (cached for ~1s), Ollama/git/sandbox/
+  bundle status. New `prometheus telemetry [--json]` command. 17 tests in
+  `tests/test_telemetry.py` including fixture-text nvidia-smi/rocm-smi parsers.
+- **`prometheus_cli/logo.py`**: brand-derived circular ring + central eye + 12-
+  frame rotating palette-cycle animation (cyan/green/yellow/orange/magenta).
+  `TEMPORARY_ASCII_LOGO` flipped to `False`. New `prometheus logo preview
+  [--animated] [--width N]` and `prometheus logo generate --source ... --out
+  ...` commands (Pillow-optional). 22 tests in `tests/test_logo.py`.
+- **Three-column TUI layout**: left sidebar (command palette), main RichLog +
+  approval, right live telemetry panel polling every 1.5 s. Dark theme, brand
+  cyan accent. Responsive collapse on narrow terminals. `Settings.reduced_motion`
+  + `Settings.tui_telemetry_panel` fields added. 10 layout tests in
+  `tests/test_tui_layout.py`.
+- **Onboarding polish**: `tui_commands.onboarding_lines()` renders a boxed
+  PROMETHEUS header, system summary, recommended bundle, provider, Ollama
+  status, and next-action commands (no dead-ends).
+- **Command palette polish**: grouped `/help` (Setup / Models & Coding / Safety
+  / Browser & Vision / System), fuzzy `difflib` suggestions for typos
+  (`Did you mean "/models"?`), four new commands wired with dispatch handlers
+  (`/telemetry`, `/logo`, `/diagnose`, `/provider`).
+- **`prometheus_cli/diagnostics.py`**: sanitized diagnostics collector (Python
+  env, package version, config, recent sessions, output logs, installer logs,
+  Ollama, git, test hints) with recursive secret redaction via
+  `prometheus_cli.redaction.redact`. New `prometheus diagnose [--since 1h]
+  [--export diag.zip] [--json]` and `/diagnose` slash command. 21 tests in
+  `tests/test_diagnostics.py` including parametrized secret-leak fixtures.
+
+Test count rose from **648 passing / 8 skipped → 730 passing / 8 skipped**
+(+82 tests). `ruff check src tests` clean. `v0.1.1` was NOT tagged. `main`
+was NOT pushed. See `docs/TUI_POLISH.md` for screenshots / manual smoke
+instructions, `docs/RC_TESTING.md` for the RC test plan and remaining UI work.
