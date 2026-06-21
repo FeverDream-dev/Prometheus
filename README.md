@@ -30,17 +30,17 @@ leaves your machine unless you explicitly send it somewhere.
 
 **Linux / macOS / WSL:**
 ```sh
-curl -fsSL https://raw.githubusercontent.com/FeverDream-dev/Prometheus/main/install.sh | sh
+curl -fsSL https://feverdream-dev.github.io/Prometheus/install.sh | sh
 ```
 
 **Windows (delegates to WSL):**
 ```powershell
-irm https://raw.githubusercontent.com/FeverDream-dev/Prometheus/main/install.ps1 | iex
+irm https://feverdream-dev.github.io/Prometheus/install.ps1 | iex
 ```
 
 > Prefer to inspect first? Download the script, read it, then run it:
 > ```sh
-> curl -fsSL https://raw.githubusercontent.com/FeverDream-dev/Prometheus/main/install.sh -o install.sh
+> curl -fsSL https://feverdream-dev.github.io/Prometheus/install.sh -o install.sh
 > less install.sh && sh install.sh
 > ```
 

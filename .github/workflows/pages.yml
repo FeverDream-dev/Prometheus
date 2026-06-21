@@ -5,6 +5,7 @@ on:
     branches: [main]
     paths:
       - "website/**"
+      - "public/**"
       - ".github/workflows/pages.yml"
   workflow_dispatch:
 
@@ -26,6 +27,10 @@ jobs:
         uses: actions/configure-pages@v5
         with:
           enablement: true
+      - name: Copy public install scripts
+        run: |
+          cp public/install.sh website/install.sh
+          cp public/install.ps1 website/install.ps1
       - name: Upload website artifact
         uses: actions/upload-pages-artifact@v3
         with:
