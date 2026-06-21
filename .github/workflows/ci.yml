@@ -27,6 +27,17 @@ jobs:
         with:
           python-version: ${{ matrix.python-version }}
       - run: python -m pip install -e ".[dev,tui]"
+      - name: Configure CI environment (Linux)
+        if: runner.os == 'Linux'
+        run: |
+          git config --global user.email "ci@prometheus.local"
+          git config --global user.name "PROMETHEUS CI"
+          sudo apt-get update -qq && sudo apt-get install -y -qq bubblewrap
+      - name: Configure CI environment (non-Linux)
+        if: runner.os != 'Linux'
+        run: |
+          git config --global user.email "ci@prometheus.local"
+          git config --global user.name "PROMETHEUS CI"
       - run: pytest -q
 
   test-wsl:
