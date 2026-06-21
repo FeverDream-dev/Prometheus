@@ -10,23 +10,27 @@ One incomplete critical row blocks the phase gate.
 
 Legend: `passing` · `partial` · `placeholder` · `missing`
 
-**Last updated:** this session — **597 tests passed, 8 skipped** (+63 since last).
-Astronaut Vision MVP + AssetForge Lite MVP implemented: CSS snapshot inspector,
-design-profile comparison, element capture, asset manifest with license policy,
-prompt builder, rembg background removal, and `generate` pipeline. CLI groups
-`vision` and `assets` wired with TUI slash commands `/vision`, `/assets`,
-`/astronaut`. GitHub workflow `assetforge-smoke.yml` added.
+**Last updated:** this session — **638 tests passed, 8 skipped** (+41 since last).
+Sandbox QA vertical slice: CLI command groups verified, sandbox enforcement test
+suite expanded (19 PASS / 0 FAIL / 1 SKIP on fixture workspace), env-var secret
+filtering added, Rich MarkupError in `bundles list` fixed, QA smoke script +
+CI workflow created, installer URLs updated to GitHub Pages. Provider list
+subcommand + `/sandbox` TUI slash command added. New CLI test coverage:
+`test_cli_command_groups.py`, `test_provider_smoke.py`, `test_memory_cli.py`,
+`test_astronaut_cli.py`, `test_vision_cli.py`, `test_assets_cli.py`.
 
 ## How to reproduce every claim below
 
 ```sh
 . .venv/bin/activate
-python -m pytest -q                       # 597 passed, 8 skipped
+python -m pytest -q                       # 638 passed, 8 skipped
 ruff check src tests                       # clean
 python -m compileall -q src                # clean
-prometheus --help                          # 18 top-level + 7 sub-app command groups
+prometheus --help                          # 14 top-level + 9 sub-app command groups
+prometheus bundles list                    # 10 bundles, hardware-classified
+prometheus sandbox doctor && prometheus sandbox test --workspace tests/fixtures/sandbox_target --all
 prometheus vision doctor && prometheus assets doctor
-prometheus astronaut tick --seed 42
+bash scripts/qa_sandbox_smoke.sh           # full QA harness (12 required + 2 optional)
 ```
 
 ---
@@ -37,7 +41,7 @@ prometheus astronaut tick --seed 42
 |---|---|---|---|---|---|
 | 1 | `docs/ORIGINAL_IDEA_GAP_AUDIT.md` exists and is honest | 3 | passing | `cat docs/ORIGINAL_IDEA_GAP_AUDIT.md` | 60 done / 14 partial / 14 missing / 1 misleading-docs at audit time; re-baselined below |
 | 2 | Public installer files exist with syntax tests | 5 | passing | `bash -n install.sh` · `pytest tests/test_installer.py` | install.sh + install.ps1; ci.yml runs syntax checks |
-| 3 | README has a real public one-liner using the real repo URL | 5 | passing | `grep raw.githubusercontent.com/Prometheus README.md` | `FeverDream-dev/Prometheus` |
+| 3 | README has a real public one-liner using the real repo URL | 5 | passing | `grep feverdream-dev.github.io README.md` | `feverdream-dev.github.io/Prometheus` |
 | 4 | install.ps1 no longer contains `prometheus/local-agent` | 5 | passing | `grep local-agent install.ps1` (no match) | Delegates to WSL with the real repo |
 | 5 | GitHub Pages site exists + deploy workflow | 3 | passing | `cat .github/workflows/pages.yml` · `pytest tests/test_website.py` | SEO/OG/JSON-LD/sitemap/robots validated |
 | 6 | TUI supports /help /settings /models /bundles /memory | 5 | passing | `pytest tests/test_tui_commands.py` | Plus /mcp /tools /sessions /qualify /use /modes /permissions /doctor /clear /resume /mode /exit |
@@ -146,9 +150,16 @@ prometheus astronaut tick --seed 42
 |---|---|---|---|
 | SandboxTier enum (off/basic/docker/native) | `models.py`, `sandbox.py` | `tests/test_sandbox.py` | passing |
 | BASIC: catastrophic-command hard-deny | `tools/workspace.py` | `tests/test_sandbox.py` | passing |
+| BASIC: `rm -rf ~` blocked | `tools/workspace.py` | `tests/test_sandbox.py` | passing |
+| BASIC: `chmod -R 777 /` blocked | `tools/workspace.py` | `tests/test_sandbox.py` | passing |
+| BASIC: `curl \| sh` pipe-to-shell blocked | `tools/workspace.py` | `tests/test_sandbox.py` | passing |
+| BASIC: secret env-var filtering | `tools/workspace.py::_SECRET_ENV_RE` | `tests/test_sandbox.py` | passing |
 | NATIVE: bwrap (Linux) / sandbox-exec (macOS) | `sandbox.py::SandboxBroker` | `tests/test_sandbox.py` | passing |
 | DOCKER: availability detection | `sandbox.py::docker_available` | `tests/test_sandbox.py` | passing |
 | Workspace path-traversal + symlink escape | `tools/workspace.py` | `tests/test_core.py` | passing |
+| Sandbox enforcement test suite (20 tests) | `sandbox_test.py::run_suite` | fixture E2E | passing |
+| `/sandbox` TUI slash command | `tui_commands.py` | `tests/test_cli_command_groups.py` | passing |
+| QA smoke script + CI workflow | `scripts/qa_sandbox_smoke.sh`, `.github/workflows/qa-sandbox.yml` | — | passing |
 
 ### Providers
 | Feature | Implementation | Test | Status |
@@ -158,6 +169,7 @@ prometheus astronaut tick --seed 42
 | OpenAI-compatible provider | `providers/openai_compat.py` | `tests/test_providers.py` | passing |
 | Capability router w/ sequential hot-swap | `router.py` | `tests/test_router.py` | passing |
 | Distinct labeled presets (10) + fake-HTTP conformance harness | `providers/presets.py` | `tests/test_provider_conformance.py` | passing |
+| `provider list` subcommand (--json support) | `cli.py::provider_app` | `tests/test_provider_smoke.py` | passing |
 
 ### Splash / logo
 | Feature | Implementation | Test | Status |
@@ -366,10 +378,50 @@ README only (skip_reason documented).
 ### Full test count
 
 ```
-597 passed, 8 skipped in 21s
+638 passed, 8 skipped in 28s
 ruff check src tests — clean
 python -m compileall src — clean
 ```
 
-63 new tests (vision: 22, assets: 18, astronaut: 5, CLI: 10, comparison: 8).
-Zero regressions vs the 534-test baseline.
+41 new tests this session: CLI command groups (9), provider smoke (4),
+memory CLI (5), astronaut CLI (6), vision CLI (4), assets CLI (4),
+sandbox dangerous-command expansion (4), CLI command existence (5).
+
+Zero regressions vs the 597-test baseline.
+
+### CLI command group verification (this session)
+
+All 9 sub-app command groups verified with dedicated tests:
+
+```
+$ prometheus --help  # confirms all groups registered
+models mcp browser bundles sandbox provider astronaut vision assets
+```
+
+| Group | Subcommands | Test file |
+|---|---|---|
+| models | list, pull, unload, inspect | `tests/test_cli_groups.py` |
+| bundles | list, inspect, qualify | `tests/test_bundles.py` |
+| sandbox | doctor, test | `tests/test_sandbox.py` |
+| provider | smoke, list | `tests/test_provider_smoke.py` |
+| mcp | list, add, remove, test | `tests/test_cli_groups.py` |
+| astronaut | start, status, pause, resume, stop, tick, report | `tests/test_astronaut_cli.py` |
+| vision | doctor, inspect, compare | `tests/test_vision_cli.py` |
+| assets | doctor, setup, models, generate, manifest | `tests/test_assets_cli.py` |
+| memory | inspect, status, rebuild, export, reset | `tests/test_memory_cli.py` |
+
+### Installer URL fix (this session)
+
+README install URLs updated from `raw.githubusercontent.com` to
+`feverdream-dev.github.io/Prometheus` (GitHub Pages). Public install scripts
+copied to `public/install.sh` and `public/install.ps1`. The Pages deploy
+workflow copies these into the website artifact at build time.
+
+### Rich MarkupError fix (this session)
+
+`prometheus bundles list` crashed with `rich.errors.MarkupError` when any
+installed bundle triggered the `[bold green]installed[/bold]` tag. Root cause:
+the closing tag was `[/bold]` (mismatched). Fixed to `[/bold green]`.
+Additionally, the inline `[installed]` marker for pulled models was changed to
+`[green]installed[/green]` to prevent Rich from treating `installed` as an
+unknown style tag.
