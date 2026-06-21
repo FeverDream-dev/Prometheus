@@ -23,6 +23,10 @@ _REQUIRES_INSTALL = re.compile(
 )
 _REQUIRES_PRIVILEGE = re.compile(r"(?:^|\s)(?:sudo|su\b|doas)\b", re.IGNORECASE)
 _PIPE_TO_SHELL = re.compile(r"\|\s*(?:sh|bash|zsh)\b", re.IGNORECASE)
+_SECRET_ENV_RE = re.compile(
+    r"(?:API.?KEY|TOKEN|SECRET|PASSWORD|PASSWD|CREDENTIAL|PRIVATE.?KEY|AUTH)",
+    re.IGNORECASE,
+)
 
 
 class WorkspaceTools:
@@ -105,6 +109,12 @@ class WorkspaceTools:
                 f"{reason}.\nRe-run with an explicit, scoped command or adjust policy if this was intended."
             )
         wrapped = self.sandbox.wrap(command)
+        run_env = None
+        if self.tier != SandboxTier.OFF:
+            run_env = {
+                k: v for k, v in os.environ.items()
+                if not _SECRET_ENV_RE.search(k)
+            }
         result = subprocess.run(
             wrapped,
             cwd=self.root,
@@ -112,6 +122,7 @@ class WorkspaceTools:
             text=True,
             timeout=timeout,
             check=False,
+            env=run_env,
         )
         sandbox_note = f"[sandbox:{self.sandbox.tier}]\n" if self.sandbox.active else ""
         return (
