@@ -1222,6 +1222,305 @@ app.add_typer(sandbox_app, name="sandbox")
 app.add_typer(provider_app, name="provider")
 
 
+bundleforge_app = typer.Typer(help="BundleForge — create, validate, and install custom bundles", invoke_without_command=True)
+
+
+@bundleforge_app.callback()
+def bundleforge_default(ctx: typer.Context) -> None:
+    if ctx.invoked_subcommand is None:
+        console.print(Panel.fit("PROMETHEUS BundleForge"))
+        console.print("Create, adapt, validate, and install custom model bundles.")
+        console.print("\n[bold]Commands:[/bold]")
+        console.print("  recommend  Recommend a bundle from a natural-language request")
+        console.print("  wizard     Interactive bundle creation wizard")
+        console.print("  create     Create a bundle from a template")
+        console.print("  inspect    Show full details of a bundle or template")
+        console.print("  validate   Validate a bundle file or template")
+        console.print("  install    Install a bundle into ~/.prometheus")
+        console.print("  export     Export a bundle as a shareable folder")
+        console.print("  search     Search templates and catalog by keyword")
+
+
+@bundleforge_app.command("recommend")
+def bundleforge_recommend(
+    request: str = typer.Argument(..., help="Natural-language description of what you want to build"),
+    quality: bool = typer.Option(False, "--quality", help="Prefer higher-quality models when available"),
+    commercial_only: bool = typer.Option(True, "--commercial-safe/--allow-noncommercial", help="Require commercial-safe models"),
+    json_output: bool = typer.Option(False, "--json"),
+) -> None:
+    """Recommend a bundle from a natural-language request."""
+    from .bundleforge import load_catalog, recommend
+
+    catalog = load_catalog()
+    report = detect_hardware()
+    result = recommend(request, hardware=report, prefer_quality=quality, commercial_safe_only=commercial_only, catalog=catalog)
+
+    if json_output:
+        import json as _json
+        print(_json.dumps({
+            "use_case": result.use_case,
+            "template_id": result.template_id,
+            "bundle_id": result.bundle.id,
+            "bundle_name": result.bundle.name,
+            "confidence": round(result.confidence, 2),
+            "matched_keywords": result.matched_keywords,
+            "hardware_fit": result.hardware_fit,
+            "roles": {r: s.model for r, s in result.bundle.roles.items()},
+            "optional": result.bundle.optional,
+            "requirements": {
+                "min_ram_gb": result.bundle.requirements.min_ram_gb,
+                "min_vram_gb": result.bundle.requirements.min_vram_gb,
+            },
+            "license_warnings": result.license_warnings,
+            "alternatives": result.alternatives[:5],
+        }, indent=2))
+        return
+
+    console.print(Panel.fit("BundleForge recommendation"))
+    console.print(f"Request: [dim]{request}[/dim]")
+    console.print(f"Use case: [bold]{result.use_case}[/bold]")
+    if result.matched_keywords:
+        console.print(f"Matched: {', '.join(result.matched_keywords)}")
+    console.print(f"Confidence: {result.confidence:.0%}")
+    console.print(f"\n[bold]Recommended: {result.bundle.name}[/bold] ({result.template_id})")
+    console.print(f"  {result.bundle.description}")
+    console.print(f"\n[bold]Roles:[/bold]")
+    for role, spec in result.bundle.roles.items():
+        console.print(f"  {role}: {spec.model}")
+    if result.bundle.optional:
+        console.print(f"\n[bold]Optional:[/bold]")
+        for cap, model in result.bundle.optional.items():
+            console.print(f"  {cap}: {model}")
+    console.print(f"\n[bold]Requirements:[/bold] {result.bundle.requirements.min_ram_gb} GB RAM, "
+                  f"{result.bundle.requirements.min_vram_gb} GB VRAM")
+    for reason in result.fit_reasons:
+        console.print(f"  [dim]• {reason}[/dim]")
+    if result.license_warnings:
+        console.print(f"\n[yellow]License warnings:[/yellow]")
+        for w in result.license_warnings:
+            console.print(f"  [yellow]• {w}[/yellow]")
+    console.print(f"\n[dim]Install with: prometheus bundleforge create --template {result.template_id}[/dim]")
+
+
+@bundleforge_app.command("wizard")
+def bundleforge_wizard(
+    yes: bool = typer.Option(False, "--yes", help="Accept all defaults non-interactively"),
+    out: Path = typer.Option(Path(".prometheus/bundles"), "--out", help="Output directory"),
+) -> None:
+    """Interactive bundle creation wizard."""
+    from .bundleforge import WizardAnswers, run_wizard, save_bundle
+    from rich.prompt import Confirm, Prompt
+
+    defaults = WizardAnswers()
+    if yes:
+        defaults.use_case = "web development"
+        answers, bundle = run_wizard(defaults=defaults)
+    else:
+        answers, bundle = run_wizard(
+            prompt_fn=lambda msg, default: Prompt.ask(msg, default=default),
+            confirm_fn=lambda msg, default: Confirm.ask(msg, default=default),
+        )
+    console.print(Panel.fit(f"Created: {bundle.name}"))
+    bundle_path = save_bundle(bundle, out / bundle.id)
+    console.print(f"[green]Saved:[/green] {bundle_path}")
+    console.print(f"Next: prometheus bundleforge validate '{bundle_path}'")
+    console.print(f"Then: prometheus bundleforge install '{bundle_path}'")
+
+
+@bundleforge_app.command("create")
+def bundleforge_create(
+    template: str = typer.Argument(..., help="Template id (e.g. game-dev-lite)"),
+    out: Path = typer.Option(Path(".prometheus/bundles"), "--out", help="Output directory"),
+    force: bool = typer.Option(False, "--force", help="Overwrite existing output"),
+) -> None:
+    """Create a bundle from a template."""
+    from .bundleforge import load_template, save_bundle
+
+    try:
+        bundle = load_template(template)
+    except FileNotFoundError:
+        console.print(f"[red]Template '{template}' not found.[/red]")
+        from .bundleforge import list_templates
+        console.print(f"Available: {', '.join(list_templates())}")
+        raise typer.Exit(code=1)
+    target = out / bundle.id
+    if target.exists() and not force:
+        console.print(f"[yellow]'{target}' already exists. Use --force to overwrite.[/yellow]")
+        raise typer.Exit(code=1)
+    path = save_bundle(bundle, target)
+    console.print(f"[green]Created:[/green] {path}")
+    console.print(f"Template: {template}")
+    console.print(f"Roles: {', '.join(bundle.roles.keys())}")
+    if bundle.optional:
+        console.print(f"Optional: {', '.join(bundle.optional.keys())}")
+
+
+@bundleforge_app.command("inspect")
+def bundleforge_inspect(
+    target: str = typer.Argument(..., help="Template id or path to bundle.yaml"),
+) -> None:
+    """Show full details of a bundle or template."""
+    from .bundleforge import list_templates, load_forge_bundle, load_template
+
+    path = Path(target)
+    if path.is_file():
+        bundle = load_forge_bundle(path)
+    elif target in list_templates():
+        bundle = load_template(target)
+    else:
+        console.print(f"[red]'{target}' is not a file or known template.[/red]")
+        console.print(f"Templates: {', '.join(list_templates())}")
+        raise typer.Exit(code=1)
+
+    console.print(Panel.fit(f"{bundle.name} ({bundle.id})"))
+    console.print(bundle.description)
+    console.print(f"version: {bundle.version} · use_case: {bundle.use_case}")
+    console.print(f"commercial_safe: {bundle.commercial_safe}")
+    console.print(f"\n[bold]Roles:[/bold]")
+    for role, spec in bundle.roles.items():
+        console.print(f"  {role}: {spec.model} ({spec.provider})")
+    if bundle.optional:
+        console.print(f"\n[bold]Optional capabilities:[/bold]")
+        for cap, model in bundle.optional.items():
+            console.print(f"  {cap}: {model}")
+    console.print(f"\n[bold]Requirements:[/bold] {bundle.requirements.min_ram_gb} GB RAM, "
+                  f"{bundle.requirements.min_vram_gb} GB VRAM, "
+                  f"{bundle.requirements.min_disk_gb} GB disk")
+    console.print(f"\n[bold]Permissions:[/bold]")
+    console.print(f"  network: {bundle.permissions.network}")
+    console.print(f"  package_install: {bundle.permissions.package_install}")
+    console.print(f"  browser: {bundle.permissions.browser}")
+    console.print(f"  assets: {bundle.permissions.assets}")
+    console.print(f"  external_directory: {bundle.permissions.external_directory}")
+    if bundle.license_notes:
+        console.print(f"\n[bold]License notes:[/bold] {bundle.license_notes}")
+
+
+@bundleforge_app.command("validate")
+def bundleforge_validate(
+    target: str = typer.Argument(..., help="Template id or path to bundle.yaml"),
+    json_output: bool = typer.Option(False, "--json"),
+) -> None:
+    """Validate a bundle file or template."""
+    from .bundleforge import validate_file, validate_template
+
+    path = Path(target)
+    if path.is_file():
+        result = validate_file(path)
+    else:
+        result = validate_template(target)
+
+    if json_output:
+        import json as _json
+        print(_json.dumps({
+            "valid": result.valid,
+            "errors": result.errors,
+            "warnings": result.warnings,
+        }, indent=2))
+        return
+
+    status = "[green]VALID[/green]" if result.passed else "[red]INVALID[/red]"
+    console.print(Panel.fit(f"Validation: {status}"))
+    if result.errors:
+        console.print("[red]Errors:[/red]")
+        for e in result.errors:
+            console.print(f"  [red]✗[/red] {e}")
+    if result.warnings:
+        console.print("[yellow]Warnings:[/yellow]")
+        for w in result.warnings:
+            console.print(f"  [yellow]![/yellow] {w}")
+    if result.passed and not result.warnings:
+        console.print("[green]All checks passed with no warnings.[/green]")
+    if not result.passed:
+        raise typer.Exit(code=1)
+
+
+@bundleforge_app.command("install")
+def bundleforge_install(
+    target: str = typer.Argument(..., help="Template id or path to bundle.yaml"),
+    force: bool = typer.Option(False, "--force", help="Overwrite if already installed"),
+) -> None:
+    """Install a bundle into ~/.prometheus/bundles/."""
+    import yaml as _yaml
+
+    from .config import ensure_home
+    from .bundleforge import list_templates, load_forge_bundle, load_template
+
+    path = Path(target)
+    if path.is_file():
+        bundle = load_forge_bundle(path)
+    elif target in list_templates():
+        bundle = load_template(target)
+    else:
+        console.print(f"[red]'{target}' is not a file or known template.[/red]")
+        raise typer.Exit(code=1)
+
+    home = ensure_home()
+    dest_dir = home / "bundles"
+    dest_dir.mkdir(exist_ok=True)
+    v2_path = dest_dir / f"{bundle.id}.yaml"
+
+    if v2_path.exists() and not force:
+        console.print(f"[yellow]'{bundle.id}' is already installed. Use --force to overwrite.[/yellow]")
+        raise typer.Exit(code=1)
+
+    v2_data = bundle.to_v2_dict()
+    v2_path.write_text(_yaml.safe_dump(v2_data, sort_keys=False), encoding="utf-8")
+    console.print(f"[green]Installed:[/green] {bundle.id} -> {v2_path}")
+    console.print(f"Activate with: prometheus use {bundle.id}")
+
+
+@bundleforge_app.command("export")
+def bundleforge_export(
+    target: str = typer.Argument(..., help="Template id or path to bundle.yaml"),
+    out: Path = typer.Option(Path("exported-bundle"), "--out", "-o", help="Output directory"),
+) -> None:
+    """Export a bundle as a shareable folder."""
+    from .bundleforge import list_templates, load_forge_bundle, load_template, save_bundle
+
+    path = Path(target)
+    if path.is_file():
+        bundle = load_forge_bundle(path)
+    elif target in list_templates():
+        bundle = load_template(target)
+    else:
+        console.print(f"[red]'{target}' is not a file or known template.[/red]")
+        raise typer.Exit(code=1)
+
+    out_dir = out / bundle.id
+    bundle_path = save_bundle(bundle, out_dir)
+    console.print(f"[green]Exported:[/green] {out_dir}")
+    console.print(f"  bundle.yaml: {bundle_path}")
+    console.print(f"  README.md: {out_dir / bundle.id / 'README.md'}")
+    console.print(f"  LICENSE_NOTES.md: {out_dir / bundle.id / 'LICENSE_NOTES.md'}")
+    console.print("[dim]Share the folder or zip it. No secrets are included.[/dim]")
+
+
+@bundleforge_app.command("search")
+def bundleforge_search(
+    query: str = typer.Argument(..., help="Search keywords (e.g. 'game', 'rag', 'cpu')"),
+    json_output: bool = typer.Option(False, "--json"),
+) -> None:
+    """Search templates and model catalog by keyword."""
+    from .bundleforge import search_bundles
+
+    results = search_bundles(query)
+    if json_output:
+        import json as _json
+        print(_json.dumps(results, indent=2))
+        return
+    if not results:
+        console.print(f"[dim]No templates matched '{query}'.[/dim]")
+        return
+    console.print(Panel.fit(f"BundleForge search: '{query}'"))
+    for r in results:
+        console.print(f"\n[bold]{r['template_id']}[/bold] (score: {r['score']})")
+        console.print(f"  {r['name']}: {r['description']}")
+
+
+app.add_typer(bundleforge_app, name="bundleforge")
+
+
 @sandbox_app.command("doctor")
 def sandbox_doctor() -> None:
     """Report which sandbox tiers are available on this host."""

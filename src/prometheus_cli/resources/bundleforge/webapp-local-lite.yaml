@@ -1,0 +1,30 @@
+id: webapp-local-lite
+name: Web App Local Lite
+description: Minimal local web development bundle for CPU and low-RAM machines.
+version: "0.1.0"
+use_case: web_development
+commercial_safe: true
+roles:
+  envoy:
+    model: gemma3n:e2b
+    provider: ollama
+  builder:
+    model: qwen2.5-coder:3b
+    provider: ollama
+  critic:
+    model: granite-code:3b
+    provider: ollama
+optional: {}
+mcp:
+  servers: []
+permissions:
+  network: ask
+  package_install: ask
+  browser: allow
+  assets: deny
+  external_directory: deny
+requirements:
+  min_ram_gb: 8
+  min_vram_gb: 0
+  min_disk_gb: 10
+license_notes: "All models Apache-2.0 or Gemma-Terms. Commercial-safe."

@@ -1,0 +1,31 @@
+id: rag-docs-local
+name: RAG Docs Local
+description: Local RAG assistant for querying your own documents with a local embedding model.
+version: "0.1.0"
+use_case: rag_documents
+commercial_safe: true
+roles:
+  envoy:
+    model: gemma3n:e2b
+    provider: ollama
+  builder:
+    model: qwen2.5-coder:3b
+    provider: ollama
+  critic:
+    model: granite-code:3b
+    provider: ollama
+optional:
+  embedding: nomic-embed-text
+mcp:
+  servers: []
+permissions:
+  network: deny
+  package_install: ask
+  browser: deny
+  assets: deny
+  external_directory: deny
+requirements:
+  min_ram_gb: 8
+  min_vram_gb: 0
+  min_disk_gb: 15
+license_notes: "nomic-embed-text Apache-2.0, LLMs Apache-2.0/Gemma-Terms. Commercial-safe. Documents never leave the machine."

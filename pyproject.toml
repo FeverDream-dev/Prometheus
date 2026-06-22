@@ -39,6 +39,8 @@ prometheus_cli = [
     "resources/schemas/*",
     "resources/i18n/*",
     "resources/agents/*",
+    "resources/model_catalog/*.yaml",
+    "resources/bundleforge/*.yaml",
 ]
 
 [tool.pytest.ini_options]

@@ -1,0 +1,30 @@
+id: cpu-only-emergency
+name: CPU Only Emergency
+description: Absolute minimum bundle for CPU-only machines — runs on anything with 4GB RAM.
+version: "0.1.0"
+use_case: cpu_only
+commercial_safe: true
+roles:
+  envoy:
+    model: gemma3n:e2b
+    provider: ollama
+  builder:
+    model: qwen2.5-coder:0.5b
+    provider: ollama
+  critic:
+    model: granite-code:3b
+    provider: ollama
+optional: {}
+mcp:
+  servers: []
+permissions:
+  network: deny
+  package_install: deny
+  browser: deny
+  assets: deny
+  external_directory: deny
+requirements:
+  min_ram_gb: 4
+  min_vram_gb: 0
+  min_disk_gb: 8
+license_notes: "All models Apache-2.0 or Gemma-Terms. Minimal resource footprint. Commercial-safe."

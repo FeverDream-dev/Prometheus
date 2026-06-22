@@ -1,0 +1,30 @@
+id: webapp-12gb-quality
+name: Web App 12GB Quality
+description: Higher-quality web development with stronger coding models for 12GB+ GPUs.
+version: "0.1.0"
+use_case: web_development
+commercial_safe: true
+roles:
+  envoy:
+    model: gemma3n:e4b
+    provider: ollama
+  builder:
+    model: qwen2.5-coder:7b
+    provider: ollama
+  critic:
+    model: granite-code:8b
+    provider: ollama
+optional: {}
+mcp:
+  servers: []
+permissions:
+  network: ask
+  package_install: ask
+  browser: allow
+  assets: ask
+  external_directory: deny
+requirements:
+  min_ram_gb: 16
+  min_vram_gb: 10
+  min_disk_gb: 30
+license_notes: "All models Apache-2.0 or Gemma-Terms. Commercial-safe."

@@ -1,0 +1,32 @@
+id: game-dev-assetforge
+name: Game Dev with AssetForge
+description: Game development with full AssetForge image generation pipeline for sprites, icons, and textures.
+version: "0.1.0"
+use_case: game_development
+commercial_safe: true
+roles:
+  envoy:
+    model: gemma3n:e4b
+    provider: ollama
+  builder:
+    model: qwen2.5-coder:7b
+    provider: ollama
+  critic:
+    model: granite-code:8b
+    provider: ollama
+optional:
+  image_generator: black-forest-labs/FLUX.1-schnell
+  background_removal: rembg/u2netp
+mcp:
+  servers: []
+permissions:
+  network: ask
+  package_install: ask
+  browser: allow
+  assets: allow
+  external_directory: deny
+requirements:
+  min_ram_gb: 16
+  min_vram_gb: 8
+  min_disk_gb: 40
+license_notes: "FLUX.1-schnell Apache-2.0, rembg MIT, LLMs Apache-2.0/Gemma-Terms. Commercial-safe."

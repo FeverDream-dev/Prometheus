@@ -1,0 +1,32 @@
+id: assetforge-icon-factory
+name: AssetForge Icon Factory
+description: Dedicated image/asset generation pipeline for icons, sprites, and game art with background removal.
+version: "0.1.0"
+use_case: asset_generation
+commercial_safe: true
+roles:
+  envoy:
+    model: gemma3n:e2b
+    provider: ollama
+  builder:
+    model: qwen2.5-coder:3b
+    provider: ollama
+  critic:
+    model: granite-code:3b
+    provider: ollama
+optional:
+  image_generator: black-forest-labs/FLUX.1-schnell
+  background_removal: rembg/silueta
+mcp:
+  servers: []
+permissions:
+  network: deny
+  package_install: ask
+  browser: deny
+  assets: allow
+  external_directory: deny
+requirements:
+  min_ram_gb: 8
+  min_vram_gb: 8
+  min_disk_gb: 30
+license_notes: "FLUX.1-schnell Apache-2.0, rembg MIT, LLMs Apache-2.0/Gemma-Terms. All commercial-safe."

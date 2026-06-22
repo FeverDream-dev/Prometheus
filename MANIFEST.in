@@ -3,10 +3,6 @@ include LICENSE.md
 include pyproject.toml
 
 recursive-include src/prometheus_cli/resources *.yaml *.json *.md *.txt
-recursive-include prompts *.md
-recursive-include schemas *.json
-recursive-include i18n *.json
-recursive-include config *.yaml *.json
 
 global-exclude *.pyc
 global-exclude __pycache__

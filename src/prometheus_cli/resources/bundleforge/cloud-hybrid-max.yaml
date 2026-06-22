@@ -1,0 +1,32 @@
+id: cloud-hybrid-max
+name: Cloud Hybrid Max
+description: Maximum quality setup using local models where possible and cloud for heavy lifting.
+version: "0.1.0"
+use_case: cloud_hybrid
+commercial_safe: true
+roles:
+  envoy:
+    model: gemma3n:e4b
+    provider: ollama
+  builder:
+    model: deepseek-coder-v2:16b
+    provider: ollama
+  critic:
+    model: devstral:24b
+    provider: ollama
+optional:
+  image_generator: black-forest-labs/FLUX.1-schnell
+  embedding: mxbai-embed-large
+mcp:
+  servers: []
+permissions:
+  network: allow
+  package_install: ask
+  browser: allow
+  assets: allow
+  external_directory: deny
+requirements:
+  min_ram_gb: 32
+  min_vram_gb: 20
+  min_disk_gb: 60
+license_notes: "Strongest local models available. Cloud providers are opt-in and explicit. Commercial-safe with local models."

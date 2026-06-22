@@ -1,0 +1,34 @@
+id: whatsapp-mcp-assistant
+name: WhatsApp MCP Assistant
+description: Local assistant that connects to WhatsApp (or other chat apps) via MCP for message management and automation.
+version: "0.1.0"
+use_case: mcp_automation
+commercial_safe: true
+roles:
+  envoy:
+    model: gemma3n:e2b
+    provider: ollama
+  builder:
+    model: qwen2.5-coder:3b
+    provider: ollama
+  critic:
+    model: granite-code:3b
+    provider: ollama
+optional: {}
+mcp:
+  servers:
+    - name: whatsapp-bridge
+      command: ["python", "-m", "whatsapp_mcp_server"]
+      trust_level: untrusted
+      network_scope: outbound
+permissions:
+  network: allow
+  package_install: ask
+  browser: deny
+  assets: deny
+  external_directory: deny
+requirements:
+  min_ram_gb: 8
+  min_vram_gb: 0
+  min_disk_gb: 10
+license_notes: "All models Apache-2.0 or Gemma-Terms. MCP server must be installed separately. Commercial-safe."

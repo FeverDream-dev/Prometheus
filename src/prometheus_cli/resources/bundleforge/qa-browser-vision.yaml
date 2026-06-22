@@ -1,0 +1,30 @@
+id: qa-browser-vision
+name: QA Browser Vision
+description: Browser-based QA testing with vision/screenshot inspection for web UIs.
+version: "0.1.0"
+use_case: qa_testing
+commercial_safe: true
+roles:
+  envoy:
+    model: gemma3n:e4b
+    provider: ollama
+  builder:
+    model: qwen2.5-coder:7b
+    provider: ollama
+  critic:
+    model: granite-code:8b
+    provider: ollama
+optional: {}
+mcp:
+  servers: []
+permissions:
+  network: allow
+  package_install: ask
+  browser: allow
+  assets: deny
+  external_directory: deny
+requirements:
+  min_ram_gb: 16
+  min_vram_gb: 6
+  min_disk_gb: 20
+license_notes: "All models Apache-2.0 or Gemma-Terms. Requires Playwright for browser automation. Commercial-safe."

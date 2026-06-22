@@ -1,0 +1,327 @@
+catalog_version: 1
+last_updated: "2026-06-22"
+
+models:
+  - id: qwen2.5-coder:0.5b
+    provider: ollama
+    family: qwen2.5-coder
+    roles: [tiny_builder, code_completion]
+    strengths: [code, low_memory]
+    limits: [text_only, small_context]
+    approx_download_size_mb: 398
+    min_ram_gb: 4
+    min_vram_gb: 0
+    context_window: 16384
+    license: apache-2.0
+    commercial_safe: true
+    source_url: https://ollama.com/library/qwen2.5-coder
+
+  - id: qwen2.5-coder:1.5b
+    provider: ollama
+    family: qwen2.5-coder
+    roles: [code_completion, builder]
+    strengths: [code, low_memory]
+    limits: [text_only]
+    approx_download_size_mb: 987
+    min_ram_gb: 4
+    min_vram_gb: 0
+    context_window: 32768
+    license: apache-2.0
+    commercial_safe: true
+    source_url: https://ollama.com/library/qwen2.5-coder
+
+  - id: qwen2.5-coder:3b
+    provider: ollama
+    family: qwen2.5-coder
+    roles: [builder, controller]
+    strengths: [code, tools]
+    limits: [text_only]
+    approx_download_size_mb: 1900
+    min_ram_gb: 8
+    min_vram_gb: 0
+    context_window: 32768
+    license: apache-2.0
+    commercial_safe: true
+    source_url: https://ollama.com/library/qwen2.5-coder
+
+  - id: qwen2.5-coder:7b
+    provider: ollama
+    family: qwen2.5-coder
+    roles: [builder, controller]
+    strengths: [code, tools, structured_output]
+    limits: [text_only]
+    approx_download_size_mb: 4700
+    min_ram_gb: 8
+    min_vram_gb: 6
+    context_window: 32768
+    license: apache-2.0
+    commercial_safe: true
+    source_url: https://ollama.com/library/qwen2.5-coder
+
+  - id: qwen2.5-coder:14b
+    provider: ollama
+    family: qwen2.5-coder
+    roles: [builder, controller]
+    strengths: [code, tools, structured_output, reasoning]
+    limits: [text_only]
+    approx_download_size_mb: 9000
+    min_ram_gb: 16
+    min_vram_gb: 10
+    context_window: 32768
+    license: apache-2.0
+    commercial_safe: true
+    source_url: https://ollama.com/library/qwen2.5-coder
+
+  - id: qwen2.5-coder:32b
+    provider: ollama
+    family: qwen2.5-coder
+    roles: [controller, builder]
+    strengths: [code, tools, structured_output, reasoning]
+    limits: [text_only, high_memory]
+    approx_download_size_mb: 19800
+    min_ram_gb: 32
+    min_vram_gb: 20
+    context_window: 32768
+    license: apache-2.0
+    commercial_safe: true
+    source_url: https://ollama.com/library/qwen2.5-coder
+
+  - id: granite4.1:3b
+    provider: ollama
+    family: granite
+    roles: [controller, builder]
+    strengths: [code, tools, json, structured_output]
+    limits: [text_only]
+    approx_download_size_mb: 2100
+    min_ram_gb: 8
+    min_vram_gb: 0
+    context_window: 8192
+    license: apache-2.0
+    commercial_safe: true
+    source_url: https://ollama.com/library/granite4.1
+
+  - id: granite-code:3b
+    provider: ollama
+    family: granite-code
+    roles: [critic, code_completion]
+    strengths: [code, low_memory]
+    limits: [text_only]
+    approx_download_size_mb: 2500
+    min_ram_gb: 8
+    min_vram_gb: 0
+    context_window: 8192
+    license: apache-2.0
+    commercial_safe: true
+    source_url: https://ollama.com/library/granite-code
+
+  - id: granite-code:8b
+    provider: ollama
+    family: granite-code
+    roles: [critic, builder]
+    strengths: [code, structured_output]
+    limits: [text_only]
+    approx_download_size_mb: 5000
+    min_ram_gb: 8
+    min_vram_gb: 6
+    context_window: 8192
+    license: apache-2.0
+    commercial_safe: true
+    source_url: https://ollama.com/library/granite-code
+
+  - id: hf.co/prithivMLmods/VibeThinker-3B-GGUF:Q2_K
+    provider: ollama
+    family: vibethinker
+    roles: [critic, reviewer]
+    strengths: [reasoning, review, low_memory]
+    limits: [text_only, not_tool_capable]
+    approx_download_size_mb: 1300
+    min_ram_gb: 8
+    min_vram_gb: 0
+    context_window: 8192
+    license: mit
+    commercial_safe: true
+    source_url: https://huggingface.co/prithivMLmods/VibeThinker-3B-GGUF
+    aliases: [vibethinker-q2]
+
+  - id: hf.co/prithivMLmods/VibeThinker-3B-GGUF:Q4_K_M
+    provider: ollama
+    family: vibethinker
+    roles: [critic, reviewer]
+    strengths: [reasoning, review]
+    limits: [text_only, not_tool_capable]
+    approx_download_size_mb: 1900
+    min_ram_gb: 8
+    min_vram_gb: 0
+    context_window: 8192
+    license: mit
+    commercial_safe: true
+    source_url: https://huggingface.co/prithivMLmods/VibeThinker-3B-GGUF
+    aliases: [vibethinker-q4]
+
+  - id: gemma3n:e2b
+    provider: ollama
+    family: gemma3n
+    roles: [envoy, controller]
+    strengths: [multilingual, reasoning, tools]
+    limits: [gemma_terms]
+    approx_download_size_mb: 1700
+    min_ram_gb: 8
+    min_vram_gb: 0
+    context_window: 32768
+    license: gemma-terms
+    commercial_safe: true
+    source_url: https://ollama.com/library/gemma3n
+
+  - id: gemma3n:e4b
+    provider: ollama
+    family: gemma3n
+    roles: [envoy, controller]
+    strengths: [multilingual, reasoning, tools, structured_output]
+    limits: [gemma_terms]
+    approx_download_size_mb: 3400
+    min_ram_gb: 8
+    min_vram_gb: 4
+    context_window: 32768
+    license: gemma-terms
+    commercial_safe: true
+    source_url: https://ollama.com/library/gemma3n
+
+  - id: llama3.2:3b
+    provider: ollama
+    family: llama3
+    roles: [envoy, controller]
+    strengths: [general, multilingual, tools]
+    limits: [text_only]
+    approx_download_size_mb: 2000
+    min_ram_gb: 8
+    min_vram_gb: 0
+    context_window: 32768
+    license: llama3-license
+    commercial_safe: true
+    source_url: https://ollama.com/library/llama3.2
+
+  - id: deepseek-coder-v2:16b
+    provider: ollama
+    family: deepseek-coder
+    roles: [controller, builder]
+    strengths: [code, tools, reasoning, structured_output]
+    limits: [text_only, high_memory]
+    approx_download_size_mb: 11000
+    min_ram_gb: 16
+    min_vram_gb: 12
+    context_window: 32768
+    license: deepseek-license
+    commercial_safe: true
+    source_url: https://ollama.com/library/deepseek-coder-v2
+
+  - id: devstral:24b
+    provider: ollama
+    family: devstral
+    roles: [controller, builder]
+    strengths: [code, tools, reasoning]
+    limits: [text_only, high_memory]
+    approx_download_size_mb: 14000
+    min_ram_gb: 24
+    min_vram_gb: 20
+    context_window: 32768
+    license: apache-2.0
+    commercial_safe: true
+    source_url: https://ollama.com/library/devstral
+
+  - id: nomic-embed-text
+    provider: ollama
+    family: nomic-embed
+    roles: [embedding]
+    strengths: [rag, embeddings, low_memory]
+    limits: [embedding_only]
+    approx_download_size_mb: 274
+    min_ram_gb: 4
+    min_vram_gb: 0
+    context_window: 8192
+    license: apache-2.0
+    commercial_safe: true
+    source_url: https://ollama.com/library/nomic-embed-text
+
+  - id: mxbai-embed-large
+    provider: ollama
+    family: mxbai-embed
+    roles: [embedding]
+    strengths: [rag, embeddings]
+    limits: [embedding_only]
+    approx_download_size_mb: 670
+    min_ram_gb: 4
+    min_vram_gb: 0
+    context_window: 8192
+    license: apache-2.0
+    commercial_safe: true
+    source_url: https://ollama.com/library/mxbai-embed-large
+
+  - id: bge-m3
+    provider: ollama
+    family: bge
+    roles: [embedding]
+    strengths: [rag, embeddings, multilingual]
+    limits: [embedding_only]
+    approx_download_size_mb: 1200
+    min_ram_gb: 4
+    min_vram_gb: 0
+    context_window: 8192
+    license: mit
+    commercial_safe: true
+    source_url: https://ollama.com/library/bge-m3
+
+  - id: stabilityai/sdxl-turbo
+    provider: diffusers
+    family: sdxl
+    roles: [image_generator]
+    strengths: [image_generation, fast]
+    limits: [gpu_required, non_commercial_nc]
+    approx_download_size_mb: 7000
+    min_ram_gb: 8
+    min_vram_gb: 6
+    context_window: 0
+    license: sail-community-license
+    commercial_safe: false
+    source_url: https://huggingface.co/stabilityai/sdxl-turbo
+
+  - id: black-forest-labs/FLUX.1-schnell
+    provider: diffusers
+    family: flux
+    roles: [image_generator]
+    strengths: [image_generation, high_quality]
+    limits: [gpu_required]
+    approx_download_size_mb: 12000
+    min_ram_gb: 16
+    min_vram_gb: 8
+    context_window: 0
+    license: apache-2.0
+    commercial_safe: true
+    source_url: https://huggingface.co/black-forest-labs/FLUX.1-schnell
+
+  - id: rembg/u2netp
+    provider: rembg
+    family: rembg
+    roles: [background_removal]
+    strengths: [background_removal, fast]
+    limits: [single_purpose]
+    approx_download_size_mb: 176
+    min_ram_gb: 4
+    min_vram_gb: 0
+    context_window: 0
+    license: mit
+    commercial_safe: true
+    source_url: https://github.com/danielgatis/rembg
+
+  - id: rembg/silueta
+    provider: rembg
+    family: rembg
+    roles: [background_removal]
+    strengths: [background_removal]
+    limits: [single_purpose]
+    approx_download_size_mb: 45
+    min_ram_gb: 4
+    min_vram_gb: 0
+    context_window: 0
+    license: mit
+    commercial_safe: true
+    source_url: https://github.com/danielgatis/rembg

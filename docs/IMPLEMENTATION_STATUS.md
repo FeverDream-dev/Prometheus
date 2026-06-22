@@ -5,6 +5,34 @@ total weighted criteria**, never a model's opinion. A row is `passing` only when
 it has real code, a passing test, and CLI/runtime evidence. Mocked/skipped items
 are `placeholder`/`missing` and do not count.
 
+## Step 2 — BundleForge and Model Catalog
+
+Users can now ask PROMETHEUS to create/adapt bundles for their use case via
+natural language. A deterministic recommendation engine maps requests to
+templates, validates against a shipped model catalog, and installs bundles
+without manual YAML editing.
+
+| Criterion | Weight | Status | Evidence |
+|---|---|---|---|
+| Model catalog shipped (23 models across 13 families) | 5 | `passing` | `test_model_catalog.py` — 18 tests verify catalog loads, all families present, queries work |
+| BundleForge CLI (8 subcommands) | 5 | `passing` | `test_bundleforge_install_export.py` — 17 CLI tests covering create/inspect/validate/install/export/recommend/search |
+| Recommendation engine (deterministic keyword matching) | 5 | `passing` | `test_bundleforge_recommendations.py` — 13 tests: game, whatsapp, RAG, CPU, commercial-safe, search |
+| 10 use-case templates shipped | 5 | `passing` | All validate via `test_bundleforge_validation.py` — 13 tests including schema/license/hardware checks |
+| ForgeBundle schema with BundleV2 conversion | 3 | `passing` | `test_bundleforge_schema.py` — 15 tests including V2 roundtrip validation |
+| Wizard with 10 question groups (interactive + non-interactive) | 3 | `passing` | `test_bundleforge_wizard.py` — 11 tests covering defaults, callbacks, save/roundtrip |
+| Commercial-safe enforcement (rejects non-commercial models) | 5 | `passing` | `test_bundleforge_validation.py::TestLicenseValidation` — 2 tests prove SDXL rejected in commercial bundle |
+| Invalid/unsafe model names fail validation | 5 | `passing` | `test_bundleforge_validation.py::TestSchemaValidation` — path traversal, command injection rejected |
+| Bundle install does not overwrite without --force | 3 | `passing` | `test_bundleforge_install_export.py::test_install_no_overwrite_without_force` |
+| Templates packaged in wheel | 3 | `passing` | Wheel contains `resources/bundleforge/*.yaml` (10 files) + `resources/model_catalog/catalog.yaml` |
+| Full suite: 1073 passed, 5 skipped, 0 regressions | 5 | `passing` | `python -m pytest -q` after all changes |
+
+Evidence commands run:
+- `prometheus bundleforge recommend "I want to build a video game with local models and generated sprites"` → game_development use case, correct template
+- `prometheus bundleforge recommend "I want to use MCP to help with WhatsApp messages"` → mcp_automation, whatsapp-mcp-assistant, 100% confidence
+- `prometheus bundleforge validate webapp-local-lite` → VALID, 0 errors, 0 warnings
+
+---
+
 ## Step 1 — Packaged Defaults and Install Fix
 
 The critical install bug where `prometheus setup` reported `No bundles found` is

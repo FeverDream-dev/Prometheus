@@ -1,0 +1,31 @@
+id: game-dev-lite
+name: Game Dev Lite
+description: Local game development bundle for small GPUs — coding plus sprite generation.
+version: "0.1.0"
+use_case: game_development
+commercial_safe: true
+roles:
+  envoy:
+    model: gemma3n:e2b
+    provider: ollama
+  builder:
+    model: qwen2.5-coder:7b
+    provider: ollama
+  critic:
+    model: granite-code:3b
+    provider: ollama
+optional:
+  image_generator: black-forest-labs/FLUX.1-schnell
+mcp:
+  servers: []
+permissions:
+  network: ask
+  package_install: ask
+  browser: allow
+  assets: allow
+  external_directory: deny
+requirements:
+  min_ram_gb: 8
+  min_vram_gb: 6
+  min_disk_gb: 30
+license_notes: "FLUX.1-schnell is Apache-2.0 (commercial-safe). All LLMs Apache-2.0 or Gemma-Terms."
