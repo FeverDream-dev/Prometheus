@@ -490,11 +490,10 @@ SLASH_SCREEN_MAP: dict[str, type[RichCommandScreen]] = {
 
 
 def dispatch_slash(app, cmd: str, snapshot: TuiSnapshot | None, rest: str = "") -> bool:
-    """Route a display /command to its screen. Returns True if handled.
+    """Route a display /command to an in-panel view. Returns True if handled.
 
-    The caller (PrometheusApp) already handles /exit /clear /mode /use /qualify
-    /resume /memory /build inline because those mutate state. Everything that's
-    purely display lives here.
+    Command views render in the main area (sidebar/inspector/status bar stay
+    visible). The palette and wizard are still pushed as modal Screen overlays.
     """
     if cmd == "/setup-wizard":
         app.push_screen(SetupWizard(snapshot, app=app))
@@ -504,12 +503,16 @@ def dispatch_slash(app, cmd: str, snapshot: TuiSnapshot | None, rest: str = "") 
     if screen_cls is None:
         return False
     try:
-        app.push_screen(screen_cls(snapshot))
+        view = screen_cls.__new__(screen_cls)
+        view.snapshot = snapshot
+        body = view.body_lines()
+        insp = getattr(view, "inspector_lines", lambda: None)()
+        app._show_command_view(view.title, view.subtitle, body, insp)
     except Exception as exc:
         try:
             from .tui import PrometheusApp
             if isinstance(app, PrometheusApp):
-                app._log(f"[err]screen error:[/] {exc}")
+                app._log(f"[err]view error:[/] {exc}")
         except Exception:
             pass
         return False

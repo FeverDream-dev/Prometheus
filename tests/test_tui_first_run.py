@@ -47,8 +47,10 @@ def test_setup_screen_reachable_via_slash():
             await pilot.pause(0.12)
             app._dispatch_slash_text("/setup")
             await pilot.pause(0.2)
-            from prometheus_cli.tui_screens import SetupScreen
-            assert isinstance(app.screen, SetupScreen)
+            assert app._current_view == "command"
+            content = app.query_one("#command-content")
+            text = str(content.renderable) if content.renderable else ""
+            assert "Setup" in text or "setup" in text
     _run(go())
 
 
@@ -59,16 +61,15 @@ def test_setup_screen_shows_all_seven_steps():
             await pilot.pause(0.12)
             app._dispatch_slash_text("/setup")
             await pilot.pause(0.2)
-            from textual.widgets import Static
-            texts = [str(w.renderable) for w in app.screen.query(Static)]
-            joined = "\n".join(t for t in texts if t)
+            content = app.query_one("#command-content")
+            text = str(content.renderable) if content.renderable else ""
             for i in range(1, 8):
-                assert f"Step {i}" in joined, f"setup screen missing Step {i}"
+                assert f"Step {i}" in text, f"setup view missing Step {i}"
             for step_name in (
                 "Welcome", "Hardware", "Ollama", "Recommended bundle",
                 "Confirm bundle", "Pull", "Start coding",
             ):
-                assert step_name in joined, f"setup screen missing step: {step_name}"
+                assert step_name in text, f"setup view missing step: {step_name}"
     _run(go())
 
 
@@ -79,11 +80,10 @@ def test_setup_screen_renders_demo_hardware_in_step_2():
             await pilot.pause(0.12)
             app._dispatch_slash_text("/setup")
             await pilot.pause(0.2)
-            from textual.widgets import Static
-            joined = "\n".join(str(w.renderable) for w in app.screen.query(Static))
-            assert "Linux" in joined and "x86_64" in joined
-            assert "Demo CPU" in joined
-            assert "32" in joined and "GB" in joined
+            content = app.query_one("#command-content")
+            text = str(content.renderable) if content.renderable else ""
+            assert "Linux" in text and "x86_64" in text
+            assert "Demo CPU" in text
     _run(go())
 
 

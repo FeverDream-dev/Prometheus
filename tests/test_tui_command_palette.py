@@ -29,10 +29,11 @@ def test_every_slash_screen_command_dispatches(cmd):
         app = PrometheusApp(demo=True, workspace=Path("/tmp"))
         async with app.run_test(size=(120, 36)) as pilot:
             await pilot.pause(0.12)
-            main_screen = app.screen
             app._dispatch_slash_text(cmd)
             await pilot.pause(0.2)
-            assert app.screen is not main_screen, f"{cmd} did not push a screen"
+            assert app._current_view == "command", (
+                f"{cmd} did not swap main area to command view"
+            )
     _run(go())
 
 
@@ -132,4 +133,18 @@ def test_unknown_command_reports_error_in_transcript():
             log = app.query_one("#transcript", RichLog)
             joined = "\n".join(str(s) for s in log.lines)
             assert "Unknown" in joined or "unknown" in joined
+    _run(go())
+
+
+def test_command_view_shows_title_and_body():
+    async def go():
+        app = PrometheusApp(demo=True, workspace=Path("/tmp"))
+        async with app.run_test(size=(120, 36)) as pilot:
+            await pilot.pause(0.12)
+            app._dispatch_slash_text("/sandbox")
+            await pilot.pause(0.2)
+            content = app.query_one("#command-content")
+            text = str(content.renderable) if content.renderable else ""
+            assert "Sandbox" in text
+            assert "enforcement" in text
     _run(go())

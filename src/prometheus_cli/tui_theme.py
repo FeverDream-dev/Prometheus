@@ -192,6 +192,15 @@ Screen {{
     overflow: auto auto;
     padding: 0 1;
 }}
+#dashboard-view {{
+    height: 1fr;
+    overflow: auto auto;
+}}
+#command-view {{
+    height: 1fr;
+    overflow: auto auto;
+    display: none;
+}}
 .section-title {{
     color: {SECTION_TITLES};
     background: {BG_PANEL_RAISED};

@@ -117,10 +117,12 @@ def test_clicking_sidebar_entry_dispatches_screen():
             models_entry = next(e for e in entries if e.sidebar_cmd == "/models")
             await pilot.click(models_entry)
             await pilot.pause(0.2)
-            from prometheus_cli.tui_screens import ModelsScreen
-            assert isinstance(app.screen, ModelsScreen), (
-                f"clicking /models sidebar entry should push ModelsScreen, got {type(app.screen).__name__}"
+            assert app._current_view == "command", (
+                "clicking /models sidebar entry should show command view"
             )
+            content = app.query_one("#command-content")
+            text = str(content.renderable) if content.renderable else ""
+            assert "Models" in text or "Ollama" in text
     _run(go())
 
 

@@ -90,6 +90,7 @@ class PrometheusApp(App):
         Binding("ctrl+b", "toggle_sidebar", "Sidebar", show=True),
         Binding("ctrl+i", "toggle_inspector", "Inspector", show=True),
         Binding("ctrl+l", "clear_transcript", "Clear", show=False),
+        Binding("escape", "back", "Back", show=False),
         Binding("ctrl+q", "quit", "Quit", show=False),
     ]
 
@@ -134,25 +135,28 @@ class PrometheusApp(App):
         with Horizontal(id="workspace"):
             yield CommandRail(id="sidebar")
             with VerticalScroll(id="main"):
-                yield SectionTitle(Static("[section]OBJECTIVE[/]", id="obj-title"),
-                                   classes="section-title")
-                yield Static(
-                    "Ask PROMETHEUS to build, fix, test, explain, or inspect this project…",
-                    id="obj-body", classes="section-body", markup=True,
-                )
-                yield SectionTitle(Static("[section]PLAN[/]", id="plan-title"),
-                                   classes="section-title")
-                yield Static(
-                    "[dim]No active plan. Type an objective to draft one.[/]",
-                    id="plan-body", classes="section-body", markup=True,
-                )
-                yield SectionTitle(Static("[section]ACTIVITY[/]", id="act-title"),
-                                   classes="section-title")
-                yield RichLog(id="transcript", markup=True, highlight=False, wrap=True)
-                yield SectionTitle(Static("[section]RECENT FILES[/]", id="files-title"),
-                                   classes="section-title")
-                yield Static("[dim]—[/]", id="files-body", classes="section-body", markup=True)
-                yield NextAction("", id="next-action", markup=True)
+                with VerticalScroll(id="dashboard-view"):
+                    yield SectionTitle(Static("[section]OBJECTIVE[/]", id="obj-title"),
+                                       classes="section-title")
+                    yield Static(
+                        "Ask PROMETHEUS to build, fix, test, explain, or inspect this project…",
+                        id="obj-body", classes="section-body", markup=True,
+                    )
+                    yield SectionTitle(Static("[section]PLAN[/]", id="plan-title"),
+                                       classes="section-title")
+                    yield Static(
+                        "[dim]No active plan. Type an objective to draft one.[/]",
+                        id="plan-body", classes="section-body", markup=True,
+                    )
+                    yield SectionTitle(Static("[section]ACTIVITY[/]", id="act-title"),
+                                       classes="section-title")
+                    yield RichLog(id="transcript", markup=True, highlight=False, wrap=True)
+                    yield SectionTitle(Static("[section]RECENT FILES[/]", id="files-title"),
+                                       classes="section-title")
+                    yield Static("[dim]—[/]", id="files-body", classes="section-body", markup=True)
+                    yield NextAction("", id="next-action", markup=True)
+                with VerticalScroll(id="command-view"):
+                    yield Static("", id="command-content", markup=True)
             yield InspectorPanel(id="inspector", markup=True)
 
         # Bottom: input + status + footer
@@ -238,6 +242,41 @@ class PrometheusApp(App):
             screen = self.screen
             lines = getattr(screen, "inspector_lines", lambda: None)()
             inspector.set_context(lines)
+        except Exception:
+            pass
+
+    _current_view: str = "dashboard"
+
+    def _show_command_view(self, title: str, subtitle: str,
+                           body_lines: list[str],
+                           inspector_lines: list[str] | None = None) -> None:
+        try:
+            self.query_one("#dashboard-view").styles.display = "none"
+            cv = self.query_one("#command-view")
+            cv.styles.display = "block"
+            content = self.query_one("#command-content", Static)
+            parts = [f"[gold]{title}[/]"]
+            if subtitle:
+                parts.append(f"[dim]{subtitle}[/]")
+            parts.append("")
+            parts.extend(body_lines)
+            parts.append("")
+            parts.append("[dim]Esc to return  ·  /help for commands[/]")
+            content.update("\n".join(parts))
+            self._current_view = "command"
+            if inspector_lines:
+                from .tui_widgets import InspectorPanel
+                self.query_one("#inspector", InspectorPanel).set_context(inspector_lines)
+        except Exception:
+            pass
+
+    def _show_dashboard(self) -> None:
+        try:
+            self.query_one("#command-view").styles.display = "none"
+            self.query_one("#dashboard-view").styles.display = "block"
+            self._current_view = "dashboard"
+            from .tui_widgets import InspectorPanel
+            self.query_one("#inspector", InspectorPanel).set_context(None)
         except Exception:
             pass
 
@@ -349,8 +388,6 @@ class PrometheusApp(App):
             return
 
         handled = tui_screens.dispatch_slash(self, cmd, self._snapshot, rest)
-        if handled:
-            self.call_after_refresh(self._update_inspector_for_screen)
         if not handled:
             self._log(f"[warn]Unknown command:[/] [gold]{cmd}[/]  (try /help)")
 
@@ -621,6 +658,13 @@ class PrometheusApp(App):
             self.query_one("#transcript", RichLog).clear()
         except Exception:
             pass
+
+    def action_back(self) -> None:
+        if len(self._screen_stack) > 1:
+            self.pop_screen()
+            return
+        if self._current_view == "command":
+            self._show_dashboard()
 
 
 # ---------------------------------------------------------------------------
