@@ -54,7 +54,7 @@ def test_setup_screen_reachable_via_slash():
     _run(go())
 
 
-def test_setup_screen_shows_all_seven_steps():
+def test_setup_screen_shows_all_nine_steps():
     async def go():
         app = PrometheusApp(demo=True, workspace=Path("/tmp"))
         async with app.run_test(size=(120, 36)) as pilot:
@@ -63,11 +63,12 @@ def test_setup_screen_shows_all_seven_steps():
             await pilot.pause(0.2)
             content = app.query_one("#command-content")
             text = str(content.renderable) if content.renderable else ""
-            for i in range(1, 8):
+            for i in range(1, 10):
                 assert f"Step {i}" in text, f"setup view missing Step {i}"
             for step_name in (
-                "Welcome", "Hardware", "Ollama", "Recommended bundle",
-                "Confirm bundle", "Pull", "Start coding",
+                "Welcome", "Project folder", "Hardware", "Ollama",
+                "Bundle recommendation", "Bundle choice",
+                "Model pull", "Git", "Ready to code",
             ):
                 assert step_name in text, f"setup view missing step: {step_name}"
     _run(go())

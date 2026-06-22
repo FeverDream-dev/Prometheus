@@ -5,9 +5,20 @@ Step 1 · Welcome
   This wizard picks a model bundle that fits your machine,
   checks Ollama, and gets you vibe-coding in under a minute.
   
+  Next: confirm your project folder.
+
+Step 2 · Project folder
+  Project folder
+  
+  Path /tmp
+  Git  clean
+  
+  PROMETHEUS will work in this folder.
+  You can change it with: prometheus tui --workspace <path>
+  
   Next: detect your hardware.
 
-Step 2 · Hardware
+Step 3 · Hardware scan
   OS      Linux x86_64
   CPU     Demo CPU (8 cores)
   RAM     32 GB
@@ -15,15 +26,17 @@ Step 2 · Hardware
   VRAM    8 GB
   Disk    180 GB free
 
-Step 3 · Ollama
+Step 4 · Ollama status
   Ollama
     state:    running
     models:   3 installed
   
   If not running, start it with:
     ollama serve
+  
+  Next: pick a bundle.
 
-Step 4 · Recommended bundle
+Step 5 · Bundle recommendation
   Recommended bundle
   
     ember-8gb
@@ -31,7 +44,7 @@ Step 4 · Recommended bundle
   Based on your detected hardware. You can confirm,
   or browse alternatives in the next step.
 
-Step 5 · Confirm bundle
+Step 6 · Bundle choice
   Available bundles
   
     spark-cpu-8gb          Spark — CPU / 8 GB
@@ -45,17 +58,32 @@ Step 5 · Confirm bundle
   
   Type /use <id> to select one (in the main input).
 
-Step 6 · Pull / validate
-  Pull / validate
+Step 7 · Model pull / validate
+  Model pull / validate
   
   Once you /use a bundle, PROMETHEUS will:
-    1. Verify each model is present in Ollama
-    2. Run a smoke test (chat + structured output)
-    3. Show qualification results inline
+    1. Show each model with download size and license
+    2. Ask confirmation before pulling
+    3. Run a smoke test after each pull
   
+  Models are never auto-downloaded without your confirmation.
   Use /qualify <bundle-id> to qualify now.
 
-Step 7 · Start coding
+Step 8 · Git & memory setup
+  Git & memory setup
+  
+  Git
+    clean
+    branch: main
+  
+  Memory
+    ready · 412/1024w
+    words: 412/1024
+  
+  PROMETHEUS checkpoints every mutation via Git.
+  Project memory lives in .prometheus/memory.md (bounded to 1024 words).
+
+Step 9 · Ready to code
   Ready to code
   
   Type an objective and press Enter:

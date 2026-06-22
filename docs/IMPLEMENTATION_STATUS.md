@@ -5,6 +5,29 @@ total weighted criteria**, never a model's opinion. A row is `passing` only when
 it has real code, a passing test, and CLI/runtime evidence. Mocked/skipped items
 are `placeholder`/`missing` and do not count.
 
+## Step 4 — First-Run Setup Wizard and Model Pull Flow
+
+The TUI now guides a new user from install to first usable coding session via a
+9-step wizard. First-run detection identifies fresh installs and shows guidance
+instead of dead-ending on missing bundles or models.
+
+| Criterion | Weight | Status | Evidence |
+|---|---|---|---|
+| First-run detection (config, bundle, ollama, models, git, memory) | 5 | `passing` | `test_first_run_detection.py` — 16 tests covering all detection states |
+| 9-step setup wizard (Welcome → Project → Hardware → Ollama → Bundle → Choice → Pull → Git/memory → Ready) | 5 | `passing` | `test_setup_wizard_state.py` — 16 tests parametrized over all 9 steps |
+| Model pull info display (id, role, size, disk, RAM/VRAM, license, provider, required/optional) | 5 | `passing` | `test_model_pull_flow.py` — 18 tests on ModelPullInfo + build_pull_info |
+| No-dead-end guidance (no models, ollama down, first run) | 5 | `passing` | `test_setup_cli_tui_parity.py::TestNoDeadEnds` — 3 tests verify helpful messages |
+| CLI/TUI parity (setup --dry-run, --yes, use, bundles list) | 3 | `passing` | `test_setup_cli_tui_parity.py` — 10 tests verify consistent behavior |
+| Wizard screenshot export (clean SVG, no markup) | 3 | `passing` | `test_tui_setup_wizard.py` — screenshot test verifies SVG with no [bold]/[yellow] |
+| Wizard state machine (navigation, clamping, cancel) | 3 | `passing` | `test_tui_setup_wizard.py::TestSetupWizardState` — 6 tests |
+| Full suite: 1264 passed, 5 skipped, 0 regressions | 5 | `passing` | `python -m pytest -q` after all changes |
+
+Evidence:
+- `HOME="$(mktemp -d)" prometheus setup --dry-run` → shows bundles, no "No bundles found"
+- `prometheus tui --demo --screen setup --screenshot artifacts/tui/setup-wizard.svg` → clean SVG
+
+---
+
 ## Step 3 — TUI 2.0 Application Shell
 
 The TUI is a persistent 3-column Textual app shell (sidebar | main | inspector)

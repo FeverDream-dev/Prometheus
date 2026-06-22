@@ -736,12 +736,14 @@ def render_screen_text(cmd: str, snapshot: TuiSnapshot | None = None) -> str:
 
 WIZARD_STEPS = [
     "Welcome",
-    "Hardware",
-    "Ollama",
-    "Recommended bundle",
-    "Confirm bundle",
-    "Pull / validate",
-    "Start coding",
+    "Project folder",
+    "Hardware scan",
+    "Ollama status",
+    "Bundle recommendation",
+    "Bundle choice",
+    "Model pull / validate",
+    "Git & memory setup",
+    "Ready to code",
 ]
 
 
@@ -826,9 +828,8 @@ class SetupWizard(Screen):
 
 
 def _setup_wizard_step_text(step: int, snap: TuiSnapshot | None) -> list[str]:
-    """Pure function — used by both the wizard UI and golden text tests."""
     snap = snap or TuiSnapshot()
-    if step == 0:  # Welcome
+    if step == 0:
         return [
             "[gold]Welcome to PROMETHEUS[/]",
             "",
@@ -836,9 +837,21 @@ def _setup_wizard_step_text(step: int, snap: TuiSnapshot | None) -> list[str]:
             "This wizard picks a model bundle that fits your machine,",
             "checks Ollama, and gets you vibe-coding in under a minute.",
             "",
+            "[dim]Next: confirm your project folder.[/]",
+        ]
+    if step == 1:
+        return [
+            "[gold]Project folder[/]",
+            "",
+            f"[k]Path[/] [v]{snap.project_path}[/]",
+            f"[k]Git[/]  [{'ok' if snap.git.available else 'warn'}]{snap.git.status_label}[/]",
+            "",
+            "[dim]PROMETHEUS will work in this folder.[/]",
+            "[dim]You can change it with: prometheus tui --workspace <path>[/]",
+            "",
             "[dim]Next: detect your hardware.[/]",
         ]
-    if step == 1:  # Hardware
+    if step == 2:
         template = [
             "[k]OS[/]      [v]{os} {arch}[/]",
             "[k]CPU[/]     [v]{cpu}[/]",
@@ -849,13 +862,13 @@ def _setup_wizard_step_text(step: int, snap: TuiSnapshot | None) -> list[str]:
         ]
         return [
             line.format(
-                os=snap.os, arch=snap.arch, cpu=snap.cpu_brand or "—",
+                os=snap.os, arch=snap.arch, cpu=snap.cpu_brand or "\u2014",
                 ram=snap.ram_gb, gpu=snap.gpu_name or "CPU mode",
                 vram=snap.vram_gb, disk=snap.disk_free_gb,
             )
             for line in template
         ]
-    if step == 2:  # Ollama
+    if step == 3:
         ollama_state = "running" if snap.ollama_running else "[warn]not running[/]"
         return [
             "[k]Ollama[/]",
@@ -864,8 +877,10 @@ def _setup_wizard_step_text(step: int, snap: TuiSnapshot | None) -> list[str]:
             "",
             "[dim]If not running, start it with:[/]",
             "[v]  ollama serve[/]",
+            "",
+            "[dim]Next: pick a bundle.[/]",
         ]
-    if step == 3:  # Recommended bundle
+    if step == 4:
         try:
             from .hardware import detect_hardware, recommended_profile
             recommended = recommended_profile(detect_hardware())
@@ -879,7 +894,7 @@ def _setup_wizard_step_text(step: int, snap: TuiSnapshot | None) -> list[str]:
             "[dim]Based on your detected hardware. You can confirm,[/]",
             "[dim]or browse alternatives in the next step.[/]",
         ]
-    if step == 4:  # Confirm bundle
+    if step == 5:
         try:
             from .bundles import classify_registry, load_registry
             from .hardware import detect_hardware
@@ -899,18 +914,64 @@ def _setup_wizard_step_text(step: int, snap: TuiSnapshot | None) -> list[str]:
         lines.append("")
         lines.append("[dim]Type /use <id> to select one (in the main input).[/]")
         return lines
-    if step == 5:  # Pull / validate
+    if step == 6:
+        try:
+            from .first_run import build_pull_info_for_bundle
+            from .onboarding import check_ollama
+            ollama = check_ollama()
+            settings_bundle = None
+            try:
+                from .config import load_settings
+                s = load_settings()
+                settings_bundle = s.active_bundle_id
+            except Exception:
+                pass
+            if settings_bundle:
+                infos = build_pull_info_for_bundle(settings_bundle, ollama.models)
+            else:
+                infos = []
+        except Exception:
+            infos = []
+        if not infos:
+            return [
+                "[gold]Model pull / validate[/]",
+                "",
+                "Once you /use a bundle, PROMETHEUS will:",
+                "  1. Show each model with download size and license",
+                "  2. Ask confirmation before pulling",
+                "  3. Run a smoke test after each pull",
+                "",
+                "[dim]Models are never auto-downloaded without your confirmation.[/]",
+                "[dim]Use /qualify <bundle-id> to qualify now.[/]",
+            ]
+        lines = ["[gold]Models to pull[/]", ""]
+        for info in infos:
+            status = "[ok]installed[/]" if info.already_installed else "[warn]not installed[/]"
+            req = "required" if info.required else "optional"
+            lines.append(
+                f"  [k]{info.model_id}[/]"
+                f"  [dim]({info.role}, ~{info.download_size_gb:.1f} GB, {info.license})[/]"
+                f"  {status} [dim]{req}[/]"
+            )
+        lines.append("")
+        lines.append("[dim]Confirmation required before each download (unless --yes).[/]")
+        return lines
+    if step == 7:
         return [
-            "[gold]Pull / validate[/]",
+            "[gold]Git & memory setup[/]",
             "",
-            "Once you /use a bundle, PROMETHEUS will:",
-            "  1. Verify each model is present in Ollama",
-            "  2. Run a smoke test (chat + structured output)",
-            "  3. Show qualification results inline",
+            "[k]Git[/]",
+            f"  [{'ok' if snap.git.available else 'warn'}]{snap.git.status_label}[/]",
+            f"  [dim]branch: {snap.git.branch or '(none)'}[/]",
             "",
-            "[dim]Use /qualify <bundle-id> to qualify now.[/]",
+            "[k]Memory[/]",
+            f"  [{'ok' if snap.memory.ok else 'warn'}]{snap.memory.status_label}[/]",
+            f"  [dim]words: {snap.memory.word_count}/{snap.memory.limit}[/]",
+            "",
+            "[dim]PROMETHEUS checkpoints every mutation via Git.[/]",
+            "[dim]Project memory lives in .prometheus/memory.md (bounded to 1024 words).[/]",
         ]
-    return [  # Start coding
+    return [
         "[gold]Ready to code[/]",
         "",
         "[dim]Type an objective and press Enter:[/]",
@@ -921,6 +982,7 @@ def _setup_wizard_step_text(step: int, snap: TuiSnapshot | None) -> list[str]:
 
 
 # ---------------------------------------------------------------------------
+
 # Command palette — custom MVP richer than the builtin
 # ---------------------------------------------------------------------------
 
