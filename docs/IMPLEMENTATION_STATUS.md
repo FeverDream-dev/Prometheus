@@ -5,6 +5,28 @@ total weighted criteria**, never a model's opinion. A row is `passing` only when
 it has real code, a passing test, and CLI/runtime evidence. Mocked/skipped items
 are `placeholder`/`missing` and do not count.
 
+## Step 5 — TUI Visual QA and Regression Testing
+
+The TUI is visually tested via deterministic headless SVG exports of every
+screen at 4 terminal sizes. Raw markup is grepped from all artifacts. Content
+density is enforced to prevent regression into empty debug panels.
+
+| Criterion | Weight | Status | Evidence |
+|---|---|---|---|
+| Visual smoke script exports all screens (14+ screens × 4 sizes) | 5 | `passing` | `scripts/tui_visual_smoke.sh` — 28 SVGs exported including bundleforge |
+| No raw markup in exported SVGs | 5 | `passing` | `test_tui_raw_markup_export.py` — 40 tests grep every screen + launch_tui path |
+| No empty debug panel (content density enforced) | 5 | `passing` | `test_tui_no_empty_debug_panel.py` — 45 tests check density, labels, chrome |
+| Visual smoke for all required screens | 3 | `passing` | `test_tui_visual_smoke.py` — 24 tests parametrized over 14 screens + 4 sizes |
+| Responsive at 80×24 / 100×30 / 120×36 / 160×48 | 3 | `passing` | `test_tui_responsive.py` — 11 tests (existing, all pass) |
+| QA report with pass/fail table | 2 | `passing` | `docs/TUI_VISUAL_QA.md` — artifact paths, sizes, gates, known issues |
+| Full suite: 1409 passed, 5 skipped, 0 regressions | 5 | `passing` | `python -m pytest -q` after all changes |
+
+Evidence:
+- `bash scripts/tui_visual_smoke.sh` → 28 SVGs, 0 errors
+- `grep -R "\[bold\|\[/bold\|\[yellow\|\[/yellow\|\[/\]" artifacts/tui/` → no matches
+
+---
+
 ## Step 4 — First-Run Setup Wizard and Model Pull Flow
 
 The TUI now guides a new user from install to first usable coding session via a

@@ -36,6 +36,7 @@ STATES = [
     ("help",             "/help",        (120, 36), None),
     ("models",           "/models",      (120, 36), None),
     ("bundles",          "/bundles",     (120, 36), None),
+    ("bundleforge",      "/bundleforge", (120, 36), None),
     ("sandbox",          "/sandbox",     (120, 36), None),
     ("memory",           "/memory",      (120, 36), None),
     ("vision",           "/vision",      (120, 36), None),
