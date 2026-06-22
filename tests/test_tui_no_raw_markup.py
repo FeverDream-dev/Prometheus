@@ -68,7 +68,7 @@ def test_dashboard_svg_has_no_raw_markup():
 
 @pytest.mark.parametrize("cmd", ["/help", "/setup", "/sandbox", "/memory", "/vision",
                                   "/assets", "/astronaut", "/doctor", "/bundles",
-                                  "/models", "/settings", "/mcp"])
+                                  "/models", "/settings", "/mcp", "/bundleforge"])
 def test_pushed_screen_renders_without_raw_markup(cmd):
     async def go():
         app = PrometheusApp(demo=True, workspace=Path("/tmp"))

@@ -474,6 +474,10 @@ def tui(
         None, "--screen",
         help="Initial screen to show or screenshot: 'main' | 'setup' | 'help' | 'models' | 'sandbox' | ...",
     ),
+    exit_after_render: bool = typer.Option(
+        False, "--exit-after-render",
+        help="Run headless, compose once, then exit (for CI smoke tests). No SVG file written.",
+    ),
 ) -> None:
     """Launch the interactive Textual TUI (PROMETHEUS application shell)."""
     try:
@@ -484,15 +488,13 @@ def tui(
 
     settings = load_settings()
     bundle_path = bundle or settings.bundle_file
-    # Demo + screenshot modes never require a bundle (they don't execute objectives).
-    if not demo and screenshot is None and not bundle_path:
+    if not demo and screenshot is None and not exit_after_render and not bundle_path:
         console.print("[yellow]No bundle configured. Run 'prometheus setup' first.[/yellow]")
         console.print("Or pass --bundle <path>, or use --demo to preview the TUI.")
         raise typer.Exit(code=1)
 
-    disable_anim = no_animation or settings.reduced_motion or screenshot is not None
+    disable_anim = no_animation or settings.reduced_motion or screenshot is not None or exit_after_render
 
-    # Skip splash in screenshot/demo/test modes — it blocks the headless driver.
     if disable_anim is False:
         try:
             from .splash import pick_size_for_terminal, play as play_splash, should_animate
@@ -508,6 +510,7 @@ def tui(
         demo=demo,
         screenshot_path=screenshot,
         initial_screen=screen if screen and screen != "main" else None,
+        exit_after_render=exit_after_render,
     )
 
 

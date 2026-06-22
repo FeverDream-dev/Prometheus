@@ -5,6 +5,32 @@ total weighted criteria**, never a model's opinion. A row is `passing` only when
 it has real code, a passing test, and CLI/runtime evidence. Mocked/skipped items
 are `placeholder`/`missing` and do not count.
 
+## Step 3 — TUI 2.0 Application Shell
+
+The TUI is a persistent 3-column Textual app shell (sidebar | main | inspector)
+with brand header, command input, and dense status bar. Raw Rich markup never
+appears in rendered output — all markup-bearing widgets use `markup=True`.
+
+| Criterion | Weight | Status | Evidence |
+|---|---|---|---|
+| 3-column layout (sidebar, main, inspector) composes correctly | 5 | `passing` | `test_tui_app_shell.py` — 8 tests verify all chrome regions, responsive at 80×24/100×30/120×36 |
+| No raw markup in SVG or text export | 5 | `passing` | `test_tui_no_raw_markup.py` — parametrized over all 24 screens, SVG export checked, strip_markup helper |
+| 14 sidebar entries (including BundleForge) | 5 | `passing` | `test_tui_sidebar.py` — 9 tests verify all labels render, collapse at 80 cols, Ctrl+B toggle |
+| Inspector panel shows hardware/provider/bundle/git/sandbox/memory | 3 | `passing` | `test_tui_inspector.py` — 10 tests verify snapshot data, rendering, toggle, card content |
+| Demo mode works headless without Ollama | 5 | `passing` | `test_tui_demo_mode.py` — 9 tests: compose, ribbon, no httpx calls, SVG export, `--exit-after-render` |
+| 13 command screens render useful content | 5 | `passing` | `test_tui_command_screens.py` — parametrized over all 13 required screens, content quality checks |
+| `--exit-after-render` flag for CI smoke tests | 3 | `passing` | `prometheus tui --demo --exit-after-render` exits 0 |
+| `/bundleforge` screen wired to BundleForge engine | 3 | `passing` | Shows templates + catalog from Step 2 |
+| Obsidian/gold theme (no clown colors) | 2 | `passing` | `test_css_uses_obsidian_background_and_gold_accent` |
+| Full suite: 1184 passed, 5 skipped, 0 regressions | 5 | `passing` | `python -m pytest -q` after all changes |
+
+Evidence:
+- `prometheus tui --demo --exit-after-render` → exit 0
+- `prometheus tui --demo --screenshot artifacts/tui/demo-startup.svg` → clean SVG, no raw markup
+- `grep -R "\[bold\|\[/bold\|\[yellow\|\[/yellow" artifacts/tui/` → no matches
+
+---
+
 ## Step 2 — BundleForge and Model Catalog
 
 Users can now ask PROMETHEUS to create/adapt bundles for their use case via

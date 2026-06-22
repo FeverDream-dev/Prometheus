@@ -95,7 +95,7 @@ def test_sidebar_entries_are_clickable_widgets():
             await pilot.pause(0.12)
             from prometheus_cli.tui_widgets import SidebarEntry
             entries = list(app.query_one("#sidebar").query(SidebarEntry))
-            assert len(entries) == 13, f"expected 13 sidebar entries, got {len(entries)}"
+            assert len(entries) == 14, f"expected 14 sidebar entries, got {len(entries)}"
             cmds = [e.sidebar_cmd for e in entries]
             assert "/models" in cmds
             assert "/sandbox" in cmds

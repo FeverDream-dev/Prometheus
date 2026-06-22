@@ -691,11 +691,14 @@ def launch_tui(
     demo: bool = False,
     screenshot_path: Path | None = None,
     initial_screen: str | None = None,
+    exit_after_render: bool = False,
 ) -> None:
     """Launch the PROMETHEUS TUI.
 
     If ``screenshot_path`` is set the app runs headless, composes once, exports
     an SVG, writes it to disk, and returns without entering the event loop.
+    If ``exit_after_render`` is set, the app runs headless, composes once, and
+    exits — for CI smoke tests where no SVG file is needed.
     """
     app = PrometheusApp(
         bundle_path=bundle_path,
@@ -709,7 +712,25 @@ def launch_tui(
         _export_screenshot(app, screenshot_path, initial_screen=initial_screen)
         return
 
+    if exit_after_render:
+        _exit_after_render(app, initial_screen=initial_screen)
+        return
+
     app.run()
+
+
+def _exit_after_render(app: PrometheusApp, initial_screen: str | None) -> None:
+    import asyncio
+
+    async def _run() -> None:
+        async with app.run_test(headless=True, size=(120, 36)) as pilot:
+            await pilot.pause(0.05)
+            if initial_screen:
+                cmd = initial_screen if initial_screen.startswith("/") else f"/{initial_screen}"
+                app._dispatch_slash_text(cmd)
+                await pilot.pause(0.05)
+
+    asyncio.run(_run())
 
 
 def _export_screenshot(app: PrometheusApp, path: Path, initial_screen: str | None) -> None:

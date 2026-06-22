@@ -574,6 +574,57 @@ class PlanScreen(RichCommandScreen):
         return lines
 
 
+class BundleForgeScreen(RichCommandScreen):
+    title = "BundleForge"
+    subtitle = "create custom bundles from templates"
+
+    def inspector_lines(self) -> list[str]:
+        try:
+            from .bundleforge import list_templates, load_catalog
+            cat = load_catalog()
+            return [
+                "[section]Catalog[/]",
+                f"  [k]Models[/]    [v]{len(cat.models)}[/]",
+                f"  [k]Templates[/] [v]{len(list_templates())}[/]",
+                "[section]CLI[/]",
+                "  [dim]bundleforge recommend[/]",
+                "  [dim]bundleforge create[/]",
+                "  [dim]bundleforge install[/]",
+            ]
+        except Exception:
+            return ["[section]BundleForge[/]", "  [dim]catalog unavailable[/]"]
+
+    def body_lines(self) -> list[str]:
+        try:
+            from .bundleforge import list_templates, load_template, load_catalog
+        except Exception:
+            return ["[dim]BundleForge not available.[/]"]
+        lines = ["[gold]BundleForge templates[/]", ""]
+        for tid in list_templates():
+            try:
+                bundle = load_template(tid)
+                req = bundle.requirements
+                lines.append(
+                    f"  [k]{tid:<28}[/] [v]{bundle.name}[/]"
+                )
+                lines.append(
+                    f"    [dim]{req.min_ram_gb} GB RAM, {req.min_vram_gb} GB VRAM"
+                    f"  ({bundle.use_case})[/]"
+                )
+            except Exception:
+                pass
+        lines.append("")
+        try:
+            cat = load_catalog()
+            lines.append(f"[gold]Model catalog[/]: {len(cat.models)} models")
+            lines.append(f"  [dim]families: {', '.join(sorted({m.family for m in cat.models}))}[/]")
+        except Exception:
+            pass
+        lines.append("")
+        lines.append("[dim]CLI: prometheus bundleforge recommend \"<your use case>\"[/]")
+        return lines
+
+
 class SetupScreen(RichCommandScreen):
     """Static rendering of the full 7-step setup wizard.
 
@@ -608,6 +659,7 @@ SLASH_SCREEN_MAP: dict[str, type[RichCommandScreen]] = {
     "/settings":    SettingsScreen,
     "/models":      ModelsScreen,
     "/bundles":     BundlesScreen,
+    "/bundleforge": BundleForgeScreen,
     "/sandbox":     SandboxScreen,
     "/memory":      MemoryScreen,
     "/vision":      VisionScreen,

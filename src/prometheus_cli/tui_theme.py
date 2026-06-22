@@ -58,19 +58,20 @@ def status_color(ok: bool | None) -> str:
 
 SIDEBAR_SECTIONS: list[tuple[str, str, str]] = [
     # (label, slash_command, blurb)
-    ("Chat",      "",         "ask PROMETHEUS anything"),
-    ("Plan",      "/plan",    "objective + acceptance criteria"),
-    ("Files",     "",         "recent workspace changes"),
-    ("Models",    "/models",  "installed Ollama models"),
-    ("Bundles",   "/bundles", "model packages"),
-    ("Tools",     "/tools",   "built-in agent tools"),
-    ("MCP",       "/mcp",     "MCP servers"),
-    ("Sandbox",   "/sandbox", "enforcement tier + policy"),
-    ("Memory",    "/memory",  "bounded project memory"),
-    ("Vision",    "/vision",  "CSS / a11y inspector"),
-    ("Assets",    "/assets",  "AssetForge image generation"),
-    ("Astronaut", "/astronaut", "long-run autonomous mode"),
-    ("Settings",  "/settings", "config + provider"),
+    ("Chat",        "",            "ask PROMETHEUS anything"),
+    ("Plan",        "/plan",       "objective + acceptance criteria"),
+    ("Files",       "",            "recent workspace changes"),
+    ("Models",      "/models",     "installed Ollama models"),
+    ("Bundles",     "/bundles",    "model packages"),
+    ("BundleForge", "/bundleforge","create custom bundles"),
+    ("Tools",       "/tools",      "built-in agent tools"),
+    ("MCP",         "/mcp",        "MCP servers"),
+    ("Sandbox",     "/sandbox",    "enforcement tier + policy"),
+    ("Memory",      "/memory",     "bounded project memory"),
+    ("Vision",      "/vision",     "CSS / a11y inspector"),
+    ("Assets",      "/assets",     "AssetForge image generation"),
+    ("Astronaut",   "/astronaut",  "long-run autonomous mode"),
+    ("Settings",    "/settings",   "config + provider"),
 ]
 
 
@@ -85,6 +86,7 @@ COMMAND_PALETTE: list[tuple[str, str, str, str, str]] = [
     ("/settings",  "Show all editable settings",               "",        "always",   "local"),
     ("/models",    "Installed Ollama models",                  "",        "ollama",   "local"),
     ("/bundles",   "Browse model packages",                    "",        "always",   "local"),
+    ("/bundleforge", "Create custom bundles (BundleForge)",     "",        "always",   "local"),
     ("/use",       "Select active package (/use <id>)",        "",        "always",   "local"),
     ("/sandbox",   "Sandbox tier + policy status",             "",        "always",   "local"),
     ("/mcp",       "MCP server status",                        "",        "always",   "external"),
