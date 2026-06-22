@@ -9,6 +9,8 @@ can refresh them after telemetry ticks or command dispatch.
 """
 from __future__ import annotations
 
+from textual.app import ComposeResult
+from textual.containers import VerticalScroll
 from textual.widgets import Static
 
 from .tui_state import TuiSnapshot
@@ -52,34 +54,56 @@ class BrandBadges(Static):
         )
 
 
-# ---------------------------------------------------------------------------
-# Left sidebar / command rail
-# ---------------------------------------------------------------------------
+class SidebarEntry(Static):
+    """A clickable sidebar entry. Clicking dispatches its slash command."""
 
-class CommandRail(Static):
-    """Vertical rail of named sections (Chat / Plan / Files / Models / ...).
-
-    Each entry shows its slash command if it has one. Maps 1:1 to the entries
-    listed in the product spec. MVP: non-clickable but rendered with clear
-    visual hierarchy.
+    DEFAULT_CSS = """
+    SidebarEntry {
+        height: 1;
+        padding: 0 1;
+        color: $text;
+    }
+    SidebarEntry:hover {
+        background: $boost;
+    }
     """
 
-    def render_default(self, snap: TuiSnapshot) -> str:
-        lines: list[str] = ["[section]COMMANDS[/]", ""]
-        for label, cmd, blurb in SIDEBAR_SECTIONS:
-            cmd_part = f"[cmd]{cmd}[/]" if cmd else "[dim]—[/]"
-            lines.append(f"[v]{label:<10}[/] {cmd_part}")
-            if blurb:
-                lines.append(f"  [dim]{truncate_for_width(blurb, 22)}[/]")
-        lines.extend([
-            "",
-            "[dim]Ctrl+P palette[/]",
-            "[dim]/help  /setup  /exit[/]",
-        ])
-        return "\n".join(lines)
+    def __init__(self, label: str, cmd: str, desc: str = "") -> None:
+        super().__init__(markup=True)
+        self.sidebar_label = label
+        self.sidebar_cmd = cmd
+        self.sidebar_desc = desc
+        self._render_entry()
+
+    def _render_entry(self) -> None:
+        cmd_part = f"[cmd]{self.sidebar_cmd}[/]" if self.sidebar_cmd else "[dim]—[/]"
+        self.update(f"[v]{self.sidebar_label:<10}[/] {cmd_part}")
+
+    async def on_click(self, event) -> None:
+        if self.sidebar_cmd:
+            try:
+                self.app._dispatch_slash_text(self.sidebar_cmd)  # type: ignore[attr-defined]
+            except Exception:
+                pass
+
+
+class CommandRail(VerticalScroll):
+    """Left sidebar rail. Yields one :class:`SidebarEntry` per section plus
+    static header/footer hints. Entries are clickable."""
+
+    def __init__(self, *args, **kwargs) -> None:
+        super().__init__(*args, **kwargs)
+
+    def compose(self) -> ComposeResult:
+        yield Static("[section]COMMANDS[/]", markup=True, classes="sidebar-section")
+        for label, cmd, desc in SIDEBAR_SECTIONS:
+            yield SidebarEntry(label=label, cmd=cmd, desc=desc)
+        yield Static("", markup=True, classes="sidebar-section")
+        yield Static("[dim]Ctrl+P palette[/]", markup=True, classes="sidebar-section")
+        yield Static("[dim]/help  /setup  /exit[/]", markup=True, classes="sidebar-section")
 
     def update_snapshot(self, snap: TuiSnapshot) -> None:
-        self.update(self.render_default(snap))
+        pass
 
 
 # ---------------------------------------------------------------------------
@@ -87,8 +111,19 @@ class CommandRail(Static):
 # ---------------------------------------------------------------------------
 
 class InspectorPanel(Static):
-    """Right-hand contextual panel. Default content is a system digest;
-    individual command screens can replace it with focused detail."""
+    """Right-hand contextual panel. Shows a system digest by default;
+    individual command screens can override via :meth:`set_context`."""
+
+    def __init__(self, *args, **kwargs) -> None:
+        super().__init__(*args, **kwargs)
+        self._context_lines: list[str] | None = None
+
+    def set_context(self, lines: list[str] | None) -> None:
+        self._context_lines = lines
+        if self._snapshot is not None:
+            self.update_snapshot(self._snapshot)
+
+    _snapshot: TuiSnapshot | None = None
 
     def render_default(self, snap: TuiSnapshot) -> str:
         lines = ["[section]INSPECTOR[/]", ""]
@@ -135,7 +170,11 @@ class InspectorPanel(Static):
         return "\n".join(lines)
 
     def update_snapshot(self, snap: TuiSnapshot) -> None:
-        self.update(self.render_default(snap))
+        self._snapshot = snap
+        if self._context_lines is not None:
+            self.update("\n".join(self._context_lines))
+        else:
+            self.update(self.render_default(snap))
 
 
 # ---------------------------------------------------------------------------

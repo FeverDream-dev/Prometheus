@@ -131,10 +131,34 @@ class ModelsScreen(RichCommandScreen):
         from .onboarding import check_ollama
         return tui_commands.models_lines(check_ollama())
 
+    def inspector_lines(self) -> list[str]:
+        s = self.snapshot or TuiSnapshot()
+        lines = ["[section]GPU fit[/]",
+                 f"  [k]RAM[/]  [v]{s.ram_gb:.0f} GB[/]",
+                 f"  [k]VRAM[/] [v]{s.vram_gb:.0f} GB[/]",
+                 f"  [k]Disk[/] [v]{s.disk_free_gb:.0f} GB[/]",
+                 "",
+                 "[section]Models[/]"]
+        for m in s.ollama_models[:6]:
+            lines.append(f"  [dim]• {m}[/]")
+        return lines
+
 
 class BundlesScreen(RichCommandScreen):
     title = "Model Packages"
     subtitle = "hardware-aware bundles · /use <id>"
+
+    def inspector_lines(self) -> list[str]:
+        s = self.snapshot or TuiSnapshot()
+        return [
+            "[section]Hardware fit[/]",
+            f"  [k]RAM[/]   [v]{s.ram_gb:.0f} GB[/]",
+            f"  [k]VRAM[/]  [v]{s.vram_gb:.0f} GB[/]",
+            f"  [k]Disk[/]  [v]{s.disk_free_gb:.0f} GB[/]",
+            "",
+            "[section]Active[/]",
+            f"  [gold]{s.bundle_label}[/]",
+        ]
 
     def body_lines(self) -> list[str]:
         from . import tui_commands
@@ -155,10 +179,36 @@ class SandboxScreen(RichCommandScreen):
         from . import tui_commands
         return tui_commands.sandbox_lines()
 
+    def inspector_lines(self) -> list[str]:
+        s = self.snapshot or TuiSnapshot()
+        return [
+            "[section]Active tier[/]",
+            f"  [gold]{s.sandbox_tier}[/]",
+            "",
+            "[section]Policy[/]",
+            f"  [k]Network[/]  [{'ok' if not s.local_only else 'warn'}]{'allowed' if not s.local_only else 'denied'}[/]",
+            f"  [k]Mode[/]     [v]{s.mode_label}[/]",
+            "",
+            "[dim]CLI: prometheus sandbox test --all[/]",
+        ]
+
 
 class MemoryScreen(RichCommandScreen):
     title = "Memory"
     subtitle = "bounded project memory · /memory status|inspect|why|rebuild"
+
+    def inspector_lines(self) -> list[str]:
+        s = self.snapshot or TuiSnapshot()
+        m = s.memory
+        if not m.available:
+            return ["[section]Memory[/]", "  [dim]no file[/]"]
+        return [
+            "[section]Memory[/]",
+            f"  [k]Status[/]   [{'ok' if m.ok else 'warn'}]{m.status_label}[/]",
+            f"  [k]Words[/]    [v]{m.word_count}/{m.limit}[/]",
+            f"  [k]Version[/]  [v]v{m.version}[/]",
+            f"  [k]Recovered[/] [v]{'yes' if m.recovered else 'no'}[/]",
+        ]
 
     def body_lines(self) -> list[str]:
         from . import tui_commands
@@ -245,6 +295,17 @@ class AstronautScreen(RichCommandScreen):
 class DoctorScreen(RichCommandScreen):
     title = "Doctor"
     subtitle = "hardware + Ollama service report"
+
+    def inspector_lines(self) -> list[str]:
+        s = self.snapshot or TuiSnapshot()
+        return [
+            "[section]Health[/]",
+            f"  [k]OS[/]      [v]{s.os} {s.arch}[/]",
+            f"  [k]RAM[/]     [v]{s.ram_gb:.0f} GB[/]",
+            f"  [k]GPU[/]     [v]{s.gpu_name or 'CPU'}[/]",
+            f"  [k]Ollama[/]  [{'ok' if s.ollama_running else 'warn'}]{s.ollama_label}[/]",
+            f"  [k]Models[/]  [v]{len(s.ollama_models)}[/]",
+        ]
 
     def body_lines(self) -> list[str]:
         if self.snapshot is not None and self.snapshot.is_demo:

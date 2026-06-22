@@ -132,7 +132,7 @@ class PrometheusApp(App):
 
         # 3-column workspace
         with Horizontal(id="workspace"):
-            yield CommandRail(id="sidebar", markup=True)
+            yield CommandRail(id="sidebar")
             with VerticalScroll(id="main"):
                 yield SectionTitle(Static("[section]OBJECTIVE[/]", id="obj-title"),
                                    classes="section-title")
@@ -174,7 +174,7 @@ class PrometheusApp(App):
         self._apply_responsive_layout()
         self.status = "ready"
         if self._snapshot.is_demo:
-            self._log("[gold]DEMO MODE[/] — mocked data. Type /help or Ctrl+P.")
+            self._populate_demo_transcript()
         else:
             from . import tui_commands
             for line in tui_commands.first_run_banner(load_settings()):
@@ -229,7 +229,17 @@ class PrometheusApp(App):
             self._snapshot = snap
             self._refresh_all(snap)
         except Exception:
-            pass  # never crash the UI from a telemetry tick
+            pass
+
+    def _update_inspector_for_screen(self) -> None:
+        try:
+            from .tui_widgets import InspectorPanel
+            inspector = self.query_one("#inspector", InspectorPanel)
+            screen = self.screen
+            lines = getattr(screen, "inspector_lines", lambda: None)()
+            inspector.set_context(lines)
+        except Exception:
+            pass
 
     # ------------------------------------------------------------------
     # Transcript log (markup-safe)
@@ -240,6 +250,30 @@ class PrometheusApp(App):
             self.query_one("#transcript", RichLog).write(message)
         except Exception:
             pass
+
+    def _populate_demo_transcript(self) -> None:
+        for line in [
+            "[gold]▸[/] add JWT auth to /api/login with tests",
+            "[dim]─────────────────────────────────────────────[/]",
+            "[info]PLAN[/] drafting acceptance criteria…",
+            "  [ok]task[/] implement JWT issuance (envoy, 2 subtasks)",
+            "  [ok]task[/] write pytest fixtures (forge, 3 subtasks)",
+            "  [ok]task[/] wire /api/login endpoint (forge, 1 subtask)",
+            "[info]BUILD[/] forge executing…",
+            "  [dim]edit[/] src/auth/jwt.py (+47 lines)",
+            "  [dim]edit[/] src/api/routes/login.py (+28 lines)",
+            "  [dim]edit[/] tests/test_auth_jwt.py (+63 lines)",
+            "[ok]git[/] checkpoint auth-jwt-skeleton (sha a1b2c3d)",
+            "[info]TEST[/] pytest tests/test_auth_jwt.py",
+            "  [ok]PASS[/] test_jwt_issue_expired_token",
+            "  [ok]PASS[/] test_jwt_verify_valid_signature",
+            "  [ok]PASS[/] test_login_returns_200_with_token",
+            "  [ok]PASS[/] test_login_rejects_wrong_password",
+            "[ok]result[/] 4/4 passed — [gold]100.0%[/]",
+            "[info]memory[/] +1 decision, +2 facts (419/1024 words)",
+            "[gold]▸ DONE[/] JWT auth added. Type next objective or /help.",
+        ]:
+            self._log(line)
 
     # ------------------------------------------------------------------
     # Input handling
@@ -315,6 +349,8 @@ class PrometheusApp(App):
             return
 
         handled = tui_screens.dispatch_slash(self, cmd, self._snapshot, rest)
+        if handled:
+            self.call_after_refresh(self._update_inspector_for_screen)
         if not handled:
             self._log(f"[warn]Unknown command:[/] [gold]{cmd}[/]  (try /help)")
 

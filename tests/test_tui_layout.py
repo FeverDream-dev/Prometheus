@@ -42,12 +42,13 @@ def test_sidebar_lists_all_required_sections():
         app = PrometheusApp(demo=True, workspace=Path("/tmp"))
         async with app.run_test(size=(120, 36)) as pilot:
             await pilot.pause(0.12)
+            from textual.widgets import Static
             sb = app.query_one("#sidebar")
+            entries = list(sb.query(Static))
+            joined = " ".join(str(e.renderable) for e in entries if e.renderable)
             from prometheus_cli.tui_theme import SIDEBAR_SECTIONS
-            rendered = sb.renderable
-            rendered_str = str(rendered) if rendered else ""
             for label, _, _ in SIDEBAR_SECTIONS:
-                assert label in rendered_str, f"sidebar missing section: {label}"
+                assert label in joined, f"sidebar missing section: {label}"
     _run(go())
 
 
@@ -84,4 +85,51 @@ def test_app_has_brand_header_with_logo_and_project():
             header = app.query_one("#brand-mark")
             rendered = str(header.renderable) if header.renderable else ""
             assert "PROMETHEUS" in rendered
+    _run(go())
+
+
+def test_sidebar_entries_are_clickable_widgets():
+    async def go():
+        app = PrometheusApp(demo=True, workspace=Path("/tmp"))
+        async with app.run_test(size=(120, 36)) as pilot:
+            await pilot.pause(0.12)
+            from prometheus_cli.tui_widgets import SidebarEntry
+            entries = list(app.query_one("#sidebar").query(SidebarEntry))
+            assert len(entries) == 13, f"expected 13 sidebar entries, got {len(entries)}"
+            cmds = [e.sidebar_cmd for e in entries]
+            assert "/models" in cmds
+            assert "/sandbox" in cmds
+            assert "/memory" in cmds
+            assert "/vision" in cmds
+            assert "/assets" in cmds
+            assert "/astronaut" in cmds
+            assert "/settings" in cmds
+    _run(go())
+
+
+def test_clicking_sidebar_entry_dispatches_screen():
+    async def go():
+        app = PrometheusApp(demo=True, workspace=Path("/tmp"))
+        async with app.run_test(size=(120, 36)) as pilot:
+            await pilot.pause(0.12)
+            from prometheus_cli.tui_widgets import SidebarEntry
+            entries = list(app.query_one("#sidebar").query(SidebarEntry))
+            models_entry = next(e for e in entries if e.sidebar_cmd == "/models")
+            await pilot.click(models_entry)
+            await pilot.pause(0.2)
+            from prometheus_cli.tui_screens import ModelsScreen
+            assert isinstance(app.screen, ModelsScreen), (
+                f"clicking /models sidebar entry should push ModelsScreen, got {type(app.screen).__name__}"
+            )
+    _run(go())
+
+
+def test_demo_transcript_shows_realistic_activity():
+    async def go():
+        app = PrometheusApp(demo=True, workspace=Path("/tmp"))
+        async with app.run_test(size=(120, 36)) as pilot:
+            await pilot.pause(0.15)
+            svg = app.export_screenshot(title="demo transcript check")
+            for keyword in ("JWT", "pytest", "PASS", "DONE"):
+                assert keyword in svg, f"demo transcript missing keyword: {keyword}"
     _run(go())
