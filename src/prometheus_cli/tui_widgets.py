@@ -27,16 +27,30 @@ from .tui_theme import (
 # ---------------------------------------------------------------------------
 
 class BrandHeader(Static):
-    """Three-line top header: logo · project · mode/provider/bundle."""
+    """Three-line top header: logo · project · breadcrumb · mode/provider/bundle."""
+
+    _breadcrumb: str = ""
+    _last_snap: TuiSnapshot | None = None
+
+    def set_breadcrumb(self, text: str) -> None:
+        self._breadcrumb = text
+        if self._last_snap is not None:
+            self.update_snapshot(self._last_snap)
+
+    def clear_breadcrumb(self) -> None:
+        self.set_breadcrumb("")
 
     def update_snapshot(self, snap: TuiSnapshot) -> None:
-        mark = "🔥"
+        self._last_snap = snap
+        mark = "\U0001f525"
         title = f"{mark} PROMETHEUS"
         subtitle = "local-first coding agent"
-        project = truncate_for_width(snap.project_path or "(no project)", 56)
+        project = truncate_for_width(snap.project_path or "(no project)", 48)
+        crumb = f"  [bronze]\u203a[/]  [gold]{self._breadcrumb}[/]" if self._breadcrumb else ""
         self.update(
             f"[gold]{title}[/]  [dim]{subtitle}[/]"
-            f"  [bronze]·[/]  [k]project[/] [v]{project}[/]"
+            f"  [bronze]\u00b7[/]  [k]project[/] [v]{project}[/]"
+            f"{crumb}"
         )
         # Right-side badges — set via separate widgets in compose(); keep main line simple.
 
@@ -65,6 +79,10 @@ class SidebarEntry(Static):
     }
     SidebarEntry:hover {
         background: $boost;
+    }
+    SidebarEntry.active {
+        background: #181b24;
+        color: #f0c050;
     }
     """
 

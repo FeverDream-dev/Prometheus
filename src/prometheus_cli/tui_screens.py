@@ -65,6 +65,19 @@ class RichCommandScreen(Screen):
     def body_lines(self) -> list[str]:
         return ["[dim](no content)[/]"]
 
+    def inspector_lines(self) -> list[str] | None:
+        s = self.snapshot
+        if s is None:
+            return None
+        return [
+            f"[section]{self.title}[/]",
+            f"  [k]Mode[/]    [v]{s.mode_label}[/]",
+            f"  [k]Bundle[/]  [v]{s.bundle_label}[/]",
+            f"  [k]Sandbox[/] [v]{s.sandbox_tier}[/]",
+            f"  [k]Git[/]     [v]{s.git.status_label}[/]",
+            f"  [k]Memory[/]  [v]{s.memory.status_label}[/]",
+        ]
+
     # ---- Lifecycle ----
     def compose(self) -> ComposeResult:
         yield Static(f"[gold]{self.title}[/]", classes="title", markup=True)
@@ -91,17 +104,40 @@ class RichCommandScreen(Screen):
 # ---------------------------------------------------------------------------
 
 class HelpScreen(RichCommandScreen):
-    title = "PROMETHEUS · Command Help"
-    subtitle = "grouped command palette — Ctrl+P opens the visual palette"
+    title = "PROMETHEUS \u00b7 Command Help"
+    subtitle = "grouped command palette \u2014 Ctrl+P opens the visual palette"
 
     def body_lines(self) -> list[str]:
         from . import tui_commands
         return tui_commands.help_lines()
 
+    def inspector_lines(self) -> list[str]:
+        from .tui_theme import COMMAND_PALETTE
+        return [
+            "[section]Commands[/]",
+            f"  [k]Total[/]     [v]{len(COMMAND_PALETTE)}[/]",
+            "[section]Shortcuts[/]",
+            "  [gold]Ctrl+P[/]  palette",
+            "  [gold]Ctrl+B[/]  toggle sidebar",
+            "  [gold]Ctrl+I[/]  toggle inspector",
+            "  [gold]Esc[/]     back to dashboard",
+        ]
+
 
 class SettingsScreen(RichCommandScreen):
     title = "Settings"
     subtitle = "stored in ~/.prometheus/config.yaml"
+
+    def inspector_lines(self) -> list[str]:
+        s = self.snapshot or TuiSnapshot()
+        return [
+            "[section]Config[/]",
+            "  [k]Path[/]      [v]~/.prometheus/[/]",
+            f"  [k]Mode[/]      [v]{s.mode_label}[/]",
+            f"  [k]Sandbox[/]   [v]{s.sandbox_tier}[/]",
+            f"  [k]Local-only[/] [v]{'on' if s.local_only else 'off'}[/]",
+            f"  [k]Provider[/]   [v]{s.provider}[/]",
+        ]
 
     def body_lines(self) -> list[str]:
         from . import tui_commands
@@ -233,7 +269,19 @@ class MemoryScreen(RichCommandScreen):
 
 class VisionScreen(RichCommandScreen):
     title = "Vision"
-    subtitle = "CSS / a11y inspector · /vision inspect <selector>"
+    subtitle = "CSS / a11y inspector \u00b7 /vision inspect <selector>"
+
+    def inspector_lines(self) -> list[str]:
+        s = self.snapshot or TuiSnapshot()
+        pw = "available (demo)" if s.is_demo else "check /doctor"
+        return [
+            "[section]Playwright[/]",
+            f"  [{'ok' if s.is_demo else 'warn'}]{pw}[/]",
+            "[section]Fixtures[/]",
+            f"  [k]Web UI[/]    [v]{'available' if s.is_demo else 'check'}[/]",
+            "[section]Evidence[/]",
+            "  [k]Dir[/]  [v].prometheus/vision/[/]",
+        ]
 
     def body_lines(self) -> list[str]:
         if self.snapshot is not None and self.snapshot.is_demo:
@@ -252,7 +300,19 @@ class VisionScreen(RichCommandScreen):
 
 class AssetsScreen(RichCommandScreen):
     title = "AssetForge"
-    subtitle = "local image generation with provenance · /assets generate <kind>"
+    subtitle = "local image generation with provenance \u00b7 /assets generate <kind>"
+
+    def inspector_lines(self) -> list[str]:
+        s = self.snapshot or TuiSnapshot()
+        status = "available (demo)" if s.is_demo else "check /doctor"
+        return [
+            "[section]Backends[/]",
+            f"  [k]torch[/]       [{'ok'}]{status}[/]",
+            f"  [k]diffusers[/]   [{'ok'}]{status}[/]",
+            f"  [k]rembg[/]       [{'warn'}]not installed[/]",
+            "[section]Policy[/]",
+            "  [k]Commercial[/]  [v]per-license[/]",
+        ]
 
     def body_lines(self) -> list[str]:
         if self.snapshot is not None and self.snapshot.is_demo:
@@ -271,7 +331,24 @@ class AssetsScreen(RichCommandScreen):
 
 class AstronautScreen(RichCommandScreen):
     title = "Astronaut"
-    subtitle = "long-run autonomous mode · /astronaut start|pause|stop|report"
+    subtitle = "long-run autonomous mode \u00b7 /astronaut start|pause|stop|report"
+
+    def inspector_lines(self) -> list[str]:
+        s = self.snapshot or TuiSnapshot()
+        if s.is_demo:
+            return [
+                "[section]Session[/]",
+                "  [k]Status[/]    [ok]idle[/]",
+                "  [k]Attempts[/]  [v]3[/]",
+                "  [k]Checks[/]    [v]2[/]",
+                "[section]Control[/]",
+                "  [gold]start | pause | stop[/]",
+            ]
+        return [
+            "[section]Control files[/]",
+            "  [k]STOP[/]    [dim].prometheus/STOP[/]",
+            "  [k]PAUSE[/]   [dim].prometheus/PAUSE[/]",
+        ]
 
     def body_lines(self) -> list[str]:
         from . import tui_commands
@@ -331,6 +408,17 @@ class ToolsScreen(RichCommandScreen):
     title = "Tools"
     subtitle = "built-in agent tools"
 
+    def inspector_lines(self) -> list[str]:
+        return [
+            "[section]Categories[/]",
+            "  [k]Repository[/]  [v]6 tools[/]",
+            "  [k]Process[/]     [v]run, supervise[/]",
+            "  [k]Git[/]         [v]5 tools[/]",
+            "  [k]Browser[/]     [v]Playwright[/]",
+            "  [k]Web[/]         [v]fetch (bounded)[/]",
+            "  [k]MCP[/]         [v]per-server[/]",
+        ]
+
     def body_lines(self) -> list[str]:
         from . import tui_commands
         return tui_commands.tools_lines()
@@ -347,7 +435,18 @@ class McpScreen(RichCommandScreen):
 
 class ModesScreen(RichCommandScreen):
     title = "Autonomy Modes"
-    subtitle = "Copilot · Pilot · Astronaut"
+    subtitle = "Copilot \u00b7 Pilot \u00b7 Astronaut"
+
+    def inspector_lines(self) -> list[str]:
+        s = self.snapshot or TuiSnapshot()
+        return [
+            "[section]Modes[/]",
+            f"  [{'gold' if s.mode == 'copilot' else 'dim'}]Copilot[/]    suggestive",
+            f"  [{'gold' if s.mode == 'pilot' else 'dim'}]Pilot[/]      balanced",
+            f"  [{'gold' if s.mode == 'astronaut' else 'dim'}]Astronaut[/]  autonomous",
+            "",
+            f"[k]Active[/] [gold]{s.mode_label}[/]",
+        ]
 
     def body_lines(self) -> list[str]:
         from . import tui_commands
@@ -357,6 +456,18 @@ class ModesScreen(RichCommandScreen):
 class SessionsScreen(RichCommandScreen):
     title = "Sessions"
     subtitle = "recent coding sessions"
+
+    def inspector_lines(self) -> list[str]:
+        s = self.snapshot or TuiSnapshot()
+        count = len(s.recent_sessions) if s.is_demo else 0
+        latest = s.recent_sessions[0][:40] if s.recent_sessions else "(none)"
+        return [
+            "[section]History[/]",
+            f"  [k]Total[/]     [v]{count}[/]",
+            f"  [k]Latest[/]    [v]{latest}[/]",
+            "[section]Storage[/]",
+            "  [k]DB[/]  [v]~/.prometheus/sessions/[/]",
+        ]
 
     def body_lines(self) -> list[str]:
         if self.snapshot is not None and self.snapshot.is_demo:
@@ -374,6 +485,16 @@ class PermissionsScreen(RichCommandScreen):
     title = "Permissions"
     subtitle = "autonomy policy"
 
+    def inspector_lines(self) -> list[str]:
+        s = self.snapshot or TuiSnapshot()
+        return [
+            "[section]Policy[/]",
+            f"  [k]Mode[/]        [v]{s.mode_label}[/]",
+            f"  [k]Sandbox[/]     [v]{s.sandbox_tier}[/]",
+            f"  [k]Network[/]     [{'ok' if not s.local_only else 'warn'}]{'allowed' if not s.local_only else 'denied'}[/]",
+            f"  [k]Local-only[/]  [v]{'on' if s.local_only else 'off'}[/]",
+        ]
+
     def body_lines(self) -> list[str]:
         from . import tui_commands
         from .config import load_settings
@@ -383,6 +504,16 @@ class PermissionsScreen(RichCommandScreen):
 class ProvidersScreen(RichCommandScreen):
     title = "Providers"
     subtitle = "configured backends"
+
+    def inspector_lines(self) -> list[str]:
+        s = self.snapshot or TuiSnapshot()
+        return [
+            "[section]Ollama[/]",
+            "  [k]URL[/]     [v]http://127.0.0.1:11434[/]",
+            f"  [k]Status[/]  [{'ok' if s.ollama_running else 'warn'}]{s.ollama_label}[/]",
+            "[section]Cloud[/]",
+            f"  [k]Status[/]  [v]{'disabled (local-only)' if s.local_only else 'configured per-bundle'}[/]",
+        ]
 
     def body_lines(self) -> list[str]:
         from . import tui_commands
@@ -420,6 +551,15 @@ class DiagnoseScreen(RichCommandScreen):
 class PlanScreen(RichCommandScreen):
     title = "Plan"
     subtitle = "objective + acceptance criteria"
+
+    def inspector_lines(self) -> list[str]:
+        return [
+            "[section]Workflow[/]",
+            "  [gold]1[/] type an objective",
+            "  [gold]2[/] PROMETHEUS drafts a plan",
+            "  [gold]3[/] acceptance criteria listed",
+            "  [gold]4[/] checkpoints at each step",
+        ]
 
     def body_lines(self) -> list[str]:
         lines = [
@@ -507,7 +647,7 @@ def dispatch_slash(app, cmd: str, snapshot: TuiSnapshot | None, rest: str = "") 
         view.snapshot = snapshot
         body = view.body_lines()
         insp = getattr(view, "inspector_lines", lambda: None)()
-        app._show_command_view(view.title, view.subtitle, body, insp)
+        app._show_command_view(cmd, view.title, view.subtitle, body, insp)
     except Exception as exc:
         try:
             from .tui import PrometheusApp

@@ -6,12 +6,18 @@ The output is compared against committed golden fixtures in tests/golden/tui/.
 """
 from __future__ import annotations
 
+import asyncio
 from pathlib import Path
 
 import pytest
 
+from prometheus_cli.tui import PrometheusApp
 from prometheus_cli.tui_screens import SLASH_SCREEN_MAP, render_screen_text
 from prometheus_cli.tui_state import collect_demo_snapshot
+
+
+def _run(coro):
+    return asyncio.run(coro)
 
 GOLDEN_DIR = Path(__file__).parent / "golden" / "tui"
 
@@ -105,3 +111,30 @@ def test_demo_snapshot_has_realistic_data():
     assert snap.memory.ok is True
     assert len(snap.ollama_models) == 3
     assert snap.ollama_running is True
+
+
+@pytest.mark.parametrize("cmd", sorted(SLASH_SCREEN_MAP.keys()))
+def test_every_screen_has_inspector_lines(cmd, snap):
+    cls = SLASH_SCREEN_MAP[cmd]
+    view = cls.__new__(cls)
+    view.snapshot = snap
+    lines = view.inspector_lines()
+    assert lines is not None, f"{cmd} inspector_lines() returned None"
+    assert isinstance(lines, list), f"{cmd} inspector_lines() must return list"
+    assert len(lines) >= 3, f"{cmd} inspector_lines() too short ({len(lines)} lines)"
+    text = "\n".join(str(line) for line in lines)
+    assert text.strip(), f"{cmd} inspector_lines() returned empty content"
+
+
+@pytest.mark.parametrize("cmd", sorted(SLASH_SCREEN_MAP.keys()))
+def test_inspector_lines_renders_clean_in_svg(cmd, snap):
+    async def go():
+        app = PrometheusApp(demo=True, workspace=Path("/tmp"))
+        async with app.run_test(size=(120, 36)) as pilot:
+            await pilot.pause(0.12)
+            app._dispatch_slash_text(cmd)
+            await pilot.pause(0.2)
+            svg = app.export_screenshot(title=f"{cmd} inspector check")
+            for frag in ("[section]", "[k]", "[v]", "[gold]", "[/]", "[bold"):
+                assert frag not in svg, f"{cmd} SVG leaked raw {frag!r}"
+    _run(go())

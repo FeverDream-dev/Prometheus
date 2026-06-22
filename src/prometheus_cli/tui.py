@@ -247,7 +247,7 @@ class PrometheusApp(App):
 
     _current_view: str = "dashboard"
 
-    def _show_command_view(self, title: str, subtitle: str,
+    def _show_command_view(self, cmd: str, title: str, subtitle: str,
                            body_lines: list[str],
                            inspector_lines: list[str] | None = None) -> None:
         try:
@@ -261,11 +261,21 @@ class PrometheusApp(App):
             parts.append("")
             parts.extend(body_lines)
             parts.append("")
-            parts.append("[dim]Esc to return  ·  /help for commands[/]")
+            parts.append("[dim]Esc to return  \u00b7  /help for commands[/]")
             content.update("\n".join(parts))
             self._current_view = "command"
+            try:
+                cv.scroll_y = 0
+            except Exception:
+                pass
+            from .tui_widgets import SidebarEntry, InspectorPanel, BrandHeader
+            for entry in self.query(SidebarEntry):
+                if entry.sidebar_cmd == cmd:
+                    entry.add_class("active")
+                else:
+                    entry.remove_class("active")
+            self.query_one("#brand-mark", BrandHeader).set_breadcrumb(title.split("\u00b7")[0].strip())
             if inspector_lines:
-                from .tui_widgets import InspectorPanel
                 self.query_one("#inspector", InspectorPanel).set_context(inspector_lines)
         except Exception:
             pass
@@ -275,8 +285,11 @@ class PrometheusApp(App):
             self.query_one("#command-view").styles.display = "none"
             self.query_one("#dashboard-view").styles.display = "block"
             self._current_view = "dashboard"
-            from .tui_widgets import InspectorPanel
+            from .tui_widgets import InspectorPanel, SidebarEntry, BrandHeader
             self.query_one("#inspector", InspectorPanel).set_context(None)
+            for entry in self.query(SidebarEntry):
+                entry.remove_class("active")
+            self.query_one("#brand-mark", BrandHeader).clear_breadcrumb()
         except Exception:
             pass
 

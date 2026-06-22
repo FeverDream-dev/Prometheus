@@ -135,3 +135,74 @@ def test_demo_transcript_shows_realistic_activity():
             for keyword in ("JWT", "pytest", "PASS", "DONE"):
                 assert keyword in svg, f"demo transcript missing keyword: {keyword}"
     _run(go())
+
+
+def test_active_sidebar_entry_highlighted_on_command_view():
+    async def go():
+        app = PrometheusApp(demo=True, workspace=Path("/tmp"))
+        async with app.run_test(size=(120, 36)) as pilot:
+            await pilot.pause(0.12)
+            from prometheus_cli.tui_widgets import SidebarEntry
+            app._dispatch_slash_text("/models")
+            await pilot.pause(0.2)
+            entries = list(app.query(SidebarEntry))
+            active = [e for e in entries if "active" in e.classes]
+            assert len(active) == 1, f"expected 1 active entry, got {len(active)}"
+            assert active[0].sidebar_cmd == "/models"
+    _run(go())
+
+
+def test_sidebar_highlight_cleared_on_return_to_dashboard():
+    async def go():
+        app = PrometheusApp(demo=True, workspace=Path("/tmp"))
+        async with app.run_test(size=(120, 36)) as pilot:
+            await pilot.pause(0.12)
+            from prometheus_cli.tui_widgets import SidebarEntry
+            app._dispatch_slash_text("/sandbox")
+            await pilot.pause(0.15)
+            assert any("active" in e.classes for e in app.query(SidebarEntry))
+            app._show_dashboard()
+            await pilot.pause(0.1)
+            assert not any("active" in e.classes for e in app.query(SidebarEntry))
+    _run(go())
+
+
+def test_breadcrumb_shows_in_header_on_command_view():
+    async def go():
+        app = PrometheusApp(demo=True, workspace=Path("/tmp"))
+        async with app.run_test(size=(120, 36)) as pilot:
+            await pilot.pause(0.12)
+            app._dispatch_slash_text("/sandbox")
+            await pilot.pause(0.2)
+            header = app.query_one("#brand-mark")
+            text = str(header.renderable) if header.renderable else ""
+            assert "\u203a" in text, "breadcrumb separator missing"
+            assert "Sandbox" in text, "breadcrumb title missing"
+    _run(go())
+
+
+def test_breadcrumb_cleared_on_return_to_dashboard():
+    async def go():
+        app = PrometheusApp(demo=True, workspace=Path("/tmp"))
+        async with app.run_test(size=(120, 36)) as pilot:
+            await pilot.pause(0.12)
+            app._dispatch_slash_text("/models")
+            await pilot.pause(0.15)
+            app._show_dashboard()
+            await pilot.pause(0.1)
+            header = app.query_one("#brand-mark")
+            text = str(header.renderable) if header.renderable else ""
+            assert "\u203a" not in text, "breadcrumb not cleared"
+    _run(go())
+
+
+def test_command_view_starts_at_scroll_top():
+    async def go():
+        app = PrometheusApp(demo=True, workspace=Path("/tmp"))
+        async with app.run_test(size=(120, 36)) as pilot:
+            await pilot.pause(0.12)
+            app._dispatch_slash_text("/help")
+            await pilot.pause(0.2)
+            cv = app.query_one("#command-view")
+            assert cv.scroll_y == 0, f"scroll_y should be 0, got {cv.scroll_y}"
+    _run(go())
