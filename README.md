@@ -193,13 +193,62 @@ prometheus models pull --bundle spark-cpu-8gb          # pull a package's models
   (argv array, supervised, cancellable), git (status/diff/checkpoint/rollback),
   web fetch (bounded, untrusted, citations)
 
-### TUI slash commands
+### PROMETHEUS TUI
 
+A polished local-first TUI application shell — persistent chrome (brand header,
+left command rail, right inspector, dense status bar), rich slash-command
+screens, a 7-step setup wizard, and a command palette. Built with Textual.
+
+```bash
+prometheus tui                                        # real mode (reads actual state)
+prometheus tui --demo                                 # mocked data, no Ollama needed
+prometheus tui --screenshot out.svg --screen setup    # headless SVG export
+bash scripts/tui_visual_smoke.sh                      # export all screens to artifacts/tui/
 ```
-/help  /settings  /models  /bundles  /memory  /mcp  /tools
-/sessions  /qualify  /use  /modes  /permissions  /doctor
-/clear  /resume  /mode  /vision  /assets  /astronaut  /exit
-```
+
+**First-run setup**: on first launch with no bundle, the TUI shows a setup
+wizard (also reachable via `/setup`) covering 7 steps: Welcome → Hardware →
+Ollama → Recommended bundle → Confirm → Pull/validate → Start coding.
+
+**Slash commands** (full list — `/help` in the TUI shows grouped help):
+
+| Command | Description | Category |
+|---|---|---|
+| `/help` | Grouped command palette + help | System |
+| `/setup` | First-run setup wizard (7 steps) | Setup |
+| `/settings` | All editable settings + values | System |
+| `/models` | Installed Ollama models | Setup |
+| `/bundles` | Browse model packages | Setup |
+| `/use <id>` | Select active package | Setup |
+| `/sandbox` | Sandbox enforcement tier + policy | Safety |
+| `/mcp` | MCP server status | Safety |
+| `/tools` | Built-in agent tools | Safety |
+| `/permissions` | Autonomy mode + policy | Safety |
+| `/memory` | Bounded project memory | Models & Coding |
+| `/mode <m>` | Switch autonomy mode | Models & Coding |
+| `/qualify <id>` | Qualify a model or bundle | Models & Coding |
+| `/sessions` | Recent coding sessions | Models & Coding |
+| `/resume <id>` | Resume a session | Models & Coding |
+| `/vision` | CSS / a11y inspector | Browser & Vision |
+| `/assets` | AssetForge image generation | Browser & Vision |
+| `/astronaut` | Long-run autonomous mode | Browser & Vision |
+| `/doctor` | Hardware + Ollama report | System |
+| `/telemetry` | Live CPU/RAM/GPU snapshot | System |
+| `/clear` | Clear transcript | System |
+| `/exit` | Exit PROMETHEUS | System |
+
+**Keyboard shortcuts**: `Ctrl+P` (command palette), `Ctrl+B` (toggle sidebar),
+`Ctrl+I` (toggle inspector), `Ctrl+L` (clear transcript), `Ctrl+Q` (quit),
+`Esc` (dismiss screen), `Enter` (submit objective).
+
+**Demo mode** (`--demo`) produces fully-mocked realistic data (bundle
+`ember-8gb`, mode Pilot, 3 Ollama models, clean git on `main`, 412/1024 memory
+words) clearly labelled "DEMO MODE" — for UI preview and tests only.
+
+**Visual smoke test**: `bash scripts/tui_visual_smoke.sh` exports 27 SVG
+screenshots to `artifacts/tui/` covering every command screen, the palette,
+and 4 responsive sizes (80x24, 100x30, 120x36, 160x48). See
+[`docs/TUI_DESIGN.md`](docs/TUI_DESIGN.md) for the full design document.
 
 ## Model packages
 

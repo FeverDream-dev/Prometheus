@@ -220,10 +220,32 @@ def test_first_run_banner_empty_when_bundle_set():
 
 
 def test_every_slash_command_has_tui_dispatch_handler():
+    """Every SLASH_COMMANDS entry must be reachable from the TUI.
+
+    After the TUI 2.0 refactor, dispatch is split between:
+      * PrometheusApp._dispatch_slash_text — inline state-mutating handlers
+        (/exit /clear /mode /use /qualify /resume /memory /build)
+      * tui_screens.SLASH_SCREEN_MAP — display screens pushed onto the stack
+    Plus the aliases ``/?`` → /help. This test asserts the union covers every
+    command advertised in SLASH_COMMANDS so the palette never lies.
+    """
     import inspect
 
+    from prometheus_cli import tui_screens
     from prometheus_cli.tui import PrometheusApp
 
-    source = inspect.getsource(PrometheusApp._handle_slash)
-    missing = [cmd for cmd in tui_commands.SLASH_COMMANDS if cmd not in source]
-    assert not missing, f"Commands registered in SLASH_COMMANDS but not dispatched in _handle_slash: {missing}"
+    inline_source = inspect.getsource(PrometheusApp._dispatch_slash_text)
+    screen_map_keys = set(tui_screens.SLASH_SCREEN_MAP.keys())
+
+    missing = []
+    for cmd in tui_commands.SLASH_COMMANDS:
+        handled = (
+            cmd in inline_source
+            or cmd in screen_map_keys
+            or (cmd == "/help" and "/?" in screen_map_keys)
+        )
+        if not handled:
+            missing.append(cmd)
+    assert not missing, (
+        f"Commands in SLASH_COMMANDS but not reachable from TUI dispatch: {missing}"
+    )

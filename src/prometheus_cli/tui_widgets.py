@@ -1,0 +1,200 @@
+"""Composite widgets for the PROMETHEUS TUI.
+
+All widgets read from :class:`prometheus_cli.tui_state.TuiSnapshot` and render
+via ``Static`` (markup ON by default) so Rich markup like ``[gold]…[/]`` renders
+correctly rather than leaking through as raw brackets.
+
+Widgets expose ``update_snapshot(snap)`` so :class:`prometheus_cli.tui.PrometheusApp`
+can refresh them after telemetry ticks or command dispatch.
+"""
+from __future__ import annotations
+
+from textual.widgets import Static
+
+from .tui_state import TuiSnapshot
+from .tui_theme import (
+    SIDEBAR_SECTIONS,
+    STATUS_OK,
+    STATUS_WARN,
+    truncate_for_width,
+)
+
+
+# ---------------------------------------------------------------------------
+# Top brand header
+# ---------------------------------------------------------------------------
+
+class BrandHeader(Static):
+    """Three-line top header: logo · project · mode/provider/bundle."""
+
+    def update_snapshot(self, snap: TuiSnapshot) -> None:
+        mark = "🔥"
+        title = f"{mark} PROMETHEUS"
+        subtitle = "local-first coding agent"
+        project = truncate_for_width(snap.project_path or "(no project)", 56)
+        self.update(
+            f"[gold]{title}[/]  [dim]{subtitle}[/]"
+            f"  [bronze]·[/]  [k]project[/] [v]{project}[/]"
+        )
+        # Right-side badges — set via separate widgets in compose(); keep main line simple.
+
+
+class BrandBadges(Static):
+    """Right-aligned mode/provider/bundle badges that sit in the header row."""
+
+    def update_snapshot(self, snap: TuiSnapshot) -> None:
+        demo = " [demo]DEMO[/]" if snap.is_demo else ""
+        self.update(
+            f"{demo}"
+            f"  [k]mode[/] [v]{snap.mode_label}[/]"
+            f"  [k]provider[/] [v]{snap.provider}[/]"
+            f"  [k]bundle[/] [v]{snap.bundle_label}[/]"
+        )
+
+
+# ---------------------------------------------------------------------------
+# Left sidebar / command rail
+# ---------------------------------------------------------------------------
+
+class CommandRail(Static):
+    """Vertical rail of named sections (Chat / Plan / Files / Models / ...).
+
+    Each entry shows its slash command if it has one. Maps 1:1 to the entries
+    listed in the product spec. MVP: non-clickable but rendered with clear
+    visual hierarchy.
+    """
+
+    def render_default(self, snap: TuiSnapshot) -> str:
+        lines: list[str] = ["[section]COMMANDS[/]", ""]
+        for label, cmd, blurb in SIDEBAR_SECTIONS:
+            cmd_part = f"[cmd]{cmd}[/]" if cmd else "[dim]—[/]"
+            lines.append(f"[v]{label:<10}[/] {cmd_part}")
+            if blurb:
+                lines.append(f"  [dim]{truncate_for_width(blurb, 22)}[/]")
+        lines.extend([
+            "",
+            "[dim]Ctrl+P palette[/]",
+            "[dim]/help  /setup  /exit[/]",
+        ])
+        return "\n".join(lines)
+
+    def update_snapshot(self, snap: TuiSnapshot) -> None:
+        self.update(self.render_default(snap))
+
+
+# ---------------------------------------------------------------------------
+# Right inspector panel
+# ---------------------------------------------------------------------------
+
+class InspectorPanel(Static):
+    """Right-hand contextual panel. Default content is a system digest;
+    individual command screens can replace it with focused detail."""
+
+    def render_default(self, snap: TuiSnapshot) -> str:
+        lines = ["[section]INSPECTOR[/]", ""]
+        lines.append("[section]System[/]")
+        lines.append(f"  [k]OS[/]      [v]{snap.os} {snap.arch}[/]")
+        lines.append(f"  [k]CPU[/]     [v]{truncate_for_width(snap.cpu_brand or '—', 26)}[/]")
+        lines.append(f"  [k]RAM[/]     [v]{snap.ram_gb:.0f} GB[/]")
+        gpu = snap.gpu_name or "CPU mode"
+        lines.append(f"  [k]GPU[/]     [v]{truncate_for_width(gpu, 26)}[/]")
+        if snap.vram_gb:
+            lines.append(f"  [k]VRAM[/]    [v]{snap.vram_gb:.0f} GB[/]")
+        lines.append(f"  [k]Disk[/]    [v]{snap.disk_free_gb:.0f} GB free[/]")
+
+        lines.append("")
+        lines.append("[section]Backend[/]")
+        ollama_color = STATUS_OK if snap.ollama_running else STATUS_WARN
+        lines.append(f"  [k]Ollama[/]  [{ollama_color}]{snap.ollama_label}[/]")
+        for m in snap.ollama_models[:5]:
+            lines.append(f"    [dim]• {m}[/]")
+        if len(snap.ollama_models) > 5:
+            lines.append(f"    [dim]… +{len(snap.ollama_models) - 5} more[/]")
+
+        lines.append("")
+        lines.append("[section]Policy[/]")
+        lines.append(f"  [k]Mode[/]      [v]{snap.mode_label}[/]")
+        lines.append(f"  [k]Sandbox[/]   [v]{snap.sandbox_tier}[/]")
+        lines.append(f"  [k]Local-only[/] [v]{'on' if snap.local_only else 'off'}[/]")
+
+        lines.append("")
+        lines.append("[section]Memory[/]")
+        lines.append(f"  [k]Status[/]  [v]{snap.memory.status_label}[/]")
+
+        lines.append("")
+        lines.append("[section]Git[/]")
+        if snap.git.available:
+            lines.append(f"  [k]Branch[/]  [v]{snap.git.branch}[/]")
+            dirty_color = STATUS_WARN if snap.git.dirty else STATUS_OK
+            lines.append(f"  [k]State[/]   [{dirty_color}]{snap.git.status_label}[/]")
+            for c in snap.git.recent_commits[:3]:
+                lines.append(f"    [dim]{truncate_for_width(c, 28)}[/]")
+        else:
+            lines.append("  [dim]no git repo[/]")
+
+        return "\n".join(lines)
+
+    def update_snapshot(self, snap: TuiSnapshot) -> None:
+        self.update(self.render_default(snap))
+
+
+# ---------------------------------------------------------------------------
+# Bottom status bar — one dense line
+# ---------------------------------------------------------------------------
+
+class StatusBar(Static):
+    """Single-line dense status bar: provider|bundle|mode|sandbox|git|memory."""
+
+    def render_default(self, snap: TuiSnapshot) -> str:
+        parts: list[str] = []
+        for label, value in snap.status_bar_segments:
+            parts.append(f"[seg-k]{label}[/] [seg-v]{value}[/]")
+        sep = "  [seg-sep]·[/]  "
+        line = sep.join(parts)
+        prefix = "[demo]DEMO[/] " if snap.is_demo else ""
+        return f"{prefix}{line}"
+
+    def update_snapshot(self, snap: TuiSnapshot) -> None:
+        self.update(self.render_default(snap))
+
+
+# ---------------------------------------------------------------------------
+# Demo ribbon
+# ---------------------------------------------------------------------------
+
+class DemoRibbon(Static):
+    """One-line gold ribbon shown only in demo mode."""
+
+    def update_snapshot(self, snap: TuiSnapshot) -> None:
+        if snap.is_demo:
+            self.update(
+                "DEMO MODE — mocked data for preview/testing only. "
+                "Use `prometheus tui` (without --demo) for real state."
+            )
+            self.styles.display = "block"
+        else:
+            self.styles.display = "none"
+
+
+# ---------------------------------------------------------------------------
+# Reusable section header for the main column
+# ---------------------------------------------------------------------------
+
+class SectionTitle(Static):
+    """Bronze-bordered section title strip used inside the main column."""
+
+
+class NextAction(Static):
+    """The 'next recommended action' line pinned to the bottom of main column."""
+
+
+__all__ = [
+    "BrandBadges",
+    "BrandHeader",
+    "CommandRail",
+    "DemoRibbon",
+    "InspectorPanel",
+    "NextAction",
+    "SectionTitle",
+    "StatusBar",
+]

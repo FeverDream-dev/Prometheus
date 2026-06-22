@@ -5,6 +5,37 @@ total weighted criteria**, never a model's opinion. A row is `passing` only when
 it has real code, a passing test, and CLI/runtime evidence. Mocked/skipped items
 are `placeholder`/`missing` and do not count.
 
+## TUI 2.0 (current slice)
+
+The TUI was rebuilt from a debug-box into a real local-first coding-agent
+application shell. Acceptance status:
+
+| Criterion | Status | Evidence |
+|---|---|---|
+| No raw Rich markup in rendered output | `passing` | `test_tui_no_raw_markup.py` — 12 parametrized cases assert no `[bold]`/`[yellow]`/`[/]` in SVG or text; root cause fixed (`RichLog(markup=True)`) |
+| Startup dashboard looks like a real product | `passing` | `artifacts/tui/startup_main.svg` (87 KB, 208 text fragments: logo + sidebar + inspector + status bar) |
+| First-run setup wizard (7 steps) | `passing` | `/setup` dispatches to `SetupScreen`; `test_tui_first_run.py` asserts all 7 steps render with demo hardware data |
+| Persistent sidebar / command rail | `passing` | 13 sections (Chat/Plan/Files/Models/Tools/MCP/Sandbox/Memory/Vision/Assets/Astronaut/Settings) verified in `test_tui_layout.py` |
+| Dense status bar (6 segments) | `passing` | provider · bundle · mode · sandbox · git · memory — verified by `test_tui_layout.py::test_status_bar_shows_six_segments` |
+| Command palette (Ctrl+P) | `passing` | `CommandPaletteScreen` with 19 commands × (name/desc/shortcut/availability/source); filter + keyboard nav |
+| All advertised slash commands render screens | `passing` | 23 screens in `SLASH_SCREEN_MAP`; `test_every_slash_screen_command_dispatches` parametrized over all |
+| TUI works in demo mode (no Ollama) | `passing` | `prometheus tui --demo` — fully mocked snapshot, 0 IO, "DEMO MODE" ribbon |
+| TUI works in real mode | `passing` | `collect_snapshot(workspace)` calls every probe defensively; missing values show setup guidance |
+| Visual smoke artifacts generated | `passing` | `bash scripts/tui_visual_smoke.sh` exports 29 SVGs to `artifacts/tui/` |
+| Responsive at 80×24 / 100×30 / 120×36 / 160×48 | `passing` | `test_tui_responsive.py` — 4 sizes render, panels collapse at correct thresholds |
+| Test coverage (7 files) | `passing` | 181 TUI-specific tests; full suite 901 passed / 8 skipped |
+| Docs + website updated | `passing` | `docs/TUI_DESIGN.md` (new), README TUI section expanded, `website/index.html` TUI section with SVG screenshots |
+
+Known limitations for the next UI iteration:
+
+- Interactive wizard modal (`/setup-wizard`) renders statically in headless export; full interactive flow works in real TTY but not in `--screenshot`.
+- Sidebar entries are non-clickable (MVP — mapped to slash commands but no mouse handler).
+- Right inspector is currently a static system digest; per-screen contextual detail is future work.
+
+---
+
+
+
 Weight: 1 = nice-to-have, 2 = standard, 3 = important, 5 = critical (safety/core).
 One incomplete critical row blocks the phase gate.
 

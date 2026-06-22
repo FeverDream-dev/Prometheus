@@ -130,6 +130,7 @@
       </a>
       <nav class="top-nav" aria-label="Page sections">
         <a href="#packages">Models</a>
+        <a href="#tui">TUI</a>
         <a href="#quota">Local vs cloud</a>
         <a href="#features">Features</a>
         <a href="#security">Privacy</a>
@@ -387,6 +388,62 @@ notepad install.ps1
         <div class="feat">
           <h3><span class="num">08</span>Textual TUI</h3>
           <p>A streaming terminal UI with approval prompts, a status bar, and a startup splash that is non-TTY and reduced-motion safe.</p>
+        </div>
+      </div>
+     </section>
+
+    <section id="tui" class="features" aria-labelledby="tui-title">
+      <div class="section-head">
+        <span class="eyebrow">Application shell</span>
+        <h2 id="tui-title">PROMETHEUS TUI — local-first coding agent interface</h2>
+        <p class="section-lead">
+          A polished terminal application shell: persistent brand header, left
+          command rail, right inspector panel, dense status bar, rich slash-command
+          screens, a 7-step setup wizard, and a command palette. No raw markup,
+          no debug-box feel — built with Textual.
+        </p>
+      </div>
+
+      <div class="feature-grid" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(320px,1fr));gap:1.5rem;margin-top:2rem;">
+        <figure style="margin:0;">
+          <img src="assets/tui-dashboard.svg" alt="PROMETHEUS TUI dashboard — brand header, sidebar, inspector, status bar" loading="lazy" style="width:100%;border:1px solid #3a3530;border-radius:8px;background:#0b0c10;">
+          <figcaption style="color:#a59c8a;font-size:.85rem;margin-top:.5rem;text-align:center;">Dashboard (demo mode, 120×36)</figcaption>
+        </figure>
+        <figure style="margin:0;">
+          <img src="assets/tui-setup.svg" alt="PROMETHEUS setup wizard — 7 steps from welcome to start coding" loading="lazy" style="width:100%;border:1px solid #3a3530;border-radius:8px;background:#0b0c10;">
+          <figcaption style="color:#a59c8a;font-size:.85rem;margin-top:.5rem;text-align:center;">First-run setup wizard</figcaption>
+        </figure>
+        <figure style="margin:0;">
+          <img src="assets/tui-palette.svg" alt="PROMETHEUS command palette — Ctrl+P with metadata-rich entries" loading="lazy" style="width:100%;border:1px solid #3a3530;border-radius:8px;background:#0b0c10;">
+          <figcaption style="color:#a59c8a;font-size:.85rem;margin-top:.5rem;text-align:center;">Command palette (Ctrl+P)</figcaption>
+        </figure>
+      </div>
+
+      <div style="margin-top:2rem;background:#13151c;border:1px solid #5b4a2a;border-radius:8px;padding:1.25rem 1.5rem;">
+        <h3 style="color:#f0c050;margin-top:0;">Launch</h3>
+        <pre style="background:#0b0c10;border:1px solid #23252d;border-radius:6px;padding:1rem;overflow-x:auto;color:#e6e2d8;font-size:.9rem;margin:0;"><code>prometheus tui                                        <span style="color:#6b6557;"># real mode</span>
+prometheus tui --demo                                 <span style="color:#6b6557;"># mocked data, no Ollama</span>
+prometheus tui --screenshot out.svg --screen setup    <span style="color:#6b6557;"># headless SVG export</span>
+bash scripts/tui_visual_smoke.sh                      <span style="color:#6b6557;"># export all screens</span></code></pre>
+        <p style="color:#a59c8a;margin-bottom:0;font-size:.9rem;">
+          Demo mode renders fully-mocked realistic state (bundle <code style="color:#d4a02a;">ember-8gb</code>,
+          mode Pilot, 3 Ollama models, clean git on <code style="color:#d4a02a;">main</code>)
+          — for UI preview and tests only. Real mode reads actual project state.
+        </p>
+      </div>
+
+      <div style="margin-top:1.5rem;display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:1rem;">
+        <div style="background:#13151c;border-left:3px solid #d4a02a;padding:.75rem 1rem;">
+          <strong style="color:#f0c050;">23 slash screens</strong>
+          <p style="color:#a59c8a;margin:.25rem 0 0;font-size:.85rem;">help, setup, settings, models, bundles, sandbox, memory, vision, assets, astronaut, doctor, mcp, tools, modes, sessions, telemetry, logo, diagnose, plan, permissions, providers</p>
+        </div>
+        <div style="background:#13151c;border-left:3px solid #d4a02a;padding:.75rem 1rem;">
+          <strong style="color:#f0c050;">Keyboard</strong>
+          <p style="color:#a59c8a;margin:.25rem 0 0;font-size:.85rem;">Ctrl+P palette · Ctrl+B sidebar · Ctrl+I inspector · Ctrl+L clear · Ctrl+Q quit · Esc dismiss</p>
+        </div>
+        <div style="background:#13151c;border-left:3px solid #d4a02a;padding:.75rem 1rem;">
+          <strong style="color:#f0c050;">Responsive</strong>
+          <p style="color:#a59c8a;margin:.25rem 0 0;font-size:.85rem;">80×24 · 100×30 · 120×36 · 160×48 — panels collapse gracefully at narrow widths</p>
         </div>
       </div>
     </section>

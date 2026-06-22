@@ -61,15 +61,15 @@ def assert_no_literal_markup(rendered: str) -> None:
 
 
 def test_tui_module_uses_richlog_not_log():
+    """The TUI must render markup-bearing content via RichLog(markup=True),
+    never the plain Log widget (which leaks raw [tags] through)."""
     src = inspect.getsource(tui)
-    assert "RichLog" in src, "tui.py must import RichLog to render markup correctly"
-    assert "from textual.widgets import (" in src
-    # Direct grep on the import block: Log should not appear as a bare widget name.
-    import_match = inspect.getsource(tui).split("from textual.widgets import (", 1)[1]
-    import_block = import_match.split(")", 1)[0]
-    assert "Log" not in import_block.replace("RichLog", ""), (
-        "tui.py still imports the markup-unaware Log widget"
-    )
+    assert "RichLog" in src, "tui.py must use RichLog to render markup correctly"
+    # The plain `Log` widget (markup-unaware) must never appear as a bare name.
+    # RichLog contains "Log" as a substring, so strip it before checking.
+    src_without_richlog = src.replace("RichLog", "")
+    assert " Log" not in src_without_richlog, "tui.py still references the markup-unaware Log widget"
+    assert "\nLog" not in src_without_richlog, "tui.py still references the markup-unaware Log widget"
 
 
 def test_tui_log_helper_targets_richlog():

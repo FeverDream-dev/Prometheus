@@ -437,24 +437,53 @@ def tui(
     bundle: Path | None = typer.Option(None, "--bundle", exists=True, readable=True),
     workspace: Path = typer.Option(Path.cwd(), exists=True, file_okay=False),
     no_animation: bool = typer.Option(False, "--no-animation", help="Skip the startup splash animation"),
+    demo: bool = typer.Option(
+        False, "--demo",
+        help="Run in fully-mocked demo mode (no Ollama, no cloud, no real state). For UI preview and tests.",
+    ),
+    screenshot: Path | None = typer.Option(
+        None, "--screenshot",
+        help="Export an SVG screenshot of the initial screen to PATH and exit (headless). Implies --no-animation.",
+    ),
+    screen: str | None = typer.Option(
+        None, "--screen",
+        help="Initial screen to show or screenshot: 'main' | 'setup' | 'help' | 'models' | 'sandbox' | ...",
+    ),
 ) -> None:
-    """Launch the interactive Textual TUI."""
+    """Launch the interactive Textual TUI (PROMETHEUS application shell)."""
     try:
-        from .splash import pick_size_for_terminal, play as play_splash, should_animate
         from .tui import launch_tui
     except ImportError:
         console.print("[red]Textual is not installed. Install with: pip install 'prometheus-local-agent[tui]'[/red]")
         raise typer.Exit(code=1)
+
     settings = load_settings()
     bundle_path = bundle or settings.bundle_file
-    if not bundle_path:
+    # Demo + screenshot modes never require a bundle (they don't execute objectives).
+    if not demo and screenshot is None and not bundle_path:
         console.print("[yellow]No bundle configured. Run 'prometheus setup' first.[/yellow]")
-        console.print("Or pass --bundle <path>")
+        console.print("Or pass --bundle <path>, or use --demo to preview the TUI.")
         raise typer.Exit(code=1)
-    disable_anim = no_animation or settings.reduced_motion
-    if should_animate(no_animation=disable_anim):
-        play_splash(pick_size_for_terminal(), duration_s=1.0, fps=12)
-    launch_tui(bundle_path=bundle_path, workspace=workspace, no_animation=disable_anim)
+
+    disable_anim = no_animation or settings.reduced_motion or screenshot is not None
+
+    # Skip splash in screenshot/demo/test modes — it blocks the headless driver.
+    if disable_anim is False:
+        try:
+            from .splash import pick_size_for_terminal, play as play_splash, should_animate
+            if should_animate(no_animation=disable_anim):
+                play_splash(pick_size_for_terminal(), duration_s=1.0, fps=12)
+        except Exception:
+            pass
+
+    launch_tui(
+        bundle_path=bundle_path,
+        workspace=workspace,
+        no_animation=disable_anim,
+        demo=demo,
+        screenshot_path=screenshot,
+        initial_screen=screen if screen and screen != "main" else None,
+    )
 
 
 @app.command()

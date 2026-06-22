@@ -1,0 +1,37 @@
+PROMETHEUS command palette
+
+Setup
+  /setup        first-run setup guide (hardware, bundle, configure)
+  /use          select the active package (/use <id>, e.g. /use spark-cpu-8gb)
+  /bundles      show model packages and active config
+  /provider     show configured providers
+  /models       show installed Ollama models
+  /doctor       hardware + Ollama service report
+
+Models & Coding
+  /mode         switch autonomy mode (/mode copilot|pilot|astronaut)
+  /modes        autonomy modes
+  /qualify      qualify the first installed model or a bundle (/qualify <id>)
+  /sessions     list recent coding sessions
+  /resume       resume a session (/resume <id>)
+  /memory       bounded project memory (/memory inspect|why|rebuild|export|reset)
+
+Safety
+  /sandbox      sandbox enforcement tier and policy status
+  /permissions  show autonomy mode and policy
+  /tools        list built-in tools
+  /mcp          show MCP server status
+
+Browser & Vision
+  /vision       vision element inspection (/vision inspect <selector>)
+  /astronaut    astronaut sentinel status (/astronaut start|pause|stop|report)
+  /assets       AssetForge local image generation (/assets generate <kind>)
+
+System
+  /telemetry    live CPU/RAM/GPU/disk/Ollama snapshot
+  /logo         show the PROMETHEUS brand mark
+  /diagnose     collect sanitized diagnostics (versions, errors, git, ollama)
+  /settings     show all editable settings and their current values
+  /help         show grouped command help
+  /clear        clear the log
+  /exit         exit the TUI

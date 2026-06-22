@@ -1,3 +1,16 @@
+"""PROMETHEUS TUI 2.0 — local-first coding agent application shell.
+
+OpenCode/Claude-Code/LazyGit-style chrome: persistent top brand header, left
+command rail, main work area, right inspector, bottom input, dense status bar.
+Slash commands push rich screens; the setup wizard and command palette are
+modal overlays. Demo mode renders fully-mocked state for preview and tests.
+
+The raw-markup leak that plagued the previous TUI is fixed structurally: every
+markup-bearing widget is a ``Static`` (markup ON by default) or a ``RichLog``
+constructed with ``markup=True``. The ``tui_state.TuiSnapshot`` dataclass is
+the single read-only contract for all displayed values, so probes never crash
+the UI and demo mode is a drop-in replacement.
+"""
 from __future__ import annotations
 
 import os
@@ -5,40 +18,35 @@ import queue
 import threading
 from pathlib import Path
 
-from rich.text import Text
 from textual.app import App, ComposeResult
 from textual.binding import Binding
-from textual.containers import Horizontal, Vertical
+from textual.containers import Horizontal, VerticalScroll
 from textual.reactive import reactive
-from textual.widgets import (
-    Footer,
-    Header,
-    Input,
-    RichLog,
-    Static,
-)
+from textual.widgets import Footer, Input, RichLog, Static
 
-from .config import ensure_home, load_bundle, load_settings
-from .hardware import detect_hardware
+from .config import ensure_home, load_bundle, load_settings, save_settings
 from .models import Risk, ToolCall
 from .orchestrator import Orchestrator
 from .session import SessionStore
+from .tui_state import TuiSnapshot, collect_demo_snapshot, collect_snapshot
+from .tui_theme import APP_CSS
+from .tui_widgets import (
+    BrandBadges,
+    BrandHeader,
+    CommandRail,
+    DemoRibbon,
+    InspectorPanel,
+    NextAction,
+    SectionTitle,
+    StatusBar,
+)
 
-BUNDLES_DIR = Path(__file__).resolve().parent.parent.parent / "config" / "bundles"
-TELEMETRY_REFRESH_S = 1.5
+TELEMETRY_REFRESH_S = 2.0
 
 
-class StatusBar(Static):
-    mode: reactive[str] = reactive("pilot")
-    completion: reactive[float] = reactive(0.0)
-    status: reactive[str] = reactive("idle")
-
-    def render(self) -> Text:
-        return Text(
-            f" Mode: {self.mode}  |  Completion: {self.completion:.0f}%  |  Status: {self.status} ",
-            style="bold white on #1f6f8c",
-        )
-
+# ---------------------------------------------------------------------------
+# Inline approval prompt for risky tool calls (preserved from v1)
+# ---------------------------------------------------------------------------
 
 class ApprovalPrompt(Static):
     def __init__(self) -> None:
@@ -67,76 +75,27 @@ def _env_truthy(name: str) -> bool:
     return os.environ.get(name, "").strip().lower() in ("1", "true", "yes", "on")
 
 
-class PrometheusApp(App):
-    CSS = """
-    Screen {
-        layout: vertical;
-        background: #0e0f13;
-    }
-    Header {
-        background: #1f6f8c 70%;
-    }
-    #workspace {
-        height: 1fr;
-        layout: horizontal;
-    }
-    .sidebar {
-        background: #14161c;
-        border: solid #2a2e3a;
-        padding: 0 1;
-        overflow: auto auto;
-        color: #cfd3dc;
-    }
-    #sidebar-left {
-        width: 22;
-        min-width: 18;
-    }
-    #telemetry-right {
-        width: 30;
-        min-width: 24;
-    }
-    #main-center {
-        width: 1fr;
-        layout: vertical;
-    }
-    #hardware-panel {
-        height: auto;
-        padding: 0 1;
-        background: #14161c;
-        border: solid #2a2e3a;
-        margin-bottom: 0;
-        color: #e2e5ea;
-    }
-    #log-panel {
-        height: 1fr;
-        border: solid #2a2e3a;
-        padding: 0 1;
-        background: #0e0f13;
-        margin-bottom: 0;
-    }
-    #approval-panel {
-        height: auto;
-        padding: 0 1;
-        background: #3a2a00;
-        border: solid #ffcf5c;
-    }
-    #input-bar {
-        height: 3;
-        dock: bottom;
-        background: #14161c;
-        border: solid #2a2e3a;
-    }
-    StatusBar {
-        dock: bottom;
-        height: 1;
-    }
-    """
+# ---------------------------------------------------------------------------
+# Main application
+# ---------------------------------------------------------------------------
 
+class PrometheusApp(App):
+    """The PROMETHEUS application shell."""
+
+    CSS = APP_CSS
+
+    # App-level keybindings. Per-screen bindings live on the Screen subclasses.
     BINDINGS = [
-        Binding("q", "quit", "Quit"),
-        Binding("y", "approve", "Approve"),
-        Binding("n", "deny", "Deny"),
+        Binding("ctrl+p", "command_palette", "Commands", show=True),
+        Binding("ctrl+b", "toggle_sidebar", "Sidebar", show=True),
+        Binding("ctrl+i", "toggle_inspector", "Inspector", show=True),
+        Binding("ctrl+l", "clear_transcript", "Clear", show=False),
+        Binding("ctrl+q", "quit", "Quit", show=False),
     ]
+
+    # Whether the builtin Ctrl+P command palette is enabled. We provide our own
+    # richer palette via tui_screens.CommandPaletteScreen, so disable the builtin.
+    ENABLE_COMMAND_PALETTE = False
 
     completion: reactive[float] = reactive(0.0)
     status: reactive[str] = reactive("idle")
@@ -146,254 +105,265 @@ class PrometheusApp(App):
         bundle_path: Path | None = None,
         workspace: Path | None = None,
         no_animation: bool = False,
+        demo: bool = False,
+        initial_screen: str | None = None,
     ):
         super().__init__()
         self.bundle_path = bundle_path
         self.workspace = workspace or Path.cwd()
         self.no_animation = no_animation
+        self.demo = demo
+        self.initial_screen = initial_screen
         self._approval = ApprovalPrompt()
         self._session_id: str | None = None
         self._store: SessionStore | None = None
+        self._snapshot: TuiSnapshot | None = None
+
+    # ------------------------------------------------------------------
+    # Compose the shell
+    # ------------------------------------------------------------------
 
     def compose(self) -> ComposeResult:
-        yield Header()
+        # Top brand header (replaces built-in Header)
+        with Horizontal(id="brand-header"):
+            yield BrandHeader(id="brand-mark")
+            yield BrandBadges(id="brand-badges")
+        yield DemoRibbon(id="demo-ribbon")
+
+        # 3-column workspace
         with Horizontal(id="workspace"):
-            yield Vertical(id="sidebar-left", classes="sidebar")
-            with Vertical(id="main-center"):
-                yield Static(id="hardware-panel")
-                yield RichLog(id="log-panel")
-                yield self._approval
-            yield Vertical(id="telemetry-right", classes="sidebar")
+            yield CommandRail(id="sidebar", markup=True)
+            with VerticalScroll(id="main"):
+                yield SectionTitle(Static("[section]OBJECTIVE[/]", id="obj-title"),
+                                   classes="section-title")
+                yield Static(
+                    "Ask PROMETHEUS to build, fix, test, explain, or inspect this project…",
+                    id="obj-body", classes="section-body", markup=True,
+                )
+                yield SectionTitle(Static("[section]PLAN[/]", id="plan-title"),
+                                   classes="section-title")
+                yield Static(
+                    "[dim]No active plan. Type an objective to draft one.[/]",
+                    id="plan-body", classes="section-body", markup=True,
+                )
+                yield SectionTitle(Static("[section]ACTIVITY[/]", id="act-title"),
+                                   classes="section-title")
+                yield RichLog(id="transcript", markup=True, highlight=False, wrap=True)
+                yield SectionTitle(Static("[section]RECENT FILES[/]", id="files-title"),
+                                   classes="section-title")
+                yield Static("[dim]—[/]", id="files-body", classes="section-body", markup=True)
+                yield NextAction("", id="next-action", markup=True)
+            yield InspectorPanel(id="inspector", markup=True)
+
+        # Bottom: input + status + footer
         yield Input(
-            placeholder="Enter an objective or /command and press Enter…",
-            id="input-bar",
+            placeholder="Ask PROMETHEUS to build, fix, test, explain, or inspect this project…  (/"
+            " for commands, Ctrl+P for palette)",
+            id="cmd-input",
         )
-        yield StatusBar()
+        yield StatusBar(id="status-bar", markup=True)
         yield Footer()
 
-    def on_mount(self) -> None:
-        from . import tui_commands
+    # ------------------------------------------------------------------
+    # Mount: load snapshot, render, wire telemetry
+    # ------------------------------------------------------------------
 
-        self._render_sidebar()
-        self._render_hardware()
-        for line in tui_commands.first_run_banner(load_settings()):
-            self._log(line)
-        self._refresh_telemetry()
+    async def on_mount(self) -> None:
+        self._snapshot = self._collect_snapshot()
+        self._refresh_all(self._snapshot)
+        self._apply_responsive_layout()
         self.status = "ready"
-        settings = load_settings()
-        if settings.tui_telemetry_panel:
-            self.set_interval(TELEMETRY_REFRESH_S, self._refresh_telemetry)
+        if self._snapshot.is_demo:
+            self._log("[gold]DEMO MODE[/] — mocked data. Type /help or Ctrl+P.")
+        else:
+            from . import tui_commands
+            for line in tui_commands.first_run_banner(load_settings()):
+                # Render via RichLog with markup=True so the brackets don't leak.
+                self._log(line)
+        # Push initial screen if requested (e.g. --screen setup).
+        if self.initial_screen:
+            cmd = self.initial_screen if self.initial_screen.startswith("/") else f"/{self.initial_screen}"
+            self._dispatch_slash_text(cmd)
+        # Periodic telemetry refresh (only in real mode — demo is static).
+        if not self._snapshot.is_demo:
+            try:
+                if load_settings().tui_telemetry_panel:
+                    self.set_interval(TELEMETRY_REFRESH_S, self._tick_telemetry)
+            except Exception:
+                pass
 
-    def _render_sidebar(self) -> None:
-        from . import tui_commands
+    # ------------------------------------------------------------------
+    # Snapshot collection
+    # ------------------------------------------------------------------
 
-        lines: list[str] = ["[bold cyan]Commands[/bold cyan]", ""]
-        for cmd, desc in tui_commands.SLASH_COMMANDS.items():
-            lines.append(f"[bold]{cmd}[/bold]")
-            if len(desc) > 22:
-                lines.append(f"  [dim]{desc[:21]}…[/dim]")
-            else:
-                lines.append(f"  [dim]{desc}[/dim]")
-        lines.extend(["", "[dim]Ctrl+C / q to exit[/dim]"])
-        widget = self.query_one("#sidebar-left", Static)
-        widget.update("\n".join(lines))
-        if self.size.width < 90:
-            widget.styles.display = False
+    def _collect_snapshot(self) -> TuiSnapshot:
+        if self.demo:
+            return collect_demo_snapshot(self.workspace)
+        return collect_snapshot(self.workspace)
 
-    def _render_hardware(self) -> None:
-        report = detect_hardware()
-        settings = load_settings()
-        bundle_id = settings.active_bundle_id or "(none — /setup)"
-        provider = "ollama-only" if settings.local_only else "ollama + cloud-capable"
-        mode = settings.mode.value
-        lines = [
-            "[bold cyan]PROMETHEUS[/bold cyan] · [dim]local-first coding agent[/dim]",
-            f"project: [bold]{self.workspace.name}[/bold]  ·  mode: [bold]{mode}[/bold]"
-            f"  ·  provider: {provider}",
-            f"bundle: [bold]{bundle_id}[/bold]"
-            f"  ·  GPU: {report.gpu_name or 'CPU mode'}"
-            f"  ·  RAM: {report.ram_gb:.0f} GB",
-        ]
-        self.query_one("#hardware-panel", Static).update("\n".join(lines))
+    def _refresh_all(self, snap: TuiSnapshot) -> None:
+        """Push snapshot into every chrome widget."""
+        self.query_one("#brand-mark", BrandHeader).update_snapshot(snap)
+        self.query_one("#brand-badges", BrandBadges).update_snapshot(snap)
+        self.query_one("#demo-ribbon", DemoRibbon).update_snapshot(snap)
+        self.query_one("#sidebar", CommandRail).update_snapshot(snap)
+        self.query_one("#inspector", InspectorPanel).update_snapshot(snap)
+        self.query_one("#status-bar", StatusBar).update_snapshot(snap)
+        # Recent files panel
+        files = snap.recent_files or [c for c in snap.git.recent_commits[:3]]
+        files_widget = self.query_one("#files-body", Static)
+        if files:
+            body = "\n".join(f"[dim]•[/] {f}" for f in files[:8])
+        else:
+            body = "[dim]no recent changes[/]"
+        files_widget.update(body)
+        # Next-action hint
+        self.query_one("#next-action", NextAction).update(
+            f"[k]next[/] [v]{snap.next_action}[/]"
+        )
 
-    def _refresh_telemetry(self) -> None:
+    def _tick_telemetry(self) -> None:
+        """Re-read live state and refresh widgets. Cheap; runs on interval."""
         try:
-            widget = self.query_one("#telemetry-right", Static)
+            snap = collect_snapshot(self.workspace)
+            self._snapshot = snap
+            self._refresh_all(snap)
         except Exception:
-            return
-        if self.size.width < 110:
-            widget.styles.display = False
-            return
-        widget.styles.display = True
-        try:
-            from .telemetry import collect_snapshot, render_telemetry_lines
+            pass  # never crash the UI from a telemetry tick
 
-            snapshot = collect_snapshot(
-                workspace=str(self.workspace), gpu_timeout_s=1.0, cpu_interval_s=0.0,
-            )
-            compact = render_telemetry_lines(snapshot)[:14]
-            widget.update("\n".join(compact))
-        except Exception as exc:
-            widget.update(f"[dim]telemetry error: {str(exc)[:80]}[/dim]")
+    # ------------------------------------------------------------------
+    # Transcript log (markup-safe)
+    # ------------------------------------------------------------------
 
     def _log(self, message: str) -> None:
-        self.query_one("#log-panel", RichLog).write(message)
+        try:
+            self.query_one("#transcript", RichLog).write(message)
+        except Exception:
+            pass
+
+    # ------------------------------------------------------------------
+    # Input handling
+    # ------------------------------------------------------------------
 
     def on_input_submitted(self, event: Input.Submitted) -> None:
-        text = event.value.strip()
+        text = (event.value or "").strip()
         if not text:
             return
-
         if self._approval.visible:
             return
 
+        # Approval-flow shortcuts (preserved from v1)
         if text.lower() in {"y", "yes"}:
             self._approval.respond(True)
-            self._log("[green]Approved[/green]")
+            self._log("[ok]Approved[/]")
             return
         if text.lower() in {"n", "no"}:
             self._approval.respond(False)
-            self._log("[red]Denied[/red]")
+            self._log("[err]Denied[/]")
             return
 
         if text.startswith("/"):
             event.input.value = ""
-            self._handle_slash(text)
+            self._dispatch_slash_text(text)
             return
 
-        self._run_objective(text)
+        # Echo the objective into the transcript and run.
+        self._log(f"[gold]▸[/] {text}")
         event.input.value = ""
+        self._run_objective(text)
 
-    def _handle_slash(self, text: str) -> None:
-        from . import tui_commands
-        from .bundles import classify_registry, load_registry
-        from .hardware import detect_hardware
-        from .onboarding import check_ollama
+    def _dispatch_slash_text(self, text: str) -> None:
+        """Route a /command to a screen push or an inline handler."""
+        from . import tui_screens
 
         parts = text.split()
         cmd = parts[0].lower()
-        log = self.query_one("#log-panel", RichLog)
+        rest = " ".join(parts[1:])
 
-        def _emit(lines):
-            for line in lines:
-                log.write(line)
-
-        if cmd in ("/help", "/?"):
-            _emit(tui_commands.help_lines())
-            return
-        if cmd == "/clear":
-            log.clear()
-            return
-        if cmd in ("/doctor", "/models", "/modes", "/tools", "/mcp", "/provider", "/providers", "/permissions", "/sessions", "/telemetry", "/logo", "/diagnose"):
-            if cmd == "/doctor":
-                _emit(tui_commands.doctor_lines(detect_hardware(), check_ollama()))
-            elif cmd == "/models":
-                _emit(tui_commands.models_lines(check_ollama()))
-            elif cmd == "/modes":
-                _emit(tui_commands.modes_lines())
-            elif cmd == "/tools":
-                _emit(tui_commands.tools_lines())
-            elif cmd == "/mcp":
-                _emit(tui_commands.mcp_lines())
-            elif cmd in ("/provider", "/providers"):
-                _emit(tui_commands.provider_lines(load_settings()))
-            elif cmd == "/permissions":
-                _emit(tui_commands.permissions_lines(load_settings()))
-            elif cmd == "/telemetry":
-                _emit(tui_commands.telemetry_lines())
-            elif cmd == "/logo":
-                _emit(tui_commands.logo_lines())
-            elif cmd == "/diagnose":
-                _emit(tui_commands.diagnose_lines())
-            else:
-                _emit(tui_commands.sessions_lines())
-            return
-        if cmd in ("/settings", "/bundles"):
-            ollama = check_ollama()
-            classified = classify_registry(load_registry(), detect_hardware(), ollama.models)
-            _emit(tui_commands.settings_lines(load_settings(), classified, ollama.models))
-            return
-        if cmd == "/mode":
-            _emit(tui_commands.mode_switch_lines(load_settings(), parts[1] if len(parts) > 1 else ""))
-            return
-        if cmd == "/resume":
-            _emit(tui_commands.resume_lines(parts[1] if len(parts) > 1 else ""))
-            return
+        # Inline handlers first (these mutate state, not just display).
         if cmd in ("/exit", "/quit"):
             self.exit()
             return
-        if cmd == "/qualify":
-            self.run_worker(self._run_qualify, parts[1] if len(parts) > 1 else None)
+        if cmd == "/clear":
+            try:
+                self.query_one("#transcript", RichLog).clear()
+            except Exception:
+                pass
+            self._log("[dim]transcript cleared[/]")
+            return
+        if cmd == "/mode":
+            self._inline_mode_switch(rest)
             return
         if cmd == "/use":
-            if len(parts) < 2:
-                _emit(["[yellow]Usage:[/yellow] /use <bundle-id>  (e.g. /use spark-cpu-8gb)"])
-                return
-            self.run_worker(self._run_use, parts[1])
+            self.run_worker(self._run_use, rest)
             return
-        if cmd == "/memory":
-            self.run_worker(self._run_memory, parts[1] if len(parts) > 1 else "status",
-                            parts[2] if len(parts) > 2 else None)
+        if cmd == "/qualify":
+            self.run_worker(self._run_qualify, rest or None)
             return
-        if cmd == "/sandbox":
-            _emit(tui_commands.sandbox_lines())
+        if cmd == "/resume":
+            self._inline_resume(rest)
             return
-        if cmd == "/vision":
-            _emit(tui_commands.vision_lines())
+        if cmd == "/memory" and rest:
+            self.run_worker(
+                self._run_memory,
+                (rest.split()[0] if rest else "status"),
+                (rest.split()[1] if len(rest.split()) > 1 else None),
+            )
             return
-        if cmd == "/assets":
-            _emit(tui_commands.assets_lines())
+        if cmd == "/build" and rest:
+            self._run_objective(rest)
             return
-        if cmd == "/astronaut":
-            _emit(tui_commands.astronaut_lines(self.workspace))
-            return
-        if cmd == "/setup":
-            ollama = check_ollama()
-            classified = classify_registry(load_registry(), detect_hardware(), ollama.models)
-            _emit(tui_commands.setup_lines(load_settings(), classified))
-            return
-        _emit(tui_commands.unknown_command_lines(cmd))
 
-    def _run_memory(self, action: str, arg: str | None) -> None:
-        from .memory import ProjectMemoryStore
+        handled = tui_screens.dispatch_slash(self, cmd, self._snapshot, rest)
+        if not handled:
+            self._log(f"[warn]Unknown command:[/] [gold]{cmd}[/]  (try /help)")
 
-        def emit(line: str) -> None:
-            self.call_from_thread(self._log, line)
+    # ------------------------------------------------------------------
+    # Inline command implementations
+    # ------------------------------------------------------------------
 
-        store = ProjectMemoryStore(self.workspace)
-        if action == "status":
-            st = store.status()
-            emit(f"Working memory: {'OK' if st.ok else 'NOT OK'} — {st.word_count}/{st.limit} words "
-                 f"(v{st.version}){' [recovered]' if st.recovered else ''}")
-        elif action == "inspect":
-            facts = store.list_facts()
-            emit(f"Tasks: {len(store.get_tasks())} · Decisions: {len(store.list_decisions())} · Facts: {len(facts)}")
-            for f in facts[-8:]:
-                emit(f"  ({f.confidence.value}/{f.provenance.source}) {f.summary}")
-        elif action == "why" and arg:
-            fact = store.why(arg)
-            emit(f"{fact.summary} — {fact.confidence.value}/{fact.provenance.source}" if fact else f"no fact '{arg}'")
-        elif action == "rebuild":
-            st = store.rebuild()
-            emit(f"Rebuilt: v{st.version}, {st.word_count} words")
-        else:
-            emit(f"/memory {action} — use: status|inspect|why <id>|rebuild|export|reset")
+    def _inline_mode_switch(self, arg: str) -> None:
+        from .models import AutonomyMode
+        arg = arg.strip().lower()
+        valid = {m.value for m in AutonomyMode}
+        if arg not in valid:
+            self._log(
+                f"[warn]Unknown mode '{arg}'.[/] Use one of: [gold]{', '.join(sorted(valid))}[/]"
+            )
+            return
+        settings = load_settings()
+        settings.mode = AutonomyMode(arg)
+        save_settings(settings)
+        self._log(f"[ok]Mode →[/] [gold]{arg}[/]. Saved to ~/.prometheus/config.yaml")
+        # Refresh chrome so the new mode shows in header/status.
+        if self._snapshot is not None:
+            self._snapshot.mode = arg
+            self._refresh_all(self._snapshot)
+
+    def _inline_resume(self, session_id: str) -> None:
+        sid = (session_id or "").strip()
+        if not sid:
+            self._log("[warn]/resume needs a session id.[/] Try /sessions.")
+            return
+        self._log(f"[dim]Resume in a terminal:[/] prometheus resume {sid}")
+
+    # ------------------------------------------------------------------
+    # Worker-bound inline commands (bundle/memory/qualify)
+    # ------------------------------------------------------------------
 
     def _run_use(self, bundle_id: str) -> None:
         import yaml
-
         from .bundles import find_bundle, load_registry
-        from .config import ensure_home, save_settings
 
         def emit(line: str) -> None:
             self.call_from_thread(self._log, line)
 
         match = find_bundle(bundle_id, load_registry())
         if match is None:
-            emit(f"[red]No package '{bundle_id}'.[/red]")
+            emit(f"[err]No package '{bundle_id}'.[/]")
             return
         if match.is_add_on:
-            emit(f"[red]'{bundle_id}' is an add-on; cannot be the active package.[/red]")
+            emit(f"[err]'{bundle_id}' is an add-on; cannot be active.[/]")
             return
         settings = load_settings()
         home = ensure_home()
@@ -408,7 +378,42 @@ class PrometheusApp(App):
         settings.bundle_file = active_path
         save_settings(settings)
         self.bundle_path = active_path
-        emit(f"[green]Active package:[/green] {match.name} ({match.id}) — controller {match.controller_spec().model}")
+        emit(f"[ok]Active package:[/] [gold]{match.name}[/] ({match.id})")
+        # Refresh snapshot + chrome so the new bundle shows immediately.
+        if not self.demo:
+            self.call_from_thread(self._tick_telemetry)
+
+    def _run_memory(self, action: str, arg: str | None) -> None:
+        from .memory import ProjectMemoryStore
+
+        def emit(line: str) -> None:
+            self.call_from_thread(self._log, line)
+
+        store = ProjectMemoryStore(self.workspace)
+        if action == "status":
+            st = store.status()
+            emit(
+                f"Working memory: {'OK' if st.ok else 'OVERSIZE'} — "
+                f"{st.word_count}/{st.limit} words (v{st.version})"
+                f"{' [recovered]' if st.recovered else ''}"
+            )
+        elif action == "inspect":
+            facts = store.list_facts()
+            emit(
+                f"Tasks: {len(store.get_tasks())} · Decisions: {len(store.list_decisions())}"
+                f" · Facts: {len(facts)}"
+            )
+            for f in facts[-8:]:
+                emit(f"  ({f.confidence.value}/{f.provenance.source}) {f.summary}")
+        elif action == "why" and arg:
+            fact = store.why(arg)
+            emit(f"{fact.summary} — {fact.confidence.value}/{fact.provenance.source}"
+                 if fact else f"no fact '{arg}'")
+        elif action == "rebuild":
+            st = store.rebuild()
+            emit(f"Rebuilt: v{st.version}, {st.word_count} words")
+        else:
+            emit("/memory status|inspect|why <id>|rebuild|export|reset")
 
     def _run_qualify(self, bundle_id: str | None) -> None:
         from .bundles import load_registry
@@ -419,58 +424,54 @@ class PrometheusApp(App):
             self.call_from_thread(self._log, line)
 
         if not check_ollama().running:
-            emit("[red]Ollama service is not running.[/red]")
+            emit("[err]Ollama service is not running.[/]")
             return
         if bundle_id:
-            registry = load_registry()
-            target = next((b for b in registry if b.id == bundle_id), None)
+            target = next((b for b in load_registry() if b.id == bundle_id), None)
             if target is None:
-                emit(f"[red]No bundle '{bundle_id}'.[/red]")
+                emit(f"[err]No bundle '{bundle_id}'.[/]")
                 return
-            emit(f"Qualifying [bold]{target.id}[/bold] (controller {target.controller_spec().model})…")
+            emit(f"Qualifying [gold]{target.id}[/]…")
             report = qualify_bundle(target)
         else:
             ollama = check_ollama()
             if not ollama.models:
-                emit("[red]No installed models to qualify.[/red]")
+                emit("[err]No installed models to qualify.[/]")
                 return
             model = ollama.models[0]
-            emit(f"Qualifying model [bold]{model}[/bold]…")
+            emit(f"Qualifying [gold]{model}[/]…")
             report = qualify_model(model)
         for r in report.results:
-            mark = "[green]PASS[/green]" if r.passed else "[red]FAIL[/red]"
+            mark = "[ok]PASS[/]" if r.passed else "[err]FAIL[/]"
             emit(f"  {mark} {r.name} — {r.detail}")
         verdict = "QUALIFIED" if report.passed else "PARTIAL"
-        emit(f"[bold]{verdict}[/bold]: {report.passed_count}/{len(report.results)}")
+        emit(f"[gold]{verdict}[/]: {report.passed_count}/{len(report.results)}")
 
-    def action_approve(self) -> None:
-        if self._approval.visible:
-            self._approval.respond(True)
-            self._log("[green]Approved (y)[/green]")
-
-    def action_deny(self) -> None:
-        if self._approval.visible:
-            self._approval.respond(False)
-            self._log("[red]Denied (n)[/red]")
+    # ------------------------------------------------------------------
+    # Objective execution (preserved threading + approval flow)
+    # ------------------------------------------------------------------
 
     def _run_objective(self, objective: str) -> None:
-        if not self.bundle_path:
-            self._log("[red]No bundle configured. Run: prometheus setup[/red]")
+        if not self.bundle_path and not self.demo:
+            self._log("[err]No bundle configured.[/] Run [gold]/setup[/] or [gold]prometheus setup[/].")
+            return
+        if self.demo:
+            self._log("[dim](demo mode — objective would be sent to the orchestrator)[/]")
+            self._log(f"[gold]▸ {objective}[/]")
             return
         settings = load_settings()
         settings.workspace = self.workspace.resolve()
         home = ensure_home()
         self._store = SessionStore(home / "sessions" / "prometheus.db")
         bundle = load_bundle(self.bundle_path)
-        self._log(f"[cyan]Starting: {objective}[/cyan]")
-        self._log(f"Bundle: {bundle.name} | Mode: {settings.mode.value}")
+        self._log(f"[info]Bundle:[/] {bundle.name}  [info]Mode:[/] {settings.mode.value}")
         self.status = "running"
         self.run_worker(self._orchestrate, objective, settings, bundle)
 
     def run_worker(self, fn, *args) -> None:
         thread = threading.Thread(target=fn, args=args, daemon=True)
         thread.start()
-        self.set_interval(0.1, self._poll_approvals)
+        self.set_interval(0.2, self._poll_approvals)
 
     def _poll_approvals(self) -> None:
         pending = self._approval.pop_pending()
@@ -479,9 +480,11 @@ class PrometheusApp(App):
             self._approval.visible = True
             self.call_from_thread(
                 self._approval.update,
-                f"[bold]{risk.value.upper()}[/bold] approval needed:\n"
-                f"Tool: {call.tool}\nArgs: {call.arguments}\nReason: {call.reason}\n"
-                f"Press [bold]y[/bold] to approve or [bold]n[/bold] to deny.",
+                f"[warn]{risk.value.upper()}[/] approval needed:\n"
+                f"[k]Tool[/] [v]{call.tool}[/]\n"
+                f"[k]Args[/] [v]{call.arguments}[/]\n"
+                f"[k]Reason[/] [v]{call.reason}[/]\n"
+                f"[dim]Press [gold]y[/] to approve or [err]n[/] to deny.[/]",
             )
 
     def _orchestrate(self, objective: str, settings, bundle) -> None:
@@ -498,43 +501,142 @@ class PrometheusApp(App):
             result = orchestrator.run(objective, on_update=on_update)
             self.call_from_thread(self._on_complete, result)
         except Exception as exc:
-            self.call_from_thread(self._log, f"[red]ERROR: {exc}[/red]")
+            self.call_from_thread(self._log, f"[err]ERROR:[/] {exc}")
             self.call_from_thread(self._set_error_status)
 
     def _set_error_status(self) -> None:
         self.status = "error"
 
     def _on_complete(self, result) -> None:
-        self._log(f"\n[bold {'green' if result.status == 'complete' else 'yellow'}]"
-                  f"{result.status.upper()} — {result.completion_percent}%[/bold {'green' if result.status == 'complete' else 'yellow'}]")
-        self._log(result.message)
+        color = "ok" if result.status == "complete" else "warn"
+        self._log(f"\n[{color}]{result.status.upper()} — {result.completion_percent}%[/]")
+        if result.message:
+            self._log(result.message)
         self.completion = result.completion_percent
         self.status = result.status
         if self._store:
             self._store.close()
 
+    # ------------------------------------------------------------------
+    # Reactive watchers — keep StatusBar in sync
+    # ------------------------------------------------------------------
+
     def watch_completion(self, value: float) -> None:
-        try:
-            bar = self.query_one(StatusBar)
-            bar.completion = value
-        except Exception:
-            pass
+        pass  # status bar reads from snapshot
 
     def watch_status(self, value: str) -> None:
+        pass  # status bar reads from snapshot
+
+    # ------------------------------------------------------------------
+    # Responsive layout — collapse rails at narrow widths.
+    # textual 1.0.0 has no HORIZONTAL_BREAKPOINTS, so we watch ``size``.
+    # ------------------------------------------------------------------
+
+    def watch_size(self, size) -> None:
+        self._apply_responsive_layout(size)
+
+    def _apply_responsive_layout(self, size=None) -> None:
         try:
-            bar = self.query_one(StatusBar)
-            bar.status = value
-            bar.mode = load_settings().mode.value
+            sidebar = self.query_one("#sidebar")
+            inspector = self.query_one("#inspector")
+        except Exception:
+            return
+        if size is None:
+            size = self.size
+        w = size.width if hasattr(size, "width") else size[0]
+        # At the minimum supported width (80 cols) and below, collapse both
+        # rails to give the main area full width. Inspector collapses earlier
+        # (under 100) since it's the lower-priority panel.
+        if w <= 80:
+            sidebar.styles.display = "none"
+            inspector.styles.display = "none"
+        elif w <= 100:
+            sidebar.styles.display = "block"
+            inspector.styles.display = "none"
+        else:
+            sidebar.styles.display = "block"
+            inspector.styles.display = "block"
+
+    # ------------------------------------------------------------------
+    # Bound actions
+    # ------------------------------------------------------------------
+
+    def action_command_palette(self) -> None:
+        """Open the rich command palette (overrides builtin)."""
+        from .tui_screens import CommandPaletteScreen
+        self.push_screen(CommandPaletteScreen(self._snapshot))
+
+    def action_toggle_sidebar(self) -> None:
+        try:
+            sb = self.query_one("#sidebar")
+            sb.styles.display = "none" if sb.styles.display != "none" else "block"
         except Exception:
             pass
 
+    def action_toggle_inspector(self) -> None:
+        try:
+            insp = self.query_one("#inspector")
+            insp.styles.display = "none" if insp.styles.display != "none" else "block"
+        except Exception:
+            pass
+
+    def action_clear_transcript(self) -> None:
+        try:
+            self.query_one("#transcript", RichLog).clear()
+        except Exception:
+            pass
+
+
+# ---------------------------------------------------------------------------
+# Launch entrypoint (called by cli.py)
+# ---------------------------------------------------------------------------
 
 def launch_tui(
     bundle_path: Path | None = None,
     workspace: Path | None = None,
     no_animation: bool = False,
+    demo: bool = False,
+    screenshot_path: Path | None = None,
+    initial_screen: str | None = None,
 ) -> None:
+    """Launch the PROMETHEUS TUI.
+
+    If ``screenshot_path`` is set the app runs headless, composes once, exports
+    an SVG, writes it to disk, and returns without entering the event loop.
+    """
     app = PrometheusApp(
-        bundle_path=bundle_path, workspace=workspace, no_animation=no_animation,
+        bundle_path=bundle_path,
+        workspace=workspace or Path.cwd(),
+        no_animation=no_animation,
+        demo=demo,
+        initial_screen=initial_screen,
     )
+
+    if screenshot_path is not None:
+        _export_screenshot(app, screenshot_path, initial_screen=initial_screen)
+        return
+
     app.run()
+
+
+def _export_screenshot(app: PrometheusApp, path: Path, initial_screen: str | None) -> None:
+    """Run the app headless, push the requested screen, export SVG to ``path``."""
+    import asyncio
+
+    async def _run() -> None:
+        async with app.run_test(headless=True, size=(120, 36)) as pilot:
+            # Allow one paint so the snapshot finishes loading.
+            await pilot.pause(0.05)
+            if initial_screen:
+                cmd = initial_screen if initial_screen.startswith("/") else f"/{initial_screen}"
+                # Dispatch and let the screen settle.
+                app._dispatch_slash_text(cmd)
+                await pilot.pause(0.05)
+            svg = app.export_screenshot(title=f"PROMETHEUS — {initial_screen or 'dashboard'}")
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_text(svg, encoding="utf-8")
+
+    asyncio.run(_run())
+
+
+__all__ = ["ApprovalPrompt", "PrometheusApp", "launch_tui"]

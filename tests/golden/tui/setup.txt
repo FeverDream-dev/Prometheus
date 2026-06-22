@@ -1,0 +1,66 @@
+Step 1 · Welcome
+  Welcome to PROMETHEUS
+  
+  A local-first, hardware-honest coding agent.
+  This wizard picks a model bundle that fits your machine,
+  checks Ollama, and gets you vibe-coding in under a minute.
+  
+  Next: detect your hardware.
+
+Step 2 · Hardware
+  OS      Linux x86_64
+  CPU     Demo CPU (8 cores)
+  RAM     32 GB
+  GPU     Demo GPU (mock)
+  VRAM    8 GB
+  Disk    180 GB free
+
+Step 3 · Ollama
+  Ollama
+    state:    running
+    models:   3 installed
+  
+  If not running, start it with:
+    ollama serve
+
+Step 4 · Recommended bundle
+  Recommended bundle
+  
+    ember-8gb
+  
+  Based on your detected hardware. You can confirm,
+  or browse alternatives in the next step.
+
+Step 5 · Confirm bundle
+  Available bundles
+  
+    spark-cpu-8gb          Spark — CPU / 8 GB
+    ember-8gb-gpu          Ember — 8 GB GPU
+    forge-12gb             Forge — 12 GB balanced
+    oracle-gemma4-12gb     Oracle — Gemma 4 multimodal
+    titan-24gb             Titan — 24 GB quality
+    hephaestus-code-24gb   Hephaestus — 24 GB coding team
+    vibethinker-review-addon VibeThinker — optional review add-on (add-on)
+    cloud-hybrid           Cloud-Hybrid — local-first with optional cloud fallback
+  
+  Type /use <id> to select one (in the main input).
+
+Step 6 · Pull / validate
+  Pull / validate
+  
+  Once you /use a bundle, PROMETHEUS will:
+    1. Verify each model is present in Ollama
+    2. Run a smoke test (chat + structured output)
+    3. Show qualification results inline
+  
+  Use /qualify <bundle-id> to qualify now.
+
+Step 7 · Start coding
+  Ready to code
+  
+  Type an objective and press Enter:
+    add JWT auth to /api/login with tests
+  
+  Or open the command palette with Ctrl+P.
+
+Interactive wizard: SetupWizard (pushed programmatically).
