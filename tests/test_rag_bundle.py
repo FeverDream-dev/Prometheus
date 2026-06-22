@@ -1,10 +1,9 @@
 from __future__ import annotations
 
-from pathlib import Path
 
 import pytest
 
-from prometheus_cli.rag import RagStore, RagStatus, RagResult
+from prometheus_cli.rag import RagStore
 
 
 @pytest.fixture

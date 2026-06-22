@@ -1,9 +1,7 @@
 from __future__ import annotations
 
-from pathlib import Path
 from unittest import mock
 
-import pytest
 
 from prometheus_cli.first_run import FirstRunState, detect_first_run
 from prometheus_cli.onboarding import OllamaStatus

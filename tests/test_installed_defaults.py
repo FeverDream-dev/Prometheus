@@ -1,13 +1,8 @@
 from __future__ import annotations
 
-import sys
-from pathlib import Path
 
-import pytest
 
 from prometheus_cli.resources import (
-    get_default_bundles_dir,
-    get_default_bundles_v1_dir,
     get_default_prompts_dir,
     get_default_schemas_dir,
     get_resource_root,

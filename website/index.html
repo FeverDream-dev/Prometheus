@@ -130,6 +130,7 @@
       </a>
       <nav class="top-nav" aria-label="Page sections">
         <a href="#packages">Models</a>
+          <a href="#bundleforge">BundleForge</a>
         <a href="#tui">TUI</a>
         <a href="#quota">Local vs cloud</a>
         <a href="#features">Features</a>
@@ -343,6 +344,36 @@ notepad install.ps1
             <li>Optional cost/token budgets can be set for cloud only.</li>
             <li>No silent cloud fallback when a local, privacy-only mode is active.</li>
           </ul>
+        </div>
+      </div>
+    </section>
+
+    <section id="bundleforge" class="features" aria-labelledby="bundleforge-title">
+      <div class="section-head">
+        <span class="eyebrow">BundleForge</span>
+        <h2 id="bundleforge-title">Create custom bundles for your use case</h2>
+        <p class="section-lead">
+          Ask PROMETHEUS in plain language what you want to build. BundleForge picks the right
+          models, validates licenses, checks hardware fit, and creates an installable bundle &mdash;
+          no YAML editing required.
+        </p>
+      </div>
+      <div class="feat-grid">
+        <div class="feat">
+          <h3><span class="num">01</span>Natural-language matching</h3>
+          <p><code>prometheus bundleforge recommend "I want to build a 2D game with sprites"</code> &mdash; deterministic keyword engine maps to the right template, checks hardware, and falls back to lighter alternatives when needed.</p>
+        </div>
+        <div class="feat">
+          <h3><span class="num">02</span>10 starter templates</h3>
+          <p>Web dev, game dev, RAG docs, WhatsApp MCP, QA browser vision, AssetForge icons, CPU-only emergency, cloud hybrid &mdash; each with roles, permissions, and honest license notes.</p>
+        </div>
+        <div class="feat">
+          <h3><span class="num">03</span>23-model catalog</h3>
+          <p>Coding, general, embeddings, and image-generation models with tracked licenses. Commercial-safe enforcement prevents non-commercial models (SDXL Turbo) from entering commercial bundles.</p>
+        </div>
+        <div class="feat">
+          <h3><span class="num">04</span>Local RAG + MCP starters</h3>
+          <p><code>prometheus rag init | ingest | query</code> for local document memory. MCP templates (<code>prometheus mcp templates</code>) with honest caveats &mdash; never claiming WhatsApp works without a real server.</p>
         </div>
       </div>
     </section>

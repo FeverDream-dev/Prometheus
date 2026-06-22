@@ -65,7 +65,6 @@ def install_template(template_id: str, mcp_config_path: Path) -> Path:
 
     mcp_config_path = Path(mcp_config_path)
     servers = get_template_server_configs(template_id)
-    template = load_template(template_id)
 
     data: dict = {"servers": []}
     if mcp_config_path.exists():

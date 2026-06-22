@@ -1198,12 +1198,12 @@ def mcp_template(
         console.print(template.description)
         if template.warning:
             console.print(f"\n[yellow]WARNING:[/yellow] {template.warning}")
-        console.print(f"\n[bold]Servers:[/bold]")
+        console.print("\n[bold]Servers:[/bold]")
         for s in template.servers:
             console.print(f"  {s.name}: {' '.join(s.command)}")
             console.print(f"    trust={s.trust_level} network={s.network_scope}")
         if template.setup_steps:
-            console.print(f"\n[bold]Setup steps:[/bold]")
+            console.print("\n[bold]Setup steps:[/bold]")
             for step in template.setup_steps:
                 console.print(f"  • {step}")
     elif action == "install":
@@ -1448,11 +1448,11 @@ def bundleforge_recommend(
     console.print(f"Confidence: {result.confidence:.0%}")
     console.print(f"\n[bold]Recommended: {result.bundle.name}[/bold] ({result.template_id})")
     console.print(f"  {result.bundle.description}")
-    console.print(f"\n[bold]Roles:[/bold]")
+    console.print("\n[bold]Roles:[/bold]")
     for role, spec in result.bundle.roles.items():
         console.print(f"  {role}: {spec.model}")
     if result.bundle.optional:
-        console.print(f"\n[bold]Optional:[/bold]")
+        console.print("\n[bold]Optional:[/bold]")
         for cap, model in result.bundle.optional.items():
             console.print(f"  {cap}: {model}")
     console.print(f"\n[bold]Requirements:[/bold] {result.bundle.requirements.min_ram_gb} GB RAM, "
@@ -1460,7 +1460,7 @@ def bundleforge_recommend(
     for reason in result.fit_reasons:
         console.print(f"  [dim]• {reason}[/dim]")
     if result.license_warnings:
-        console.print(f"\n[yellow]License warnings:[/yellow]")
+        console.print("\n[yellow]License warnings:[/yellow]")
         for w in result.license_warnings:
             console.print(f"  [yellow]• {w}[/yellow]")
     console.print(f"\n[dim]Install with: prometheus bundleforge create --template {result.template_id}[/dim]")
@@ -1540,17 +1540,17 @@ def bundleforge_inspect(
     console.print(bundle.description)
     console.print(f"version: {bundle.version} · use_case: {bundle.use_case}")
     console.print(f"commercial_safe: {bundle.commercial_safe}")
-    console.print(f"\n[bold]Roles:[/bold]")
+    console.print("\n[bold]Roles:[/bold]")
     for role, spec in bundle.roles.items():
         console.print(f"  {role}: {spec.model} ({spec.provider})")
     if bundle.optional:
-        console.print(f"\n[bold]Optional capabilities:[/bold]")
+        console.print("\n[bold]Optional capabilities:[/bold]")
         for cap, model in bundle.optional.items():
             console.print(f"  {cap}: {model}")
     console.print(f"\n[bold]Requirements:[/bold] {bundle.requirements.min_ram_gb} GB RAM, "
                   f"{bundle.requirements.min_vram_gb} GB VRAM, "
                   f"{bundle.requirements.min_disk_gb} GB disk")
-    console.print(f"\n[bold]Permissions:[/bold]")
+    console.print("\n[bold]Permissions:[/bold]")
     console.print(f"  network: {bundle.permissions.network}")
     console.print(f"  package_install: {bundle.permissions.package_install}")
     console.print(f"  browser: {bundle.permissions.browser}")

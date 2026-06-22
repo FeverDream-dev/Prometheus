@@ -6,7 +6,7 @@ from pathlib import Path
 import pytest
 
 from prometheus_cli.tui import PrometheusApp
-from prometheus_cli.tui_screens import SLASH_SCREEN_MAP, render_screen_text, strip_markup
+from prometheus_cli.tui_screens import SLASH_SCREEN_MAP, render_screen_text
 from prometheus_cli.tui_state import collect_demo_snapshot
 
 textual = pytest.importorskip("textual")

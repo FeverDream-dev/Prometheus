@@ -6,7 +6,7 @@ from pathlib import Path
 import pytest
 
 from prometheus_cli.tui import PrometheusApp
-from prometheus_cli.tui_state import collect_demo_snapshot, TuiSnapshot
+from prometheus_cli.tui_state import collect_demo_snapshot
 
 textual = pytest.importorskip("textual")
 

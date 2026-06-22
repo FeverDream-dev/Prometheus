@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import re
 from dataclasses import dataclass, field
 from pathlib import Path
 
@@ -161,7 +160,8 @@ def recommend(
 
 
 def search_bundles(query: str, catalog: ModelCatalog | None = None) -> list[dict]:
-    cat = catalog or load_catalog()
+    if catalog is None:
+        load_catalog()
     text = query.lower()
     results: list[dict] = []
     for template_id in list_templates():

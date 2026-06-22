@@ -6,7 +6,7 @@ from pathlib import Path
 import pytest
 
 from prometheus_cli.tui import PrometheusApp, _exit_after_render
-from prometheus_cli.tui_state import collect_demo_snapshot, TuiSnapshot
+from prometheus_cli.tui_state import collect_demo_snapshot
 
 textual = pytest.importorskip("textual")
 
@@ -30,7 +30,6 @@ class TestDemoModeLaunches:
             async with app.run_test(size=(120, 36)) as pilot:
                 await pilot.pause(0.12)
                 ribbon = app.query_one("#demo-ribbon")
-                from textual.widgets import Static
                 assert ribbon is not None
         _run(go())
 

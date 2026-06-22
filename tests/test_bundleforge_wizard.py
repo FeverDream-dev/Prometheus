@@ -1,12 +1,8 @@
 from __future__ import annotations
 
-from pathlib import Path
-from unittest import mock
 
-import pytest
 
 from prometheus_cli.bundleforge.wizard import WizardAnswers, run_wizard, save_bundle
-from prometheus_cli.bundleforge.schema import ForgeBundle
 from prometheus_cli.hardware import HardwareReport
 
 

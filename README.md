@@ -250,6 +250,42 @@ screenshots to `artifacts/tui/` covering every command screen, the palette,
 and 4 responsive sizes (80x24, 100x30, 120x36, 160x48). See
 [`docs/TUI_DESIGN.md`](docs/TUI_DESIGN.md) for the full design document.
 
+## BundleForge — custom bundles for any use case
+
+Ask PROMETHEUS what you want to build in plain language. BundleForge picks the
+right models, validates licenses, checks hardware fit, and creates an
+installable bundle — no YAML editing required.
+
+```bash
+prometheus bundleforge recommend "I want to build a 2D game with sprites"
+prometheus bundleforge recommend "I need RAG over company documents"
+prometheus bundleforge create --template game-dev-lite
+prometheus bundleforge install game-dev-lite
+```
+
+**10 starter templates**: webapp-local-lite, webapp-12gb-quality, game-dev-lite,
+game-dev-assetforge, whatsapp-mcp-assistant, rag-docs-local, qa-browser-vision,
+assetforge-icon-factory, cpu-only-emergency, cloud-hybrid-max.
+
+**23-model catalog** with tracked licenses and commercial-safe enforcement.
+
+**Local RAG**:
+```bash
+prometheus rag init
+prometheus rag ingest docs/
+prometheus rag query "How does this project work?"
+```
+
+**MCP templates**:
+```bash
+prometheus mcp templates
+prometheus mcp template inspect whatsapp-starter
+prometheus mcp template install whatsapp-starter
+```
+
+See [`docs/BUNDLEFORGE.md`](docs/BUNDLEFORGE.md) and
+[`docs/MODEL_CATALOG.md`](docs/MODEL_CATALOG.md) for full documentation.
+
 ## Model packages
 
 <p align="center">

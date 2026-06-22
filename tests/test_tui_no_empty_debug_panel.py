@@ -72,7 +72,7 @@ class TestScreensHaveContent:
     def test_screen_has_multiple_lines(self, cmd):
         snap = collect_demo_snapshot(Path("/tmp"))
         text = render_screen_text(cmd, snap)
-        lines = [l for l in text.split("\n") if l.strip()]
+        lines = [line for line in text.split("\n") if line.strip()]
         assert len(lines) >= MIN_LABELS, (
             f"{cmd} has only {len(lines)} non-empty lines (min {MIN_LABELS})"
         )

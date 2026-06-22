@@ -6,7 +6,6 @@ from prometheus_cli.bundleforge import (
     detect_capabilities,
     recommend,
     recommend_multi,
-    load_catalog,
 )
 from prometheus_cli.hardware import HardwareReport
 
@@ -65,7 +64,7 @@ class TestMcpRecommendation:
 
     def test_mcp_has_honest_caveat(self):
         result = recommend("I need WhatsApp MCP automation", hardware=_hw())
-        catalog = load_catalog()
+        
         for warning in result.license_warnings:
             assert isinstance(warning, str)
 
@@ -127,6 +126,7 @@ class TestCommercialSafeMatching:
 
     def test_assetforge_recommendation_is_commercial_safe(self):
         result = recommend("I need icon generation", hardware=_hw(ram=16, vram=8), commercial_safe_only=True)
+        from prometheus_cli.bundleforge import load_catalog
         catalog = load_catalog()
         for model_id in result.bundle.all_model_ids:
             entry = catalog.by_id(model_id)

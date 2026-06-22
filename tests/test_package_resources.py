@@ -1,12 +1,9 @@
 from __future__ import annotations
 
-from pathlib import Path
 
-import pytest
 
 from prometheus_cli.resources import (
     copy_default_user_config,
-    get_default_agents_dir,
     get_default_bundles_dir,
     get_default_bundles_v1_dir,
     get_default_config_path,

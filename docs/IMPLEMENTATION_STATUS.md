@@ -5,6 +5,38 @@ total weighted criteria**, never a model's opinion. A row is `passing` only when
 it has real code, a passing test, and CLI/runtime evidence. Mocked/skipped items
 are `placeholder`/`missing` and do not count.
 
+## Step 7 — Release, GitHub, and Real Local Validation
+
+v0.1.1 release candidate readiness verified. All fixes from Steps 1-6 are
+pushed to GitHub. The public install path produces working defaults, no raw
+markup, and BundleForge recommendations.
+
+| Criterion | Weight | Status | Evidence |
+|---|---|---|---|
+| Default bundles available after clean install | 5 | `passing` | `scripts/clean_install_defaults_smoke.sh` — 10 bundles, setup --dry-run OK |
+| Setup works (no "No bundles found") | 5 | `passing` | `scripts/v011_readiness_smoke.sh` step 13 — shows bundles |
+| TUI demo works (--exit-after-render) | 5 | `passing` | Exit code 0 |
+| No raw markup in TUI export | 5 | `passing` | 36 SVG files, grep finds zero `[bold]`/`[yellow]`/`[/]` |
+| BundleForge recommends bundles | 5 | `passing` | Game → game_development, RAG → rag_documents |
+| Tests pass (1492 passed, 5 skipped) | 5 | `passing` | `scripts/v011_readiness_smoke.sh` step 2 |
+| Ruff lint clean | 3 | `passing` | `ruff check src tests` → All checks passed |
+| Wheel + sdist build | 3 | `passing` | `python -m build` succeeds with resources |
+| CI workflow has all required gates | 3 | `passing` | `.github/workflows/ci.yml` — 7 jobs: lint, test, package-resources, tui-no-markup, bundleforge, clean-install-smoke, test-wsl |
+| v0.1.1 readiness smoke script | 3 | `passing` | `scripts/v011_readiness_smoke.sh` — 15 checks |
+| Website shows BundleForge | 2 | `passing` | `website/index.html` — dedicated section + nav link |
+| README mentions BundleForge | 2 | `passing` | BundleForge section with CLI examples |
+| Full suite: 1492 passed, 5 skipped, 0 regressions | 5 | `passing` | Final verification |
+
+Evidence:
+- `bash scripts/v011_readiness_smoke.sh` → 15 checks, all PASS
+- `prometheus setup --dry-run` → shows bundles (no dead-end)
+- `prometheus tui --demo --exit-after-render` → exit 0
+- `grep -R "\[bold\|\[/bold\|\[yellow\|\[/yellow\|\[/\]" artifacts/tui/` → no matches
+- `prometheus bundleforge recommend "I want to build a video game"` → game_development
+- `prometheus bundleforge recommend "I want RAG over company documents"` → rag_documents
+
+---
+
 ## Step 6 — RAG, MCP, and AssetForge Starter Packages
 
 Three capability families connected to BundleForge: local RAG document memory,

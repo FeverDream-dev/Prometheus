@@ -2,13 +2,13 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Callable
+from typing import Callable
 
 import yaml
 
 from ..hardware import HardwareReport, detect_hardware
 from .catalog import ModelCatalog, load_catalog
-from .recommend import list_templates, recommend
+from .recommend import recommend
 from .schema import ForgeBundle
 
 

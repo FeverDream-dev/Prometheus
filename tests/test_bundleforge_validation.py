@@ -1,13 +1,10 @@
 from __future__ import annotations
 
-from pathlib import Path
 
-import pytest
 import yaml
 
 from prometheus_cli.bundleforge.schema import ForgeBundle
 from prometheus_cli.bundleforge.validate import validate_all_templates, validate_bundle, validate_file, validate_template
-from prometheus_cli.bundleforge.catalog import load_catalog
 from prometheus_cli.hardware import HardwareReport
 
 

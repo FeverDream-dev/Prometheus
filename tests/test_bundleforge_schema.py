@@ -5,9 +5,6 @@ import yaml
 
 from prometheus_cli.bundleforge.schema import (
     ForgeBundle,
-    ForgePermissions,
-    ForgeRequirements,
-    ForgeRoleSpec,
     load_forge_bundle,
 )
 

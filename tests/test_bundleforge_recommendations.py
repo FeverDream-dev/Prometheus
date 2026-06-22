@@ -78,7 +78,7 @@ class TestCommercialSafe:
         for model_id in result.bundle.all_model_ids:
             entry = catalog.by_id(model_id)
             if entry and entry.id == "stabilityai/sdxl-turbo":
-                pytest.fail(f"SDXL Turbo (non-commercial) was included in a commercial_safe bundle")
+                pytest.fail("SDXL Turbo (non-commercial) was included in a commercial_safe bundle")
 
 
 class TestSearchBundles:

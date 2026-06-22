@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import pytest
 
 from prometheus_cli.bundleforge import load_template, validate_template
 from prometheus_cli.bundleforge.catalog import load_catalog

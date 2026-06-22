@@ -1,9 +1,6 @@
 from __future__ import annotations
 
-from pathlib import Path
-from unittest import mock
 
-import pytest
 
 from prometheus_cli.first_run import ModelPullInfo, build_pull_info_for_bundle
 
@@ -121,7 +118,6 @@ class TestBuildPullInfoForBundle:
 
 class TestPullConfirmation:
     def test_models_not_auto_downloaded(self):
-        from prometheus_cli.onboarding import OllamaStatus
         infos = build_pull_info_for_bundle("spark-cpu-8gb", [])
         not_installed = [i for i in infos if not i.already_installed]
         assert len(not_installed) >= 1

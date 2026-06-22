@@ -37,7 +37,7 @@ class TestSidebarSections:
 
     def test_each_entry_has_label_cmd_blurb(self):
         for label, cmd, blurb in SIDEBAR_SECTIONS:
-            assert label, f"entry missing label"
+            assert label, "entry missing label"
             assert isinstance(cmd, str)
             assert blurb, f"{label} missing blurb"
 

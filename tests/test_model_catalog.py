@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import pytest
 
-from prometheus_cli.bundleforge.catalog import ModelCatalog, ModelEntry, load_catalog
+from prometheus_cli.bundleforge.catalog import load_catalog
 
 
 @pytest.fixture(scope="module")

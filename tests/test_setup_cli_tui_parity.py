@@ -4,14 +4,12 @@ from pathlib import Path
 from unittest import mock
 
 import pytest
-import yaml
 from typer.testing import CliRunner
 
 from prometheus_cli.cli import app
 from prometheus_cli.first_run import detect_first_run, FirstRunState
 from prometheus_cli.onboarding import OllamaStatus
 from prometheus_cli.tui_state import collect_demo_snapshot
-from prometheus_cli.tui_screens import render_screen_text
 
 
 @pytest.fixture
@@ -42,11 +40,13 @@ class TestSetupDryRunParity:
 
 class TestSetupWizardContentParity:
     def test_tui_setup_shows_bundles_like_cli(self):
+        from prometheus_cli.tui_screens import render_screen_text
         snap = collect_demo_snapshot(Path("/tmp"))
         tui_text = render_screen_text("/setup", snap)
         assert "bundle" in tui_text.lower() or "step" in tui_text.lower()
 
     def test_tui_setup_shows_hardware_like_cli(self):
+        from prometheus_cli.tui_screens import render_screen_text
         snap = collect_demo_snapshot(Path("/tmp"))
         tui_text = render_screen_text("/setup", snap)
         assert "ram" in tui_text.lower() or "hardware" in tui_text.lower()
@@ -56,8 +56,6 @@ class TestSetupWizardContentParity:
         assert cli_result.exit_code == 0
         import json
         bundles = json.loads(cli_result.stdout)
-        snap = collect_demo_snapshot(Path("/tmp"))
-        tui_text = render_screen_text("/bundles", snap)
         assert len(bundles) >= 8
 
 
