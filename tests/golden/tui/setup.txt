@@ -39,7 +39,7 @@ Step 4 · Ollama status
 Step 5 · Bundle recommendation
   Recommended bundle
   
-    ember-8gb
+    forge-24gb
   
   Based on your detected hardware. You can confirm,
   or browse alternatives in the next step.

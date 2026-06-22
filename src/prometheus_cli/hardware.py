@@ -20,6 +20,10 @@ from dataclasses import asdict, dataclass, field
 
 _VENDOR_AMD = "0x1002"
 _VENDOR_INTEL = "0x8086"
+_VENDOR_NVIDIA = "0x10de"
+_VENDOR_ARM_MALI = "0x7555"
+_VENDOR_QUALCOMM = "0x5143"
+_VENDOR_IMAGINATION = "0x1414"
 _BYTES_PER_GB = 1024**3
 
 
@@ -160,33 +164,176 @@ def _probe_drm_linux(vendor_id: str, default_name: str) -> tuple[str | None, flo
     for card in cards:
         if not card.startswith("card"):
             continue
-        if _read_sysfs(os.path.join(base, card, "device", "vendor")) != vendor_id:
+        dev = os.path.join(base, card, "device")
+        if _read_sysfs(os.path.join(dev, "vendor")) != vendor_id:
             continue
-        product = _read_sysfs(os.path.join(base, card, "device", "product_name"))
-        name = product or default_name
-        vram_bytes = _read_sysfs(os.path.join(base, card, "device", "mem_info", "vram_total"))
+        name = _read_sysfs(os.path.join(dev, "product_name")) or default_name
+        vram_bytes = _read_sysfs(os.path.join(dev, "mem_info_vram_total"))
+        if not vram_bytes or int(vram_bytes) == 0:
+            vram_bytes = _read_sysfs(os.path.join(dev, "mem_info_vis_vram_total"))
         vram = round(int(vram_bytes) / _BYTES_PER_GB, 1) if vram_bytes else 0.0
+        if vram == 0.0:
+            vram = _vram_from_hwmon(dev)
         return name, vram
     return None, 0.0
 
 
-def _probe_amd_linux() -> tuple[str | None, float]:
-    return _probe_drm_linux(_VENDOR_AMD, "AMD GPU")
+def _vram_from_hwmon(dev: str) -> float:
+    hwmon = os.path.join(dev, "hwmon")
+    try:
+        for sub in os.listdir(hwmon):
+            for fname in ("mem_total", "vram_total"):
+                val = _read_sysfs(os.path.join(hwmon, sub, fname))
+                if val:
+                    try:
+                        return round(int(val) / _BYTES_PER_GB, 1)
+                    except ValueError:
+                        pass
+    except (OSError, FileNotFoundError):
+        pass
+    return 0.0
 
 
-def _probe_intel_linux() -> tuple[str | None, float]:
-    return _probe_drm_linux(_VENDOR_INTEL, "Intel GPU")
+def _probe_rocm_smi() -> tuple[str | None, float]:
+    if not _which("rocm-smi"):
+        return None, 0.0
+    name_result = _run(["rocm-smi", "--showproductname", "--json"], timeout=5.0)
+    gpu_name: str | None = None
+    if name_result and name_result.returncode == 0:
+        try:
+            data = json.loads(name_result.stdout)
+            first_key = next(iter(data), None)
+            if first_key and isinstance(data[first_key], dict):
+                series = data[first_key].get("Card Series", "") or data[first_key].get("Card series", "")
+                gpu_name = series.strip() or None
+        except (json.JSONDecodeError, StopIteration, KeyError):
+            pass
+    mem_result = _run(["rocm-smi", "--showmeminfo", "vram", "--json"], timeout=5.0)
+    vram = 0.0
+    if mem_result and mem_result.returncode == 0:
+        try:
+            data = json.loads(mem_result.stdout)
+            first_key = next(iter(data), None)
+            if first_key and isinstance(data[first_key], dict):
+                raw = data[first_key].get("VRAM Total Memory (B)", "0")
+                vram = round(int(raw) / _BYTES_PER_GB, 1)
+        except (json.JSONDecodeError, StopIteration, KeyError, ValueError):
+            pass
+    return gpu_name, vram
+
+
+def _probe_lspci_gpu() -> list[tuple[str, str, str]]:
+    if not _which("lspci"):
+        return []
+    result = _run(["lspci", "-nn"], timeout=5.0)
+    if not result or result.returncode != 0:
+        return []
+    gpus: list[tuple[str, str, str]] = []
+    for line in result.stdout.splitlines():
+        lower = line.lower()
+        if not any(kw in lower for kw in ("vga", "display", "3d", "gpu")):
+            continue
+        if not any(kw in lower for kw in ("nvidia", "amd", "radeon", "intel", "arc", "mali", "adreno", "powervr", "qualcomm", "imagination")):
+            continue
+        try:
+            desc = line.split(":", 2)[2].strip()
+        except IndexError:
+            continue
+        vendor = _classify_gpu_name(desc)
+        gpus.append((vendor, desc, ""))
+    return gpus
+
+
+def _probe_nvkspci() -> tuple[str | None, float]:
+    if not _which("nvidia-smi"):
+        return None, 0.0
+    result = _run(
+        ["nvidia-smi", "--query-gpu=name,memory.total", "--format=csv,noheader,nounits"],
+        timeout=5.0,
+    )
+    if not result or result.returncode != 0 or not result.stdout.strip():
+        return None, 0.0
+    try:
+        first = result.stdout.splitlines()[0]
+        name, memory_mib = [part.strip() for part in first.rsplit(",", 1)]
+        return name, round(float(memory_mib) / 1024, 1)
+    except (ValueError, IndexError):
+        return None, 0.0
 
 
 def _classify_gpu_name(name: str) -> str:
     lower = name.lower()
     if "nvidia" in lower or "geforce" in lower or "rtx" in lower or "quadro" in lower:
         return "NVIDIA"
-    if "amd" in lower or "radeon" in lower or "ryzen" in lower:
+    if "amd" in lower or "radeon" in lower or "ryzen" in lower or "navi" in lower:
         return "AMD"
-    if "intel" in lower or "arc" in lower:
+    if "intel" in lower or "arc" in lower or "iris" in lower or "uhd" in lower:
         return "Intel"
+    if "mali" in lower:
+        return "Mali"
+    if "adreno" in lower or "qualcomm" in lower:
+        return "Qualcomm"
+    if "powervr" in lower or "imagination" in lower:
+        return "Imagination"
     return "Unknown"
+
+
+def _probe_amd_linux() -> tuple[str | None, float]:
+    name, vram = _probe_drm_linux(_VENDOR_AMD, "AMD GPU")
+    rocm_name, rocm_vram = _probe_rocm_smi()
+    final_vram = vram or rocm_vram
+    if name and name != "AMD GPU":
+        return name, final_vram
+    if rocm_name:
+        return rocm_name, final_vram
+    if name:
+        return name, final_vram
+    for vendor, desc, _ in _probe_lspci_gpu():
+        if vendor == "AMD":
+            return desc, final_vram
+    return None, 0.0
+
+
+def _probe_intel_linux() -> tuple[str | None, float]:
+    name, vram = _probe_drm_linux(_VENDOR_INTEL, "Intel GPU")
+    if name:
+        return name, vram
+    for vendor, desc, _ in _probe_lspci_gpu():
+        if vendor == "Intel":
+            return desc, 0.0
+    return None, 0.0
+
+
+def _probe_nvidia_linux() -> tuple[str | None, float]:
+    nv_name, nv_vram = _probe_nvkspci()
+    if nv_name:
+        return nv_name, nv_vram
+    name, vram = _probe_drm_linux(_VENDOR_NVIDIA, "NVIDIA GPU")
+    if name:
+        return name, vram
+    for vendor, desc, _ in _probe_lspci_gpu():
+        if vendor == "NVIDIA":
+            return desc, 0.0
+    return None, 0.0
+
+
+def _probe_any_gpu_linux() -> tuple[str | None, float, str | None]:
+    for vendor_id, default_name, vendor_label in [
+        (_VENDOR_NVIDIA, "NVIDIA GPU", "NVIDIA"),
+        (_VENDOR_AMD, "AMD GPU", "AMD"),
+        (_VENDOR_INTEL, "Intel GPU", "Intel"),
+        (_VENDOR_ARM_MALI, "Mali GPU", "Mali"),
+        (_VENDOR_QUALCOMM, "Adreno GPU", "Qualcomm"),
+        (_VENDOR_IMAGINATION, "PowerVR GPU", "Imagination"),
+    ]:
+        name, vram = _probe_drm_linux(vendor_id, default_name)
+        if name:
+            return name, vram, vendor_label
+    pci_gpus = _probe_lspci_gpu()
+    if pci_gpus:
+        best = pci_gpus[0]
+        return best[1], 0.0, best[0]
+    return None, 0.0, None
 
 
 def _probe_windows_gpus() -> list[tuple[str, str, int]]:
@@ -303,7 +450,7 @@ def detect_hardware() -> HardwareReport:
     metal = False
     unified = False
 
-    nv_name, nv_vram = _probe_nvidia()
+    nv_name, nv_vram = _probe_nvidia_linux()
     if nv_name:
         gpu_vendor, gpu_name, vram = "NVIDIA", nv_name, nv_vram
 
@@ -330,6 +477,13 @@ def detect_hardware() -> HardwareReport:
             intel_name, intel_vram = _probe_intel_linux()
             if intel_name:
                 gpu_vendor, gpu_name, vram = "Intel", intel_name, intel_vram
+
+    if system == "Linux" and gpu_vendor is None:
+        any_name, any_vram, any_vendor = _probe_any_gpu_linux()
+        if any_name:
+            gpu_vendor = any_vendor or "Unknown"
+            gpu_name = any_name
+            vram = any_vram
 
     if system == "Windows" and not nv_name:
         gpus = _probe_windows_gpus()

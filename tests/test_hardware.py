@@ -76,7 +76,9 @@ class TestGpuDetection:
             return None
 
         with mock.patch.object(hardware.os, "listdir", return_value=["card0"]), \
-             mock.patch.object(hardware, "_read_sysfs", side_effect=fake_read):
+             mock.patch.object(hardware, "_read_sysfs", side_effect=fake_read), \
+             mock.patch.object(hardware, "_probe_rocm_smi", return_value=(None, 0.0)), \
+             mock.patch.object(hardware, "_probe_lspci_gpu", return_value=[]):
             name, vram = hardware._probe_amd_linux()
             assert name is None
             assert vram == 0.0
@@ -148,9 +150,10 @@ class TestDetectHardwareDispatch:
              mock.patch.object(hardware.platform, "release", return_value="5.15-microsoft-standard"), \
              mock.patch.object(hardware.platform, "machine", return_value="x86_64"), \
              mock.patch.object(hardware, "_ram_gb", return_value=32.0), \
-             mock.patch.object(hardware, "_probe_nvidia", return_value=(None, 0.0)), \
+             mock.patch.object(hardware, "_probe_nvidia_linux", return_value=(None, 0.0)), \
              mock.patch.object(hardware, "_probe_amd_linux", return_value=(None, 0.0)), \
              mock.patch.object(hardware, "_probe_intel_linux", return_value=(None, 0.0)), \
+             mock.patch.object(hardware, "_probe_any_gpu_linux", return_value=(None, 0.0, None)), \
              mock.patch.object(hardware, "_cpu_features", return_value=[]), \
              mock.patch.object(hardware, "_cpu_brand", return_value=""), \
              mock.patch.object(hardware, "_disk_free_gb", return_value=50.0), \
