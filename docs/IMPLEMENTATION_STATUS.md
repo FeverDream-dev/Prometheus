@@ -5,6 +5,30 @@ total weighted criteria**, never a model's opinion. A row is `passing` only when
 it has real code, a passing test, and CLI/runtime evidence. Mocked/skipped items
 are `placeholder`/`missing` and do not count.
 
+## Step 6 — RAG, MCP, and AssetForge Starter Packages
+
+Three capability families connected to BundleForge: local RAG document memory,
+MCP server templates with honest caveats, and AssetForge image generation.
+
+| Criterion | Weight | Status | Evidence |
+|---|---|---|---|
+| RAG CLI (init, ingest, query, status, reset) with local store | 5 | `passing` | `test_rag_cli.py` — 14 CLI tests + `test_rag_bundle.py` — 22 store tests |
+| RAG storage at .prometheus/rag/ (index, sources.jsonl, chunks.jsonl, manifest) | 3 | `passing` | `test_rag_bundle.py::TestRagStorage` verifies file structure |
+| MCP templates (whatsapp-starter) with inspect/install | 5 | `passing` | `test_mcp_templates.py` — 16 tests including security boundary checks |
+| MCP template honestly warns it needs real server config | 5 | `passing` | `test_mcp_templates.py::TestMcpSecurityBoundary` — 2 tests |
+| AssetForge bundle (assetforge-icon-factory) validates | 3 | `passing` | `test_assetforge_bundle.py` — 16 tests covering capabilities, licenses, hardware |
+| BundleForge multi-capability matching (web+icons, rag+coding) | 5 | `passing` | `test_bundleforge_capability_matching.py` — 23 tests including multi-recommendation |
+| Commercial-safe enforcement across all starter packages | 5 | `passing` | All templates validate, no SDXL Turbo in commercial-safe bundles |
+| Full suite: 1492 passed, 5 skipped, 0 regressions | 5 | `passing` | `python -m pytest -q` after all changes |
+
+Evidence:
+- `prometheus bundleforge recommend "I need RAG over company documents"` → rag-docs-local
+- `prometheus bundleforge recommend "I need WhatsApp MCP automation"` → whatsapp-mcp-assistant
+- `prometheus mcp templates` → lists whatsapp-starter
+- `prometheus rag init/ingest/query/status/reset` → full local RAG pipeline
+
+---
+
 ## Step 5 — TUI Visual QA and Regression Testing
 
 The TUI is visually tested via deterministic headless SVG exports of every

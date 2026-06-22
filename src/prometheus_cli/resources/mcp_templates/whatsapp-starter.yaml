@@ -1,0 +1,24 @@
+id: whatsapp-starter
+name: WhatsApp MCP Starter
+description: Placeholder MCP template for WhatsApp automation. Requires a real MCP server to function.
+warning: >-
+  This is a STARTER TEMPLATE. WhatsApp automation requires a real MCP server
+  (e.g. whatsapp-mcp-server). PROMETHEUS does not include or auto-install any
+  WhatsApp integration. You must configure and run the MCP server yourself.
+servers:
+  - name: whatsapp-bridge
+    command: ["python", "-m", "whatsapp_mcp_server"]
+    trust_level: untrusted
+    network_scope: outbound
+    env:
+      WHATSAPP_SESSION_DIR: ".whatsapp_sessions"
+permissions:
+  network: allow
+  package_install: ask
+  browser: deny
+  external_directory: deny
+setup_steps:
+  - "Install the WhatsApp MCP server (e.g. pip install whatsapp-mcp-server)"
+  - "Scan the QR code on first connection"
+  - "Verify with: prometheus mcp test whatsapp-bridge"
+  - "MCP output is treated as untrusted data; it cannot alter system policy"

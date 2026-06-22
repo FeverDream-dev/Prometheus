@@ -900,6 +900,7 @@ def uninstall(
 
 models_app = typer.Typer(help="List, pull, and unload Ollama models")
 mcp_app = typer.Typer(help="Manage MCP stdio servers")
+rag_app = typer.Typer(help="Local RAG document memory")
 browser_app = typer.Typer(help="Browser automation (Playwright)")
 astronaut_app = typer.Typer(help="Long-running autonomous sessions")
 sandbox_app = typer.Typer(help="Sandbox doctor + enforcement test suite")
@@ -1164,6 +1165,165 @@ def mcp_test(name: str = typer.Argument(..., help="Server name to probe")) -> No
         client.close()
 
 
+@mcp_app.command("templates")
+def mcp_templates() -> None:
+    """List available MCP server templates."""
+    from .mcp_templates import list_templates
+
+    templates = list_templates()
+    if not templates:
+        console.print("[dim]No MCP templates available.[/dim]")
+        return
+    console.print(Panel.fit(f"MCP templates ({len(templates)})"))
+    for tid in templates:
+        console.print(f"  • {tid}")
+
+
+@mcp_app.command("template")
+def mcp_template(
+    action: str = typer.Argument(..., help="inspect|install"),
+    name: str = typer.Argument(..., help="Template id (e.g. whatsapp-starter)"),
+) -> None:
+    """Inspect or install an MCP server template."""
+    from .mcp_templates import install_template, list_templates, load_template
+    from .config import ensure_home
+
+    if action == "inspect":
+        try:
+            template = load_template(name)
+        except FileNotFoundError:
+            console.print(f"[red]Template '{name}' not found.[/red] Available: {', '.join(list_templates())}")
+            raise typer.Exit(code=1)
+        console.print(Panel.fit(f"{template.name} ({template.id})"))
+        console.print(template.description)
+        if template.warning:
+            console.print(f"\n[yellow]WARNING:[/yellow] {template.warning}")
+        console.print(f"\n[bold]Servers:[/bold]")
+        for s in template.servers:
+            console.print(f"  {s.name}: {' '.join(s.command)}")
+            console.print(f"    trust={s.trust_level} network={s.network_scope}")
+        if template.setup_steps:
+            console.print(f"\n[bold]Setup steps:[/bold]")
+            for step in template.setup_steps:
+                console.print(f"  • {step}")
+    elif action == "install":
+        home = ensure_home()
+        mcp_path = home / "mcp.json"
+        try:
+            result = install_template(name, mcp_path)
+        except FileNotFoundError:
+            console.print(f"[red]Template '{name}' not found.[/red]")
+            raise typer.Exit(code=1)
+        console.print(f"[green]Installed MCP template '{name}' -> {result}[/green]")
+        console.print("[dim]Verify with: prometheus mcp list[/dim]")
+    else:
+        console.print(f"[red]Unknown action '{action}'.[/red] Use: inspect|install")
+        raise typer.Exit(code=1)
+
+
+@rag_app.command("init")
+def rag_init(
+    workspace: Path = typer.Option(Path.cwd(), "--workspace", exists=True, file_okay=False),
+) -> None:
+    """Initialize local RAG storage in .prometheus/rag/."""
+    from .rag import RagStore
+
+    store = RagStore(workspace)
+    path = store.init()
+    console.print(f"[green]RAG initialized:[/green] {path}")
+    console.print("Ingest documents with: prometheus rag ingest <path>")
+
+
+@rag_app.command("ingest")
+def rag_ingest(
+    source: Path = typer.Argument(..., help="File or directory to ingest"),
+    workspace: Path = typer.Option(Path.cwd(), "--workspace", exists=True, file_okay=False),
+) -> None:
+    """Ingest documents into the local RAG index."""
+    from .rag import RagStore
+
+    store = RagStore(workspace)
+    if not store.is_initialized():
+        store.init()
+    result = store.ingest(source)
+    if "error" in result:
+        console.print(f"[red]{result['error']}[/red]")
+        raise typer.Exit(code=1)
+    console.print(f"[green]Ingested:[/green] {result['ingested']} files, {result['chunks']} chunks")
+    if result['skipped']:
+        console.print(f"[dim]Skipped {result['skipped']} already-ingested files.[/dim]")
+
+
+@rag_app.command("query")
+def rag_query(
+    text: str = typer.Argument(..., help="Query text"),
+    workspace: Path = typer.Option(Path.cwd(), "--workspace", exists=True, file_okay=False),
+    json_output: bool = typer.Option(False, "--json"),
+    limit: int = typer.Option(5, "--limit"),
+) -> None:
+    """Query the local RAG index."""
+    from .rag import RagStore
+
+    store = RagStore(workspace)
+    if not store.is_initialized():
+        console.print("[yellow]RAG not initialized. Run: prometheus rag init[/yellow]")
+        raise typer.Exit(code=1)
+    results = store.query(text, limit=limit)
+    if not results:
+        console.print("[dim]No matching documents found.[/dim]")
+        return
+    if json_output:
+        import json as _json
+        print(_json.dumps([r.as_dict() for r in results], indent=2))
+        return
+    console.print(Panel.fit(f"RAG query: {text}"))
+    for i, r in enumerate(results, 1):
+        console.print(f"\n[bold]{i}.[/bold] [dim]{r.source}[/dim] (score: {r.score:.0%})")
+        console.print(f"  {r.text[:200]}...")
+
+
+@rag_app.command("status")
+def rag_status(
+    workspace: Path = typer.Option(Path.cwd(), "--workspace", exists=True, file_okay=False),
+    json_output: bool = typer.Option(False, "--json"),
+) -> None:
+    """Show RAG index status."""
+    from .rag import RagStore
+
+    store = RagStore(workspace)
+    st = store.status()
+    if json_output:
+        import json as _json
+        print(_json.dumps(st.as_dict(), indent=2))
+        return
+    if not st.initialized:
+        console.print("[yellow]RAG not initialized.[/yellow] Run: prometheus rag init")
+        return
+    console.print(Panel.fit("PROMETHEUS RAG"))
+    console.print(f"Sources: {st.sources}")
+    console.print(f"Chunks:  {st.chunks}")
+    console.print(f"Chars:   {st.total_chars:,}")
+    console.print(f"Index:   {st.index_path}")
+
+
+@rag_app.command("reset")
+def rag_reset(
+    workspace: Path = typer.Option(Path.cwd(), "--workspace", exists=True, file_okay=False),
+    confirm: bool = typer.Option(False, "--confirm"),
+) -> None:
+    """Clear the RAG index."""
+    from .rag import RagStore
+
+    if not confirm:
+        console.print("[yellow]Pass --confirm to actually reset.[/yellow]")
+        raise typer.Exit(code=1)
+    store = RagStore(workspace)
+    if store.reset():
+        console.print("[green]RAG index cleared.[/green]")
+    else:
+        console.print("[dim]No RAG index to clear.[/dim]")
+
+
 @browser_app.command("test")
 def browser_test(
     url: str = typer.Argument(..., help="URL to open (http(s):// or file://)"),
@@ -1219,6 +1379,7 @@ def _load_mcp_registry(registry):
 
 app.add_typer(models_app, name="models")
 app.add_typer(mcp_app, name="mcp")
+app.add_typer(rag_app, name="rag")
 app.add_typer(browser_app, name="browser")
 app.add_typer(bundles_app, name="bundles")
 app.add_typer(sandbox_app, name="sandbox")

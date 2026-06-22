@@ -190,13 +190,118 @@ def search_bundles(query: str, catalog: ModelCatalog | None = None) -> list[dict
     return results
 
 
+CAPABILITY_KEYWORDS: dict[str, list[str]] = {
+    "coding": ["code", "coding", "program", "develop", "app", "web", "api", "build"],
+    "rag": ["rag", "document", "docs", "knowledge", "search", "semantic", "pdf", "embed"],
+    "mcp": ["mcp", "whatsapp", "telegram", "slack", "discord", "message", "automate"],
+    "image_generation": ["image", "icon", "sprite", "art", "picture", "generate image", "transparent"],
+    "browser_testing": ["browser", "test", "qa", "selenium", "playwright", "e2e"],
+    "vision": ["vision", "screenshot", "css", "a11y", "accessibility"],
+    "cpu_only": ["cpu", "slow", "low memory", "laptop", "no gpu"],
+    "cloud": ["cloud", "openai", "anthropic", "maximum quality"],
+}
+
+CAPABILITY_TO_TEMPLATE: dict[str, str] = {
+    "rag": "rag-docs-local",
+    "mcp": "whatsapp-mcp-assistant",
+    "image_generation": "assetforge-icon-factory",
+    "browser_testing": "qa-browser-vision",
+    "coding": "webapp-local-lite",
+    "cpu_only": "cpu-only-emergency",
+    "cloud": "cloud-hybrid-max",
+    "vision": "qa-browser-vision",
+}
+
+
+@dataclass
+class MultiRecommendation:
+    primary: RecommendationResult
+    secondary: list[RecommendationResult] = field(default_factory=list)
+    detected_capabilities: list[str] = field(default_factory=list)
+    combined_template_ids: list[str] = field(default_factory=list)
+
+    def all_template_ids(self) -> list[str]:
+        ids = [self.primary.template_id]
+        ids.extend(r.template_id for r in self.secondary)
+        seen: set[str] = set()
+        deduped: list[str] = []
+        for tid in ids:
+            if tid not in seen:
+                deduped.append(tid)
+                seen.add(tid)
+        return deduped
+
+
+def detect_capabilities(request: str) -> list[str]:
+    text = request.lower()
+    detected: list[str] = []
+    for cap, keywords in CAPABILITY_KEYWORDS.items():
+        if any(kw in text for kw in keywords):
+            detected.append(cap)
+    return detected
+
+
+def recommend_multi(
+    request: str,
+    hardware: HardwareReport | None = None,
+    commercial_safe_only: bool = True,
+    catalog: ModelCatalog | None = None,
+) -> MultiRecommendation:
+    cat = catalog or load_catalog()
+    primary = recommend(request, hardware=hardware, commercial_safe_only=commercial_safe_only, catalog=cat)
+    capabilities = detect_capabilities(request)
+    secondary_results: list[RecommendationResult] = []
+    primary_template = primary.template_id
+
+    for cap in capabilities:
+        template_id = CAPABILITY_TO_TEMPLATE.get(cap)
+        if template_id is None or template_id == primary_template:
+            continue
+        try:
+            bundle = load_template(template_id)
+        except FileNotFoundError:
+            continue
+        fit_ok = True
+        fit_reasons = ["(secondary recommendation)"]
+        if hardware is not None:
+            fit_ok, fit_reasons = _check_hardware_fit(bundle, hardware.ram_gb, hardware.vram_gb)
+        if not fit_ok:
+            continue
+        existing = {r.template_id for r in secondary_results}
+        if template_id in existing:
+            continue
+        secondary_results.append(RecommendationResult(
+            use_case=cap,
+            template_id=template_id,
+            bundle=bundle,
+            confidence=0.5,
+            matched_keywords=[cap],
+            hardware_fit=fit_ok,
+            fit_reasons=fit_reasons,
+            alternatives=[],
+            license_warnings=_check_licenses(bundle, cat),
+        ))
+
+    return MultiRecommendation(
+        primary=primary,
+        secondary=secondary_results,
+        detected_capabilities=capabilities,
+        combined_template_ids=[],
+    )
+
+
 __all__ = [
+    "CAPABILITY_KEYWORDS",
+    "CAPABILITY_TO_TEMPLATE",
     "KEYWORD_MAP",
     "QUALITY_UPGRADES",
+    "MultiRecommendation",
     "RecommendationResult",
     "USE_CASE_TO_TEMPLATE",
+    "detect_capabilities",
     "list_templates",
     "load_template",
     "recommend",
+    "recommend_multi",
     "search_bundles",
 ]
