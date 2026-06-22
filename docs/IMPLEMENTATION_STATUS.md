@@ -5,6 +5,33 @@ total weighted criteria**, never a model's opinion. A row is `passing` only when
 it has real code, a passing test, and CLI/runtime evidence. Mocked/skipped items
 are `placeholder`/`missing` and do not count.
 
+## Step 1 — Packaged Defaults and Install Fix
+
+The critical install bug where `prometheus setup` reported `No bundles found` is
+fixed. Default bundles, prompts, schemas, and i18n are now packaged inside the
+wheel and discoverable after a clean install.
+
+| Criterion | Weight | Status | Evidence |
+|---|---|---|---|
+| Clean wheel install includes default bundles | 5 | `passing` | `test_wheel_contains_resources.py` — 8 tests assert wheel has >=8 v2 + >=4 v1 YAML files, prompts, schemas, i18n, default_config |
+| `prometheus setup --dry-run` does not say "No bundles found" | 5 | `passing` | `test_setup_finds_packaged_bundles.py::test_setup_dry_run_does_not_say_no_bundles_found` |
+| `prometheus bundles list` works without repo checkout | 5 | `passing` | `test_bundles_without_repo_checkout.py::test_bundles_list_cli_without_repo` — runs in isolated cwd, no config/ dir |
+| `prometheus setup --dry-run` shows available bundles | 5 | `passing` | `test_setup_finds_packaged_bundles.py::test_setup_dry_run_shows_available_bundles` |
+| Default agents/prompts/schemas/resources discoverable after install | 3 | `passing` | `test_installed_defaults.py` — 8 tests verify all resource dirs are populated and loadable |
+| Tests prove wheel/sdist contain resources | 3 | `passing` | `test_wheel_contains_resources.py` — TestWheelContainsResources (8 tests) + TestSdistContainsResources (2 tests) + TestCleanVenvInstall (2 tests) |
+| Clean venv install can run setup/bundles/doctor | 5 | `passing` | `scripts/clean_install_defaults_smoke.sh` — builds wheel, installs in clean venv, verifies all 3 commands |
+| No model weights included | 5 | `passing` | `test_wheel_has_no_model_weights` + `test_sdist_contains_no_weights` + `test_no_model_weights_in_resources` |
+| Precedence: explicit > project > user > packaged | 3 | `passing` | `test_package_resources.py::TestResolveBundlesDir` — 5 tests covering all precedence levels |
+| Resource loader module (resources/__init__.py) | 3 | `passing` | `get_resource_root`, `resolve_bundles_dir`, `copy_default_user_config`, etc. — 13 public functions |
+| Sync script for reproducible resource updates | 2 | `passing` | `scripts/sync_package_resources.py` — copies from config/ to resources/, rejects weights |
+
+Evidence artifacts:
+- `bash scripts/clean_install_defaults_smoke.sh` → PASS (10 bundles, setup --dry-run OK, doctor OK)
+- `python -m pytest tests/test_package_resources.py tests/test_installed_defaults.py tests/test_setup_finds_packaged_bundles.py tests/test_bundles_without_repo_checkout.py tests/test_wheel_contains_resources.py` → 61 passed
+- Full suite: 983 passed, 5 skipped (no regressions)
+
+---
+
 ## TUI 2.0 (current slice)
 
 The TUI was rebuilt from a debug-box into a real local-first coding-agent

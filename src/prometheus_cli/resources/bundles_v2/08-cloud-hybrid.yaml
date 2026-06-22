@@ -1,0 +1,54 @@
+schema_version: 2
+id: cloud-hybrid
+name: Cloud-Hybrid — local-first with optional cloud fallback
+description: >
+  Local Ollama controller by default; falls back to a cloud coder/reviewer only
+  when the user explicitly configures a cloud endpoint. Local usage stays
+  quota-free and private; cloud calls are provider-metered and clearly labeled.
+  Honest billing note: local sessions are unlimited after model download
+  (bounded by hardware, disk, context size, and runtime settings); cloud
+  providers may impose quotas or costs.
+recommended_for: [users with intermittent cloud access, hybrid teams]
+hardware:
+  minimum_ram_gb: 8
+  recommended_ram_gb: 16
+  minimum_vram_gb: 0
+  minimum_free_disk_gb: 8
+runtime:
+  provider: ollama
+  minimum_version: 0.13.3
+  sequential_loading: true
+  maximum_loaded_models: 1
+  default_context: 8192
+  context_ceiling: 32768
+  unlimited_local_sessions: true
+roles:
+  controller:
+    model: granite4.1:3b
+    approximate_download_gb: 2.1
+    capabilities: [text, tools, json, coding]
+    keep_alive: 5m
+  coder:
+    model: qwen3-coder:latest
+    approximate_download_gb: 9.0
+    capabilities: [text, tools, coding, json]
+    keep_alive: 0
+    optional: true
+  reviewer:
+    model: qwen3-coder:latest
+    approximate_download_gb: 0
+    capabilities: [text, json, thinking]
+    keep_alive: 0
+    optional: true
+    prohibited_capabilities: [tools]
+licenses:
+  - model: granite4.1:3b
+    license: Apache-2.0
+    source: https://ollama.com/library/granite4.1
+  - model: qwen3-coder:latest
+    license: verify-at-install
+    source: https://ollama.com/library/qwen3-coder
+qualification:
+  required: [chat, structured_output, single_tool, code_patch]
+experimental: true
+upgrade: Optional cloud coder/reviewer via openai-compatible endpoint; local controller remains the default and is never bypassed without explicit configuration.

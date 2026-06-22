@@ -1,5 +1,47 @@
 # Installer proof — what is verified and what the release tag changed
 
+## Packaged defaults fix (Step 1 recovery)
+
+The v0.1.0 wheel shipped without default bundles, causing `prometheus setup` to
+report `No bundles found. Pass --bundles-dir.` after a clean install. This is
+now fixed: default bundles (v1 + v2), prompts, schemas, i18n, and
+default_config are packaged inside the wheel at
+`prometheus_cli/resources/`.
+
+Clean-install verification (`bash scripts/clean_install_defaults_smoke.sh`):
+
+```text
+=== PROMETHEUS clean-install defaults smoke ===
+[1/5] Building wheel + sdist...
+  wheel: prometheus_local_agent-0.1.0-py3-none-any.whl
+[2/5] Creating clean venv...
+[3/5] Testing: prometheus bundles list
+  found 10 bundles
+[4/5] Testing: prometheus setup --dry-run
+  setup --dry-run shows bundles (no 'No bundles found' error)
+[5/5] Testing: prometheus doctor
+  doctor runs successfully
+=== PASS: clean install includes defaults ===
+```
+
+Wheel resource count (was 0, now 27 data files):
+
+| Resource | Count |
+|---|---|
+| V2 bundles (`bundles_v2/*.yaml`) | 10 |
+| V1 bundles (`bundles_v1/*.yaml`) | 8 |
+| Prompts (`prompts/*.md`) | 3 |
+| Schemas (`schemas/*.json`) | 3 |
+| i18n (`i18n/*.json`) | 2 |
+| Default config (`default_config.yaml`) | 1 |
+| **Total** | **27** |
+
+The fix will be included in the next release tag. The current v0.1.0 release
+artifacts on GitHub still have the old wheel without resources; users installing
+from `main` source or the next tag get the fix.
+
+---
+
 ## Summary
 
 `v0.1.0` is **published** (tag pushed, GitHub Release live at

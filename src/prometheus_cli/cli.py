@@ -36,10 +36,8 @@ from .onboarding import (
 )
 from .orchestrator import Orchestrator
 from .policy import mode_description
+from .resources import resolve_bundles_v1_dir
 from .session import SessionStore
-
-CONFIG_DIR = Path(__file__).resolve().parent.parent.parent / "config"
-BUNDLES_DIR = CONFIG_DIR / "bundles"
 
 app = typer.Typer(help="PROMETHEUS — local-first adaptive coding agent", no_args_is_help=True)
 console = Console()
@@ -101,13 +99,15 @@ def doctor(json_output: bool = typer.Option(False, "--json")) -> None:
 
 @app.command()
 def setup(
-    bundles_dir: Path = typer.Option(BUNDLES_DIR, "--bundles-dir"),
+    bundles_dir: Path | None = typer.Option(None, "--bundles-dir", help="Override bundles directory (default: auto-resolve)"),
     mode: AutonomyMode = typer.Option(AutonomyMode.PILOT),
     bundle_name: str | None = typer.Option(None, "--bundle", help="Pre-select a bundle (non-interactive)"),
     yes: bool = typer.Option(False, "--yes", help="Accept defaults without prompting"),
     pull: bool = typer.Option(False, "--pull", help="Pull model files via Ollama after setup"),
+    dry_run: bool = typer.Option(False, "--dry-run", help="Show detected hardware and available bundles; change nothing"),
 ) -> None:
     """Detect hardware, recommend a bundle, and configure PROMETHEUS."""
+    resolved_bundles_dir = resolve_bundles_v1_dir(explicit=bundles_dir)
     report = detect_hardware()
     console.print(Panel.fit("PROMETHEUS setup"))
     console.print(f"OS: {report.os} {report.architecture}" + (" (WSL)" if report.wsl else ""))
@@ -116,8 +116,33 @@ def setup(
         console.print(f"GPU: {report.gpu_name or report.gpu_vendor} ({report.vram_gb} GB VRAM)")
     else:
         console.print("GPU: CPU mode")
+    console.print(f"[dim]Bundles dir: {resolved_bundles_dir}[/dim]")
     for note in report.notes:
         console.print(f"[dim]• {note}[/dim]")
+
+    if dry_run:
+        ollama = check_ollama()
+        console.print(f"\nOllama: {'ready' if ollama.running else 'not running'} "
+                      f"({len(ollama.models)} models)")
+        options = list_available_bundles(resolved_bundles_dir)
+        if not options:
+            console.print("[red]No bundles found.[/red]")
+            raise typer.Exit(code=1)
+        default = pick_default_bundle(options, report)
+        for opt in options:
+            if opt is not default:
+                opt.fits, opt.reason = classify_bundle_fit(opt.bundle, report)
+        console.print(f"\n[bold]Available bundles ({len(options)}):[/bold]")
+        for idx, opt in enumerate(options, 1):
+            marker = " (recommended)" if opt is default else ""
+            fit_label = "[green]fits[/green]" if opt.fits else "[red]does not fit[/red]"
+            console.print(f"  {idx}. {opt.name}{marker} — {fit_label}: {opt.reason}")
+        if default:
+            console.print(f"\n[bold]Dry run complete.[/bold] Would select: {default.name}")
+        else:
+            console.print("\n[bold]Dry run complete.[/bold] No recommendation for this hardware.")
+        console.print("[dim]No files written, no models pulled.[/dim]")
+        raise typer.Exit(code=0)
 
     ollama = check_ollama()
     if not ollama.installed:
@@ -161,7 +186,7 @@ def setup(
     else:
         console.print(f"\nOllama: ready ({len(ollama.models)} models available)")
 
-    options = list_available_bundles(bundles_dir)
+    options = list_available_bundles(resolved_bundles_dir)
     if not options:
         console.print("[red]No bundles found.[/red] Pass --bundles-dir.")
         raise typer.Exit(code=1)

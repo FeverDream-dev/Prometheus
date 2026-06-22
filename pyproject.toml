@@ -29,6 +29,18 @@ prometheus = "prometheus_cli.cli:app"
 [tool.setuptools.packages.find]
 where = ["src"]
 
+[tool.setuptools.package-data]
+prometheus_cli = [
+    "resources/*.yaml",
+    "resources/*.json",
+    "resources/bundles_v2/*.yaml",
+    "resources/bundles_v1/*.yaml",
+    "resources/prompts/*",
+    "resources/schemas/*",
+    "resources/i18n/*",
+    "resources/agents/*",
+]
+
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 norecursedirs = ["tests/fixtures"]

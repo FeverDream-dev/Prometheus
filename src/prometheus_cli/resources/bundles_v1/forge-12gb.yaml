@@ -1,0 +1,19 @@
+name: forge-12gb
+description: 12 GB adaptive local bundle with sequential specialist loading
+minimum_ram_gb: 16
+minimum_vram_gb: 12
+sequential_loading: true
+models:
+  - provider: ollama
+    model: qwen3:8b
+    role: controller
+    context_window: 32768
+    keep_alive: 5m
+    tool_capable: true
+  - provider: ollama
+    model: hf.co/prithivMLmods/VibeThinker-3B-GGUF:Q6_K
+    role: reviewer
+    context_window: 32768
+    keep_alive: 0
+    tool_capable: false
+

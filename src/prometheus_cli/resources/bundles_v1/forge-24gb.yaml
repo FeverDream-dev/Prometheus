@@ -1,0 +1,25 @@
+name: forge-24gb
+description: 24 GB quality profile; dedicated controller, coder, and reviewer roles
+minimum_ram_gb: 32
+minimum_vram_gb: 24
+sequential_loading: true
+models:
+  - provider: ollama
+    model: qwen3:14b
+    role: controller
+    context_window: 65536
+    keep_alive: 10m
+    tool_capable: true
+  - provider: ollama
+    model: qwen3-coder:latest
+    role: coder
+    context_window: 65536
+    keep_alive: 5m
+    tool_capable: true
+  - provider: ollama
+    model: hf.co/prithivMLmods/VibeThinker-3B-GGUF:Q8_0
+    role: reviewer
+    context_window: 32768
+    keep_alive: 0
+    tool_capable: false
+

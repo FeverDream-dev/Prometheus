@@ -1,0 +1,19 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "PROMETHEUS Tool Call",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["id", "taskId", "tool", "arguments", "risk", "reason"],
+  "properties": {
+    "id": {"type": "string"},
+    "taskId": {"type": "string"},
+    "tool": {"type": "string"},
+    "arguments": {"type": "object"},
+    "risk": {"enum": ["read", "write", "execute", "network", "external", "destructive"]},
+    "reason": {"type": "string"},
+    "timeoutSeconds": {"type": "integer", "minimum": 1},
+    "idempotencyKey": {"type": "string"},
+    "expectedEvidence": {"type": "array", "items": {"type": "string"}}
+  }
+}
+

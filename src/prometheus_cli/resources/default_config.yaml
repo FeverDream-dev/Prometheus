@@ -1,0 +1,13 @@
+workspace: .
+mode: pilot
+sandbox: true
+allow_package_install: false
+allow_network: true
+telemetry: false
+sounds: true
+multi_agent_review: true
+target_completion: 95
+attempts_before_escalation: 5
+max_steps: 50
+max_runtime_minutes: 240
+

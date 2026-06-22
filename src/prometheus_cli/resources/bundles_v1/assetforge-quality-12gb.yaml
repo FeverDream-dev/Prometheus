@@ -1,0 +1,52 @@
+name: assetforge-quality-12gb
+description: AssetForge Quality — FLUX.1-schnell high-fidelity generation for 12 GB+ VRAM
+minimum_ram_gb: 16
+minimum_vram_gb: 10
+sequential_loading: true
+add_on: true
+experimental: true
+runtime:
+  provider: local
+  unlimited_local_sessions: true
+  sequential_loading: true
+  maximum_loaded_models: 1
+  default_context: 4096
+models:
+  - provider: diffusers
+    model: black-forest-labs/FLUX.1-schnell
+    role: image_generator
+    context_window: 4096
+    keep_alive: 0
+    tool_capable: false
+    capabilities:
+      - image_generation
+      - icon
+      - hero
+      - illustration
+      - logo
+  - provider: diffusers
+    model: stabilityai/sdxl-turbo
+    role: fallback_generator
+    context_window: 4096
+    keep_alive: 0
+    tool_capable: false
+    capabilities:
+      - image_generation
+  - provider: rembg
+    model: silueta
+    role: background_removal
+    context_window: 0
+    keep_alive: 0
+    tool_capable: false
+    capabilities:
+      - background_removal
+licenses:
+  - model: black-forest-labs/FLUX.1-schnell
+    license: Apache-2.0
+    source: https://huggingface.co/black-forest-labs/FLUX.1-schnell
+  - model: stabilityai/sdxl-turbo
+    license: STABILITY-AI
+    source: https://huggingface.co/stabilityai/sdxl-turbo
+  - model: silueta
+    license: MIT
+    source: https://github.com/danielgatis/rembg

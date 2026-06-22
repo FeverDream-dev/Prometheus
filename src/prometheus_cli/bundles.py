@@ -11,7 +11,19 @@ from .hardware import HardwareReport
 from .models import ModelBundle, ModelSpec
 
 SCHEMA_VERSION = 2
-BUILT_IN_DIR = Path(__file__).resolve().parent.parent.parent / "config" / "bundles-v2"
+
+_REPO_BUILT_IN_DIR = Path(__file__).resolve().parent.parent.parent / "config" / "bundles-v2"
+
+
+def _resolve_built_in_dir() -> Path:
+    from .resources import get_default_bundles_dir
+    packaged = get_default_bundles_dir()
+    if packaged.is_dir() and any(packaged.glob("*.yaml")):
+        return packaged
+    return _REPO_BUILT_IN_DIR
+
+
+BUILT_IN_DIR = _resolve_built_in_dir()
 
 KNOWN_ROLES = ("controller", "coder", "planner", "reasoner", "reviewer", "vision", "embedding", "guardian")
 KNOWN_CAPABILITIES = ("text", "image", "tools", "thinking", "coding", "json", "embeddings", "structured_output")
@@ -223,7 +235,9 @@ def load_bundle(path: Path) -> BundleV2:
 
 
 def load_registry(directory: Path | None = None) -> list[BundleV2]:
-    base = directory or BUILT_IN_DIR
+    if directory is None:
+        directory = _resolve_built_in_dir()
+    base = Path(directory)
     if not base.is_dir():
         return []
     out: list[BundleV2] = []
@@ -349,7 +363,6 @@ def _strip_unsafe(node):
 def find_bundle(bundle_id: str, registry: list[BundleV2] | None = None) -> BundleV2 | None:
     registry = registry if registry is not None else load_registry()
     return next((b for b in registry if b.id == bundle_id), None)
-
 
 __all__ = [
     "BUILT_IN_DIR",

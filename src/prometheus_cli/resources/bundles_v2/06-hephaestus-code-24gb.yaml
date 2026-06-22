@@ -1,0 +1,48 @@
+schema_version: 2
+id: hephaestus-code-24gb
+name: Hephaestus — 24 GB coding team
+description: Agentic coding specialist plus a multimodal controller, loaded one at a time.
+recommended_for: [software engineering, multi-file refactors, difficult GitHub-style issues]
+hardware:
+  minimum_ram_gb: 32
+  recommended_ram_gb: 48
+  minimum_vram_gb: 22
+  recommended_vram_gb: 24
+  minimum_free_disk_gb: 28
+runtime:
+  provider: ollama
+  minimum_version: 0.13.3
+  sequential_loading: true
+  maximum_loaded_models: 1
+  default_context: 16384
+  context_ceiling: 32768
+  unlimited_local_sessions: true
+roles:
+  controller:
+    model: qwen3.5:9b
+    approximate_download_gb: 6.6
+    capabilities: [text, image, tools, thinking, coding, json]
+    keep_alive: 5m
+  coder:
+    model: devstral:24b
+    approximate_download_gb: 14
+    capabilities: [text, tools, agentic_coding, repository_navigation]
+    keep_alive: 0
+  reviewer:
+    model: granite4.1:3b
+    approximate_download_gb: 2.1
+    capabilities: [text, tools, coding, json]
+    keep_alive: 0
+licenses:
+  - model: qwen3.5:9b
+    license: verify-at-install
+    source: https://ollama.com/library/qwen3.5
+  - model: devstral:24b
+    license: Apache-2.0
+    source: https://ollama.com/library/devstral
+  - model: granite4.1:3b
+    license: Apache-2.0
+    source: https://ollama.com/library/granite4.1
+qualification:
+  required: [chat, image, structured_output, single_tool, multi_turn_tool, code_patch, repository_navigation, test_repair, specialist_handoff]
+experimental: true
