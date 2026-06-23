@@ -478,6 +478,10 @@ def tui(
         False, "--exit-after-render",
         help="Run headless, compose once, then exit (for CI smoke tests). No SVG file written.",
     ),
+    submit_objective: str | None = typer.Option(
+        None, "--submit-objective",
+        help="Auto-submit an objective after mount (for testing). Use with --demo or --exit-after-render.",
+    ),
 ) -> None:
     """Launch the interactive Textual TUI (PROMETHEUS application shell)."""
     try:
@@ -488,7 +492,7 @@ def tui(
 
     settings = load_settings()
     bundle_path = bundle or settings.bundle_file
-    if not demo and screenshot is None and not exit_after_render and not bundle_path:
+    if not demo and screenshot is None and not exit_after_render and not bundle_path and not submit_objective:
         console.print("[yellow]No bundle configured. Run 'prometheus setup' first.[/yellow]")
         console.print("Or pass --bundle <path>, or use --demo to preview the TUI.")
         raise typer.Exit(code=1)
@@ -511,6 +515,7 @@ def tui(
         screenshot_path=screenshot,
         initial_screen=screen if screen and screen != "main" else None,
         exit_after_render=exit_after_render,
+        submit_objective=submit_objective,
     )
 
 

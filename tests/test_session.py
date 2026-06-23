@@ -168,7 +168,8 @@ class TestDurability:
         store2.close()
 
     def test_wal_mode_enabled(self, store: SessionStore):
-        mode = store._conn.execute("PRAGMA journal_mode").fetchone()[0]
+        with store._query() as conn:
+            mode = conn.execute("PRAGMA journal_mode").fetchone()[0]
         assert mode.lower() == "wal"
 
     def test_transaction_rollback_on_error(self, store: SessionStore):

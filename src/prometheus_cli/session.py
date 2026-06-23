@@ -7,6 +7,14 @@ is computed from weighted accepted criteria, never from a model's self-report.
 
 Uses only the standard library (sqlite3) so it works on every platform without
 extra dependencies. The database lives under PROMETHEUS_HOME/sessions/.
+
+Thread-safety: connections are opened per-operation and closed immediately
+after use. No ``sqlite3.Connection`` or cursor is stored as instance state.
+This makes :class:`SessionStore` safe to call from any thread — including
+Textual worker threads — without the ``SQLite objects created in a thread can
+only be used in that same thread`` error that occurs when a long-lived
+connection crosses threads. WAL mode + ``busy_timeout`` allow concurrent
+readers and a single writer to coexist gracefully.
 """
 
 from __future__ import annotations
@@ -91,24 +99,42 @@ class SessionStore:
     def __init__(self, db_path: Path | str):
         self.db_path = Path(db_path)
         self.db_path.parent.mkdir(parents=True, exist_ok=True)
-        self._conn = sqlite3.connect(str(self.db_path))
-        self._conn.row_factory = sqlite3.Row
-        self._conn.execute("PRAGMA journal_mode=WAL")
-        self._conn.execute("PRAGMA foreign_keys=ON")
-        self._conn.executescript(_SCHEMA)
-        self._conn.commit()
+        self._init_schema()
+
+    def _connect(self) -> sqlite3.Connection:
+        conn = sqlite3.connect(str(self.db_path), timeout=30)
+        conn.row_factory = sqlite3.Row
+        conn.execute("PRAGMA journal_mode=WAL")
+        conn.execute("PRAGMA foreign_keys=ON")
+        conn.execute("PRAGMA busy_timeout=5000")
+        return conn
+
+    def _init_schema(self) -> None:
+        with self._tx() as conn:
+            conn.executescript(_SCHEMA)
 
     @contextmanager
     def _tx(self) -> Iterator[sqlite3.Connection]:
+        conn = self._connect()
         try:
-            yield self._conn
-            self._conn.commit()
+            yield conn
+            conn.commit()
         except Exception:
-            self._conn.rollback()
+            conn.rollback()
             raise
+        finally:
+            conn.close()
+
+    @contextmanager
+    def _query(self) -> Iterator[sqlite3.Connection]:
+        conn = self._connect()
+        try:
+            yield conn
+        finally:
+            conn.close()
 
     def close(self) -> None:
-        self._conn.close()
+        pass
 
     def __enter__(self) -> "SessionStore":
         return self
@@ -148,18 +174,20 @@ class SessionStore:
             return int(cursor.lastrowid)
 
     def events_since(self, session_id: str, last_seq: int = 0) -> list[dict]:
-        rows = self._conn.execute(
-            "SELECT seq, type, payload, created_at FROM events "
-            "WHERE session_id=? AND seq>? ORDER BY seq",
-            (session_id, last_seq),
-        ).fetchall()
+        with self._query() as conn:
+            rows = conn.execute(
+                "SELECT seq, type, payload, created_at FROM events "
+                "WHERE session_id=? AND seq>? ORDER BY seq",
+                (session_id, last_seq),
+            ).fetchall()
         return [{"seq": r["seq"], "type": r["type"], "payload": json.loads(r["payload"]),
                  "created_at": r["created_at"]} for r in rows]
 
     def last_event_seq(self, session_id: str) -> int:
-        row = self._conn.execute(
-            "SELECT MAX(seq) AS m FROM events WHERE session_id=?", (session_id,)
-        ).fetchone()
+        with self._query() as conn:
+            row = conn.execute(
+                "SELECT MAX(seq) AS m FROM events WHERE session_id=?", (session_id,)
+            ).fetchone()
         return int(row["m"] or 0)
 
     def add_task(
@@ -217,11 +245,12 @@ class SessionStore:
         return evidence_id
 
     def evidence_for(self, session_id: str) -> list[dict]:
-        rows = self._conn.execute(
-            "SELECT kind, content, task_id, created_at FROM evidence WHERE session_id=? "
-            "ORDER BY created_at",
-            (session_id,),
-        ).fetchall()
+        with self._query() as conn:
+            rows = conn.execute(
+                "SELECT kind, content, task_id, created_at FROM evidence WHERE session_id=? "
+                "ORDER BY created_at",
+                (session_id,),
+            ).fetchall()
         return [{"kind": r["kind"], "content": r["content"], "task_id": r["task_id"],
                  "created_at": r["created_at"]} for r in rows]
 
@@ -242,15 +271,16 @@ class SessionStore:
         return checkpoint_id
 
     def list_checkpoints(self, session_id: str) -> list[dict]:
-        rows = self._conn.execute(
-            "SELECT id, commit_sha, message, created_at FROM checkpoints "
-            "WHERE session_id=? ORDER BY created_at DESC",
-            (session_id,),
-        ).fetchall()
+        with self._query() as conn:
+            rows = conn.execute(
+                "SELECT id, commit_sha, message, created_at FROM checkpoints "
+                "WHERE session_id=? ORDER BY created_at DESC",
+                (session_id,),
+            ).fetchall()
         return [dict(r) for r in rows]
 
-    def completion_percent(self, session_id: str) -> float:
-        row = self._conn.execute(
+    def _completion_percent_conn(self, conn: sqlite3.Connection, session_id: str) -> float:
+        row = conn.execute(
             "SELECT COALESCE(SUM(weight), 0) AS total, "
             "COALESCE(SUM(CASE WHEN accepted=1 THEN weight ELSE 0 END), 0) AS accepted "
             "FROM tasks WHERE session_id=?",
@@ -261,11 +291,16 @@ class SessionStore:
             return 0.0
         return round(int(row["accepted"]) / total * 100, 1)
 
+    def completion_percent(self, session_id: str) -> float:
+        with self._query() as conn:
+            return self._completion_percent_conn(conn, session_id)
+
     def all_critical_passed(self, session_id: str) -> bool:
-        row = self._conn.execute(
-            "SELECT COUNT(*) AS unmet FROM tasks WHERE session_id=? AND critical=1 AND accepted=0",
-            (session_id,),
-        ).fetchone()
+        with self._query() as conn:
+            row = conn.execute(
+                "SELECT COUNT(*) AS unmet FROM tasks WHERE session_id=? AND critical=1 AND accepted=0",
+                (session_id,),
+            ).fetchone()
         return int(row["unmet"]) == 0
 
     def meets_target(self, session_id: str, target: int = 95) -> bool:
@@ -284,27 +319,31 @@ class SessionStore:
             )
 
     def get_session(self, session_id: str) -> dict | None:
-        row = self._conn.execute(
-            "SELECT * FROM sessions WHERE id=?", (session_id,)
-        ).fetchone()
+        with self._query() as conn:
+            row = conn.execute(
+                "SELECT * FROM sessions WHERE id=?", (session_id,)
+            ).fetchone()
         return dict(row) if row else None
 
     def list_sessions(self, limit: int = 20) -> list[SessionSummary]:
-        rows = self._conn.execute(
-            "SELECT id, objective, status, created_at FROM sessions ORDER BY created_at DESC LIMIT ?",
-            (limit,),
-        ).fetchall()
-        return [
-            SessionSummary(
-                id=r["id"], objective=r["objective"], status=r["status"],
-                completion_percent=self.completion_percent(r["id"]),
-                created_at=r["created_at"],
-            )
-            for r in rows
-        ]
+        with self._query() as conn:
+            rows = conn.execute(
+                "SELECT id, objective, status, created_at FROM sessions ORDER BY created_at DESC LIMIT ?",
+                (limit,),
+            ).fetchall()
+            summaries = [
+                SessionSummary(
+                    id=r["id"], objective=r["objective"], status=r["status"],
+                    completion_percent=self._completion_percent_conn(conn, r["id"]),
+                    created_at=r["created_at"],
+                )
+                for r in rows
+            ]
+        return summaries
 
     def task_count(self, session_id: str) -> int:
-        row = self._conn.execute(
-            "SELECT COUNT(*) AS c FROM tasks WHERE session_id=?", (session_id,)
-        ).fetchone()
+        with self._query() as conn:
+            row = conn.execute(
+                "SELECT COUNT(*) AS c FROM tasks WHERE session_id=?", (session_id,)
+            ).fetchone()
         return int(row["c"])

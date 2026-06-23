@@ -13,9 +13,11 @@ the UI and demo mode is a drop-in replacement.
 """
 from __future__ import annotations
 
+import datetime
 import os
 import queue
 import threading
+import traceback
 from pathlib import Path
 
 from textual.app import App, ComposeResult
@@ -108,6 +110,7 @@ class PrometheusApp(App):
         no_animation: bool = False,
         demo: bool = False,
         initial_screen: str | None = None,
+        submit_objective: str | None = None,
     ):
         super().__init__()
         self.bundle_path = bundle_path
@@ -115,6 +118,7 @@ class PrometheusApp(App):
         self.no_animation = no_animation
         self.demo = demo
         self.initial_screen = initial_screen
+        self.submit_objective = submit_objective
         self._approval = ApprovalPrompt()
         self._session_id: str | None = None
         self._store: SessionStore | None = None
@@ -188,6 +192,8 @@ class PrometheusApp(App):
         if self.initial_screen:
             cmd = self.initial_screen if self.initial_screen.startswith("/") else f"/{self.initial_screen}"
             self._dispatch_slash_text(cmd)
+        if self.submit_objective:
+            self._run_objective(self.submit_objective)
         # Periodic telemetry refresh (only in real mode — demo is static).
         if not self._snapshot.is_demo:
             try:
@@ -538,14 +544,21 @@ class PrometheusApp(App):
     # ------------------------------------------------------------------
 
     def _run_objective(self, objective: str) -> None:
-        if not self.bundle_path and not self.demo:
-            self._log("[err]No bundle configured.[/] Run [gold]/setup[/] or [gold]prometheus setup[/].")
-            return
         if self.demo:
             self._log("[dim](demo mode — objective would be sent to the orchestrator)[/]")
             self._log(f"[gold]▸ {objective}[/]")
             return
+
         settings = load_settings()
+        if not self._has_active_bundle(settings):
+            self._render_no_bundle_card(settings)
+            return
+
+        ollama = self._check_ollama_models(settings)
+        if ollama is not None:
+            self._render_missing_models_card(settings, ollama)
+            return
+
         settings.workspace = self.workspace.resolve()
         home = ensure_home()
         self._store = SessionStore(home / "sessions" / "prometheus.db")
@@ -553,6 +566,79 @@ class PrometheusApp(App):
         self._log(f"[info]Bundle:[/] {bundle.name}  [info]Mode:[/] {settings.mode.value}")
         self.status = "running"
         self.run_worker(self._orchestrate, objective, settings, bundle)
+
+    def _has_active_bundle(self, settings) -> bool:
+        if self.bundle_path and Path(self.bundle_path).exists():
+            return True
+        return bool(getattr(settings, "active_bundle_id", None))
+
+    def _check_ollama_models(self, settings):
+        try:
+            from .onboarding import check_ollama
+            status = check_ollama()
+        except Exception:
+            return None
+        if not status.running:
+            return ("not_running", [])
+        if not status.models:
+            return ("no_models", [])
+        try:
+            bundle = load_bundle(self.bundle_path)
+            required = [m.model for m in bundle.models]
+        except Exception:
+            return None
+        installed = set(status.models)
+        missing = [m for m in required if m not in installed]
+        if missing:
+            return ("missing_models", missing)
+        return None
+
+    def _render_no_bundle_card(self, settings) -> None:
+        rec = "spark-cpu-8gb"
+        try:
+            from .hardware import detect_hardware, recommended_profile
+            rec = recommended_profile(detect_hardware()) or rec
+        except Exception:
+            pass
+        self._log("")
+        self._log("[err]┌─ No active bundle configured ─────────────────────────────┐[/]")
+        self._log("[err]│[/]  PROMETHEUS needs a model bundle to run objectives.  [err]│[/]")
+        self._log("[err]│[/]                                                          [err]│[/]")
+        self._log(f"[err]│[/]  Recommended:  [gold]{rec}[/]")
+        self._log("[err]│[/]                                                          [err]│[/]")
+        self._log("[err]│[/]  Next steps:                                              [err]│[/]")
+        self._log("[err]│[/]    [gold]/setup[/]     — run the 7-step setup wizard       [err]│[/]")
+        self._log("[err]│[/]    [gold]/bundles[/]   — browse available bundles         [err]│[/]")
+        self._log(f"[err]│[/]    [gold]/use {rec}[/] — select the recommended bundle   [err]│[/]")
+        self._log("[err]└──────────────────────────────────────────────────────────┘[/]")
+        self._log("")
+
+    def _render_missing_models_card(self, settings, ollama_info) -> None:
+        kind, missing = ollama_info
+        if kind == "not_running":
+            self._log("")
+            self._log("[err]┌─ Ollama not running ─────────────────────────────────────┐[/]")
+            self._log("[err]│[/]  Start it with:  [gold]ollama serve[/]                    [err]│[/]")
+            self._log("[err]│[/]  Then run:       [gold]/setup[/] or [gold]/models pull <bundle>[/]  [err]│[/]")
+            self._log("[err]└──────────────────────────────────────────────────────────┘[/]")
+            self._log("")
+            return
+        label = "Ollama is running, but required models are not installed" if kind == "no_models" else "Some required models are missing"
+        bundle_id = getattr(settings, "active_bundle_id", None) or "your bundle"
+        self._log("")
+        self._log("[err]┌─ " + label + " ──────────────────────┐[/]")
+        if missing:
+            self._log("[err]│[/]  Missing models:                                          [err]│[/]")
+            for m in missing:
+                self._log(f"[err]│[/]    [warn]•[/] {m}")
+        else:
+            self._log("[err]│[/]  Ollama has 0 models installed.                        [err]│[/]")
+        self._log("[err]│[/]                                                          [err]│[/]")
+        self._log("[err]│[/]  Pull required models:                                   [err]│[/]")
+        self._log(f"[err]│[/]    [gold]/models pull {bundle_id}[/]")
+        self._log("[err]│[/]    [gold]/setup[/]")
+        self._log("[err]└──────────────────────────────────────────────────────────┘[/]")
+        self._log("")
 
     def run_worker(self, fn, *args) -> None:
         thread = threading.Thread(target=fn, args=args, daemon=True)
@@ -587,8 +673,53 @@ class PrometheusApp(App):
             result = orchestrator.run(objective, on_update=on_update)
             self.call_from_thread(self._on_complete, result)
         except Exception as exc:
-            self.call_from_thread(self._log, f"[err]ERROR:[/] {exc}")
-            self.call_from_thread(self._set_error_status)
+            self._log_worker_error(exc)
+
+    def _log_worker_error(self, exc: Exception) -> None:
+        tb_lines = traceback.format_exception(type(exc), exc, exc.__traceback__)
+        tb = "".join(tb_lines)
+        if "NoneType: None" in tb:
+            current = traceback.format_exc()
+            if "NoneType: None" not in current:
+                tb = current
+        try:
+            home = ensure_home()
+            log_dir = home / "logs"
+            log_dir.mkdir(parents=True, exist_ok=True)
+            stamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
+            log_path = log_dir / f"tui_worker_error_{stamp}.log"
+            log_path.write_text(
+                f"TUI worker error\nObjective path\nTimestamp: {stamp}\n\n{tb}\n",
+                encoding="utf-8",
+            )
+            log_ref = str(log_path)
+        except Exception:
+            log_ref = "(log write failed)"
+
+        exc_type = type(exc).__name__
+        short = str(exc)[:120]
+        if len(str(exc)) > 120:
+            short += "…"
+
+        self._safe_call_from_thread(self._render_error_card, exc_type, short, log_ref)
+        self._safe_call_from_thread(self._set_error_status)
+
+    def _safe_call_from_thread(self, fn, *args) -> None:
+        try:
+            self.call_from_thread(fn, *args)
+        except RuntimeError:
+            fn(*args)
+
+    def _render_error_card(self, exc_type: str, short_msg: str, log_ref: str) -> None:
+        self._log("")
+        self._log("[err]┌─ Objective failed ────────────────────────────────────────┐[/]")
+        self._log(f"[err]│[/]  [warn]{exc_type}[/]")
+        self._log(f"[err]│[/]  {short_msg}")
+        self._log("[err]│[/]                                                          [err]│[/]")
+        self._log(f"[err]│[/]  Details logged: [dim]{log_ref}[/]")
+        self._log("[err]│[/]  You can retry, type /help, or /setup to reconfigure.   [err]│[/]")
+        self._log("[err]└──────────────────────────────────────────────────────────┘[/]")
+        self._log("")
 
     def _set_error_status(self) -> None:
         self.status = "error"
@@ -692,6 +823,7 @@ def launch_tui(
     screenshot_path: Path | None = None,
     initial_screen: str | None = None,
     exit_after_render: bool = False,
+    submit_objective: str | None = None,
 ) -> None:
     """Launch the PROMETHEUS TUI.
 
@@ -706,6 +838,7 @@ def launch_tui(
         no_animation=no_animation,
         demo=demo,
         initial_screen=initial_screen,
+        submit_objective=submit_objective,
     )
 
     if screenshot_path is not None:
