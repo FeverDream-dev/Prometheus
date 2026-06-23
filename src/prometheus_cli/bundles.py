@@ -360,9 +360,23 @@ def _strip_unsafe(node):
     return node
 
 
+_BUNDLE_ALIASES: dict[str, str] = {
+    "spark-cpu": "spark-cpu-8gb",
+    "ember-8gb": "ember-8gb-gpu",
+    "forge-12gb": "forge-12gb",
+    "titan-24gb": "titan-24gb",
+    "cloud-hybrid": "cloud-hybrid",
+}
+
+
+def resolve_bundle_id(bundle_id: str) -> str:
+    return _BUNDLE_ALIASES.get(bundle_id, bundle_id)
+
+
 def find_bundle(bundle_id: str, registry: list[BundleV2] | None = None) -> BundleV2 | None:
     registry = registry if registry is not None else load_registry()
-    return next((b for b in registry if b.id == bundle_id), None)
+    resolved = resolve_bundle_id(bundle_id)
+    return next((b for b in registry if b.id == resolved), None)
 
 __all__ = [
     "BUILT_IN_DIR",
@@ -376,6 +390,7 @@ __all__ = [
     "classify_bundle",
     "classify_registry",
     "find_bundle",
+    "resolve_bundle_id",
     "hardware_fits",
     "load_bundle",
     "load_registry",

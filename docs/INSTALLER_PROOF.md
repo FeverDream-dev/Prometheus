@@ -1,5 +1,26 @@
 # Installer proof — what is verified and what the release tag changed
 
+## Full installed-product smoke (2026-06-23)
+
+`bash scripts/full_installed_product_smoke.sh` against the live public installer:
+
+```text
+=== PROMETHEUS full installed-product smoke ===
+[1/8] Installing from public installer... install OK
+[2/8] prometheus doctor ... doctor OK
+[3/8] prometheus bundles list ... found 10 bundles
+[4/8] prometheus setup --dry-run ... setup --dry-run OK
+[5/8] prometheus tui --demo --exit-after-render ... tui demo OK
+[6/8] bundleforge recommend ... bundleforge OK
+[7/8] sandbox test ... sandbox OK
+[8/8] raw markup check ... no raw markup in artifacts/tui
+=== PASS: full installed-product smoke ===
+```
+
+Unreleased main: `PROMETHEUS_REF=main bash scripts/full_installed_product_smoke.sh`
+
+---
+
 ## Packaged defaults fix (Step 1 recovery)
 
 The v0.1.0 wheel shipped without default bundles, causing `prometheus setup` to

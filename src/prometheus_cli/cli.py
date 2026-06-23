@@ -946,10 +946,12 @@ def models_pull(
     bundle_id: str = typer.Option(None, "--bundle", help="Pull every role model of this package id"),
     base_url: str = typer.Option("http://127.0.0.1:11434", "--base-url"),
     verify: bool = typer.Option(True, "--verify/--no-verify", help="Run a one-token inference probe after pull"),
+    yes: bool = typer.Option(False, "--yes", help="Skip confirmation for large downloads (>2 GB)"),
 ) -> None:
     """Pull a model (or a whole bundle's roles) via Ollama with live progress."""
     from .model_aliases import resolve_alias
     from .onboarding import check_ollama, format_pull_progress, inference_smoke_test, pull_model, start_ollama_service
+    from .pull_policy import confirm_large_pull, requires_pull_confirmation
 
     status = check_ollama(base_url)
     if not status.running:
@@ -980,6 +982,18 @@ def models_pull(
                 targets = [r.model for r in match.roles.values()]
         if not targets:
             console.print("[red]Provide a model tag/alias, --bundle <id>, or set an active package (prometheus use <id>).[/red]")
+            raise typer.Exit(code=1)
+
+    to_pull = [t for t in targets if t not in status.models]
+    if to_pull:
+        needs, size, largest = requires_pull_confirmation(to_pull)
+        if needs:
+            console.print(
+                f"[yellow]Large download warning:[/yellow] {largest} is ~{size:.1f} GB "
+                f"(threshold >2 GB)."
+            )
+        if not confirm_large_pull(to_pull, yes=yes):
+            console.print("[yellow]Pull cancelled — no models downloaded.[/yellow]")
             raise typer.Exit(code=1)
 
     for tag in targets:
