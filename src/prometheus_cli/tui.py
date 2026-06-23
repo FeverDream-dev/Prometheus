@@ -309,6 +309,25 @@ class PrometheusApp(App):
         except Exception:
             pass
 
+    def _log_user(self, text: str) -> None:
+        """Render a user objective with a distinct visual block."""
+        self._log("[dim]────────────────────────────────────────────────[/]")
+        self._log("[bold #5a8aa0]  You[/]")
+        for line in (text.splitlines() or [text]):
+            self._log(f"[#c8dce8]  {line}[/]")
+        self._log("[dim]────────────────────────────────────────────────[/]")
+
+    def _log_agent(self, text: str, *, prefix: str | None = None) -> None:
+        """Render agent/orchestrator output with PROMETHEUS styling."""
+        label = prefix or "PROMETHEUS"
+        if prefix is None and text.startswith(("step ", "PLAN", "BUILD", "TEST")):
+            label = "PROMETHEUS"
+        self._log(f"[bold #d4a02a]  ◆ {label}[/]  [#e6e2d8]{text}[/]")
+
+    def _log_system(self, text: str) -> None:
+        """Render system guidance (cards, hints) without looking like agent chat."""
+        self._log(f"[dim]{text}[/]")
+
     def _populate_demo_transcript(self) -> None:
         for line in [
             "[gold]▸[/] add JWT auth to /api/login with tests",
@@ -360,7 +379,7 @@ class PrometheusApp(App):
             return
 
         # Echo the objective into the transcript and run.
-        self._log(f"[gold]▸[/] {text}")
+        self._log_user(text)
         event.input.value = ""
         self._run_objective(text)
 
@@ -560,33 +579,50 @@ class PrometheusApp(App):
             return
 
         settings.workspace = self.workspace.resolve()
+        bundle_path = self.bundle_path or settings.bundle_file
+        if not bundle_path:
+            self._render_no_bundle_card(settings)
+            return
         home = ensure_home()
-        self._store = SessionStore(home / "sessions" / "prometheus.db")
-        bundle = load_bundle(self.bundle_path)
+        try:
+            bundle = load_bundle(bundle_path)
+        except Exception as exc:
+            self._log("")
+            self._log("[err]┌─ Bundle could not be loaded ────────────────────────────┐[/]")
+            self._log(f"[err]│[/]  {type(exc).__name__}: {str(exc)[:72]}")
+            self._log("[err]│[/]  Run [gold]/setup[/] or [gold]/use <bundle-id>[/] to reconfigure. [err]│[/]")
+            self._log("[err]└──────────────────────────────────────────────────────────┘[/]")
+            self._log("")
+            return
         self._log(f"[info]Bundle:[/] {bundle.name}  [info]Mode:[/] {settings.mode.value}")
         self.status = "running"
-        self.run_worker(self._orchestrate, objective, settings, bundle)
+        self.run_worker(self._orchestrate, objective, settings, bundle, home)
 
     def _has_active_bundle(self, settings) -> bool:
-        if self.bundle_path and Path(self.bundle_path).exists():
+        """True only when a bundle is explicitly active (matches header chrome)."""
+        if getattr(settings, "active_bundle_id", None):
             return True
-        return bool(getattr(settings, "active_bundle_id", None))
+        # Stale bundle_file on disk without active_bundle_id is not configured.
+        return False
 
     def _check_ollama_models(self, settings):
         try:
             from .onboarding import check_ollama
             status = check_ollama()
         except Exception:
-            return None
+            return ("ollama_check_failed", [])
         if not status.running:
             return ("not_running", [])
         if not status.models:
             return ("no_models", [])
+        bundle_path = self.bundle_path or settings.bundle_file
+        if not bundle_path:
+            return ("no_bundle_file", [])
         try:
-            bundle = load_bundle(self.bundle_path)
+            bundle = load_bundle(bundle_path)
             required = [m.model for m in bundle.models]
         except Exception:
-            return None
+            return ("bundle_load_failed", [])
         installed = set(status.models)
         missing = [m for m in required if m not in installed]
         if missing:
@@ -623,7 +659,19 @@ class PrometheusApp(App):
             self._log("[err]└──────────────────────────────────────────────────────────┘[/]")
             self._log("")
             return
-        label = "Ollama is running, but required models are not installed" if kind == "no_models" else "Some required models are missing"
+        if kind in {"bundle_load_failed", "no_bundle_file", "ollama_check_failed"}:
+            self._log("")
+            self._log("[err]┌─ Bundle not ready ───────────────────────────────────────┐[/]")
+            self._log("[err]│[/]  Could not verify models for the active bundle.        [err]│[/]")
+            self._log("[err]│[/]  Run [gold]/setup[/] or [gold]/use <bundle-id>[/] to fix.   [err]│[/]")
+            self._log("[err]└──────────────────────────────────────────────────────────┘[/]")
+            self._log("")
+            return
+        label = (
+            "Ollama is running, but no required models are installed"
+            if kind == "no_models"
+            else "Some required models are missing"
+        )
         bundle_id = getattr(settings, "active_bundle_id", None) or "your bundle"
         self._log("")
         self._log("[err]┌─ " + label + " ──────────────────────┐[/]")
@@ -659,21 +707,22 @@ class PrometheusApp(App):
                 f"[dim]Press [gold]y[/] to approve or [err]n[/] to deny.[/]",
             )
 
-    def _orchestrate(self, objective: str, settings, bundle) -> None:
+    def _orchestrate(self, objective: str, settings, bundle, home: Path) -> None:
         def on_update(line: str) -> None:
-            self.call_from_thread(self._log, line)
+            self.call_from_thread(self._log_agent, line)
 
         def approve(call: ToolCall, risk: Risk) -> bool:
             return self._approval.request(call, risk)
 
         try:
+            self._store = SessionStore(home / "sessions" / "prometheus.db")
             orchestrator = Orchestrator(
                 settings, bundle, approve=approve, session_store=self._store,
             )
             result = orchestrator.run(objective, on_update=on_update)
             self.call_from_thread(self._on_complete, result)
         except Exception as exc:
-            self._log_worker_error(exc)
+            self.call_from_thread(self._log_worker_error, exc)
 
     def _log_worker_error(self, exc: Exception) -> None:
         tb_lines = traceback.format_exception(type(exc), exc, exc.__traceback__)
@@ -725,10 +774,9 @@ class PrometheusApp(App):
         self.status = "error"
 
     def _on_complete(self, result) -> None:
-        color = "ok" if result.status == "complete" else "warn"
-        self._log(f"\n[{color}]{result.status.upper()} — {result.completion_percent}%[/]")
+        self._log_agent(f"{result.status.upper()} — {result.completion_percent}%", prefix="Result")
         if result.message:
-            self._log(result.message)
+            self._log_agent(result.message)
         self.completion = result.completion_percent
         self.status = result.status
         if self._store:

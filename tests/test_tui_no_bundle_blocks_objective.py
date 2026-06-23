@@ -77,11 +77,36 @@ class TestNoBundleBlocksObjective:
             assert not mock_store.called
         assert app._store is None
 
+    def test_stale_bundle_file_without_active_id_blocks(self, make_app, transcript_lines):
+        """bundle_file on disk without active_bundle_id must not start orchestrator."""
+        settings = Settings(
+            mode=AutonomyMode.PILOT,
+            active_bundle_id=None,
+            bundle_file=Path("/tmp/stale-bundle.yaml"),
+        )
+        app = make_app(
+            demo=False,
+            bundle_path=Path("/tmp/stale-bundle.yaml"),
+            settings=settings,
+        )
+        with patch("prometheus_cli.tui.Orchestrator") as mock_orch:
+            app._run_objective("please craft a website for me")
+            assert not mock_orch.called
+        joined = "\n".join(transcript_lines)
+        assert "No active bundle configured" in joined
+
     def test_recommended_bundle_shown_in_card(self, make_app, transcript_lines):
         app = make_app(demo=False, settings=_settings_no_bundle())
         app._run_objective("build something")
         joined = "\n".join(transcript_lines)
         assert "/use" in joined
+
+    def test_user_message_uses_distinct_styling(self, make_app, transcript_lines):
+        app = make_app(demo=False, settings=_settings_no_bundle())
+        app._log_user("hello world")
+        joined = "\n".join(transcript_lines)
+        assert "You" in joined
+        assert "hello world" in joined
 
 
 class TestMissingModelsBlocksObjective:

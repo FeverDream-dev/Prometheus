@@ -493,9 +493,8 @@ def tui(
     settings = load_settings()
     bundle_path = bundle or settings.bundle_file
     if not demo and screenshot is None and not exit_after_render and not bundle_path and not submit_objective:
-        console.print("[yellow]No bundle configured. Run 'prometheus setup' first.[/yellow]")
-        console.print("Or pass --bundle <path>, or use --demo to preview the TUI.")
-        raise typer.Exit(code=1)
+        console.print("[yellow]No bundle configured yet — opening TUI setup.[/yellow]")
+        console.print("[dim]Use /setup or /bundles inside the TUI to pick a package.[/dim]")
 
     disable_anim = no_animation or settings.reduced_motion or screenshot is not None or exit_after_render
 
