@@ -350,9 +350,9 @@ def first_run_banner(settings) -> list[str]:
     if settings.active_bundle_id:
         return []
     return [
-        "[bold yellow]Welcome to PROMETHEUS![/bold yellow]",
-        "No model bundle configured yet. Type [bold]/setup[/bold] to pick a bundle,",
-        "or [bold]/help[/bold] to see all commands.",
+        "[gold]Welcome to PROMETHEUS![/]",
+        "No model bundle configured yet. Type [gold]/setup[/] to pick a bundle,",
+        "or [gold]/help[/] to see all commands.",
         "",
     ]
 

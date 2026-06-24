@@ -722,7 +722,7 @@ class PrometheusApp(App):
             result = orchestrator.run(objective, on_update=on_update)
             self.call_from_thread(self._on_complete, result)
         except Exception as exc:
-            self.call_from_thread(self._log_worker_error, exc)
+            self._safe_call_from_thread(self._log_worker_error, exc)
 
     def _log_worker_error(self, exc: Exception) -> None:
         tb_lines = traceback.format_exception(type(exc), exc, exc.__traceback__)

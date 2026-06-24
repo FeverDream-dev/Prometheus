@@ -103,32 +103,38 @@ class TestOrchestratorExceptionHandling:
     def test_orchestrate_catches_and_logs(self, make_app, transcript_lines, fake_home):
         app = make_app()
 
-        with patch("prometheus_cli.tui.Orchestrator") as mock_orch_class:
+        with (
+            patch("prometheus_cli.tui.Orchestrator") as mock_orch_class,
+            patch("prometheus_cli.tui.SessionStore") as mock_store,
+        ):
             mock_orch_class.return_value.run.side_effect = sqlite_prog_error()
+            mock_store.return_value = mock_store
 
             class FakeBundle:
                 name = "Test"
 
-            app._store = None
-            settings = Settings(mode=AutonomyMode.PILOT)
-            app._orchestrate("objective", settings, FakeBundle())
+            app._orchestrate("objective", Settings(mode=AutonomyMode.PILOT), FakeBundle(), fake_home)
 
         joined = "\n".join(transcript_lines)
         assert "Objective failed" in joined
         assert app.status == "error"
 
     def test_orchestrate_catches_generic_exception(
-        self, make_app, transcript_lines
+        self, make_app, transcript_lines, fake_home
     ):
         app = make_app()
 
-        with patch("prometheus_cli.tui.Orchestrator") as mock_orch_class:
+        with (
+            patch("prometheus_cli.tui.Orchestrator") as mock_orch_class,
+            patch("prometheus_cli.tui.SessionStore") as mock_store,
+        ):
             mock_orch_class.return_value.run.side_effect = RuntimeError("network down")
+            mock_store.return_value = mock_store
 
             class FakeBundle:
                 name = "Test"
 
-            app._orchestrate("objective", Settings(mode=AutonomyMode.PILOT), FakeBundle())
+            app._orchestrate("objective", Settings(mode=AutonomyMode.PILOT), FakeBundle(), fake_home)
 
         joined = "\n".join(transcript_lines)
         assert "RuntimeError" in joined
