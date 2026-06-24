@@ -709,7 +709,7 @@ class PrometheusApp(App):
 
     def _orchestrate(self, objective: str, settings, bundle, home: Path) -> None:
         def on_update(line: str) -> None:
-            self.call_from_thread(self._log_agent, line)
+            self._safe_call_from_thread(self._log_agent, line)
 
         def approve(call: ToolCall, risk: Risk) -> bool:
             return self._approval.request(call, risk)
@@ -720,7 +720,7 @@ class PrometheusApp(App):
                 settings, bundle, approve=approve, session_store=self._store,
             )
             result = orchestrator.run(objective, on_update=on_update)
-            self.call_from_thread(self._on_complete, result)
+            self._safe_call_from_thread(self._on_complete, result)
         except Exception as exc:
             self._safe_call_from_thread(self._log_worker_error, exc)
 
