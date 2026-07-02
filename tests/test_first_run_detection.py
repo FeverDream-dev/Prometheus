@@ -38,6 +38,7 @@ class TestFirstRunDetection:
         home = tmp_path / "home"
         home.mkdir()
         (home / "config.yaml").write_text("mode: pilot\n", encoding="utf-8")
+        monkeypatch.setattr("prometheus_cli.config.CONFIG_HOME", home)
         with mock.patch("prometheus_cli.onboarding.check_ollama", return_value=_ollama(models=[])):
             state = detect_first_run(home=home, workspace=tmp_path)
         assert state.is_first_run is True

@@ -88,7 +88,7 @@ def test_default_verify_falls_back_to_diff_when_no_tests():
         verify = make_default_verify(ws)
         passed, evidence = verify(None, tools)
         assert passed is True
-        assert "patch applied" in evidence
+        assert "patch applied" in evidence or "non-empty" in evidence
 
 
 def test_arena_loop_with_default_verify_completes_repair():

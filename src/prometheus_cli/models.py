@@ -85,6 +85,10 @@ class Settings(BaseModel):
     checkpoint_interval_steps: int = Field(default=10, ge=1)
     reduced_motion: bool = False
     tui_telemetry_panel: bool = True
+    ponytail_mode: Literal["off", "lite", "full", "ultra"] = "full"
+    cavecrew_mode: Literal["off", "lite", "full"] = "lite"
+    caveman_mode: Literal["off", "lite", "full", "ultra"] = "full"
+    arena_char_budget: int = Field(default=0, ge=0, description="0 = auto from bundle (12k low VRAM / 24k default)")
 
     def step_limit(self) -> int | None:
         return None if self.max_steps == 0 else self.max_steps

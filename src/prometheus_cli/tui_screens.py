@@ -15,8 +15,8 @@ from pathlib import Path
 
 from textual.app import ComposeResult
 from textual.binding import Binding
-from textual.containers import Vertical, VerticalScroll
-from textual.screen import Screen
+from textual.containers import Horizontal, Vertical, VerticalScroll
+from textual.screen import ModalScreen, Screen
 from textual.widgets import Button, Input, Static
 
 from .tui_state import TuiSnapshot
@@ -626,17 +626,14 @@ class BundleForgeScreen(RichCommandScreen):
 
 
 class SetupScreen(RichCommandScreen):
-    """Static rendering of the full 7-step setup wizard.
+    """Static rendering of the full setup wizard (all steps on one screen).
 
-    Renders all wizard steps as one scrollable screen — the MVP-friendly
-    alternative to the interactive modal. The interactive :class:`SetupWizard`
-    is kept available for callers that want step-by-step modal flow, but the
-    ``/setup`` slash command dispatches here so the screen renders reliably
-    under both interactive and headless-export paths.
+    Renders every wizard step as one scrollable view for headless export and
+    ``/setup`` slash dispatch. Interactive bundle pull uses ``/setup-wizard``.
     """
 
     title = "PROMETHEUS · First-run Setup"
-    subtitle = "7-step setup wizard — type /use <bundle-id> to select"
+    subtitle = "9-step setup wizard — type /use <bundle-id> to select"
 
     def body_lines(self) -> list[str]:
         snap = self.snapshot or TuiSnapshot()
@@ -656,6 +653,7 @@ class SetupScreen(RichCommandScreen):
 SLASH_SCREEN_MAP: dict[str, type[RichCommandScreen]] = {
     "/help":        HelpScreen,
     "/?":           HelpScreen,
+    "/setup":       SetupScreen,
     "/settings":    SettingsScreen,
     "/models":      ModelsScreen,
     "/bundles":     BundlesScreen,
@@ -677,7 +675,6 @@ SLASH_SCREEN_MAP: dict[str, type[RichCommandScreen]] = {
     "/logo":        LogoScreen,
     "/diagnose":    DiagnoseScreen,
     "/plan":        PlanScreen,
-    "/setup":       SetupScreen,
 }
 
 
@@ -688,7 +685,7 @@ def dispatch_slash(app, cmd: str, snapshot: TuiSnapshot | None, rest: str = "") 
     visible). The palette and wizard are still pushed as modal Screen overlays.
     """
     if cmd == "/setup-wizard":
-        app.push_screen(SetupWizard(snapshot, app=app))
+        app.push_screen(InteractiveSetupScreen(snapshot, app=app))
         return True
 
     screen_cls = SLASH_SCREEN_MAP.get(cmd)
@@ -719,6 +716,13 @@ def render_screen_text(cmd: str, snapshot: TuiSnapshot | None = None) -> str:
     """Return a deterministic plain-text dump of a command screen's body."""
     if cmd == "/setup-wizard":
         lines = _setup_wizard_step_text(0, snapshot)
+    elif cmd == "/setup":
+        screen = SetupScreen.__new__(SetupScreen)
+        screen.snapshot = snapshot
+        try:
+            lines = screen.body_lines()
+        except Exception as exc:
+            lines = [f"(screen error: {exc})"]
     else:
         cls = SLASH_SCREEN_MAP.get(cmd, HelpScreen)
         screen = cls.__new__(cls)
@@ -829,6 +833,30 @@ class SetupWizard(Screen):
 
 def _setup_wizard_step_text(step: int, snap: TuiSnapshot | None) -> list[str]:
     snap = snap or TuiSnapshot()
+
+    def _wizard_hardware():
+        from .hardware import HardwareReport, detect_hardware
+
+        if snap.is_demo or snap.ram_gb > 0:
+            return HardwareReport(
+                os=snap.os or "Linux",
+                architecture=snap.arch or "x86_64",
+                ram_gb=snap.ram_gb,
+                cpu_brand=snap.cpu_brand,
+                gpu_name=snap.gpu_name,
+                vram_gb=snap.vram_gb,
+                disk_free_gb=snap.disk_free_gb,
+                ollama_installed=snap.ollama_installed,
+                ollama_running=snap.ollama_running,
+            )
+        return detect_hardware()
+
+    def _wizard_models() -> list[str]:
+        if snap.is_demo or snap.ollama_models:
+            return list(snap.ollama_models)
+        from .onboarding import check_ollama
+        return check_ollama().models
+
     if step == 0:
         return [
             "[gold]Welcome to PROMETHEUS[/]",
@@ -882,10 +910,10 @@ def _setup_wizard_step_text(step: int, snap: TuiSnapshot | None) -> list[str]:
         ]
     if step == 4:
         try:
-            from .hardware import detect_hardware, recommended_profile
-            recommended = recommended_profile(detect_hardware())
+            from .hardware import recommended_profile
+            recommended = recommended_profile(_wizard_hardware())
         except Exception:
-            recommended = "spark-cpu-8gb"
+            recommended = snap.bundle_id or "spark-cpu-8gb"
         return [
             "[gold]Recommended bundle[/]",
             "",
@@ -897,10 +925,8 @@ def _setup_wizard_step_text(step: int, snap: TuiSnapshot | None) -> list[str]:
     if step == 5:
         try:
             from .bundles import classify_registry, load_registry
-            from .hardware import detect_hardware
-            from .onboarding import check_ollama
             classified = classify_registry(
-                load_registry(), detect_hardware(), check_ollama().models,
+                load_registry(), _wizard_hardware(), _wizard_models(),
             )
         except Exception:
             classified = []
@@ -917,17 +943,15 @@ def _setup_wizard_step_text(step: int, snap: TuiSnapshot | None) -> list[str]:
     if step == 6:
         try:
             from .first_run import build_pull_info_for_bundle
-            from .onboarding import check_ollama
-            ollama = check_ollama()
-            settings_bundle = None
-            try:
-                from .config import load_settings
-                s = load_settings()
-                settings_bundle = s.active_bundle_id
-            except Exception:
-                pass
-            if settings_bundle:
-                infos = build_pull_info_for_bundle(settings_bundle, ollama.models)
+            bundle_id = snap.bundle_id
+            if not bundle_id and not snap.is_demo:
+                try:
+                    from .config import load_settings
+                    bundle_id = load_settings().active_bundle_id
+                except Exception:
+                    bundle_id = None
+            if bundle_id:
+                infos = build_pull_info_for_bundle(bundle_id, _wizard_models())
             else:
                 infos = []
         except Exception:
@@ -979,6 +1003,323 @@ def _setup_wizard_step_text(step: int, snap: TuiSnapshot | None) -> list[str]:
         "",
         "[dim]Or open the command palette with Ctrl+P.[/]",
     ]
+
+
+# ---------------------------------------------------------------------------
+# Interactive setup — mouse-clickable bundle picker + model pull + verify
+# ---------------------------------------------------------------------------
+
+class BundleListItem(Static):
+    """One clickable row in the setup bundle list."""
+
+    DEFAULT_CSS = """
+    BundleListItem {
+        height: 2;
+        padding: 0 1;
+        border: solid transparent;
+    }
+    BundleListItem:hover {
+        background: $boost;
+    }
+    BundleListItem.selected {
+        border: solid #c9a227;
+        background: #181b24;
+    }
+    """
+
+    def __init__(self, bundle_id: str, label: str, status: str, recommended: bool = False) -> None:
+        super().__init__(markup=True)
+        self.bundle_id = bundle_id
+        self.label = label
+        self.status = status
+        self.recommended = recommended
+        self._selected = False
+        self._render()
+
+    def set_selected(self, selected: bool) -> None:
+        self._selected = selected
+        self.set_class(selected, "selected")
+        self._render()
+
+    def _render(self) -> None:
+        marker = "[gold]▶[/] " if self._selected else "  "
+        tag = {
+            "recommended": "[ok]recommended[/]",
+            "installed": "[ok]installed[/]",
+            "compatible": "[info]compatible[/]",
+            "blocked": "[err]blocked[/]",
+        }.get(self.status, f"[dim]{self.status}[/]")
+        rec = " [gold]★[/]" if self.recommended else ""
+        self.update(f"{marker}[v]{self.bundle_id:<22}[/] {self.label}{rec}  {tag}")
+
+    async def on_click(self, _event) -> None:
+        try:
+            screen = self.app.screen  # type: ignore[attr-defined]
+            if hasattr(screen, "select_bundle"):
+                screen.select_bundle(self.bundle_id)  # type: ignore[attr-defined]
+        except Exception:
+            pass
+
+
+class InteractiveSetupScreen(ModalScreen[dict | None]):
+    """Full interactive setup: pick a bundle, download models, verify — all clickable."""
+
+    BINDINGS = [
+        Binding("escape", "close", "Close", show=True),
+    ]
+
+    def __init__(self, snapshot: TuiSnapshot | None = None, app=None) -> None:
+        super().__init__()
+        self.snapshot = snapshot
+        self._app_ref = app
+        self._selected_id: str | None = None
+        self._busy = False
+        self._confirm_large: str | None = None
+
+    def compose(self) -> ComposeResult:
+        with Vertical(id="setup-card"):
+            yield Static("[gold]PROMETHEUS · Setup[/]", id="setup-title", markup=True)
+            yield Static("", id="setup-hw", markup=True)
+            yield Static("[section]Bundles[/] — click to select", markup=True)
+            with VerticalScroll(id="setup-bundle-scroll"):
+                yield Static("[dim]loading bundles…[/]", id="setup-bundle-list", markup=True)
+            yield Static("", id="setup-models", markup=True)
+            yield Static("", id="setup-status", markup=True)
+            with Horizontal(id="setup-buttons"):
+                yield Button("Select bundle", id="btn-select", variant="primary")
+                yield Button("Download models", id="btn-pull", variant="default")
+                yield Button("Verify setup", id="btn-verify", variant="default")
+                yield Button("All-in-one", id="btn-all", variant="success")
+                yield Button("Close", id="btn-close", variant="default")
+
+    def on_mount(self) -> None:
+        self._render_hardware()
+        self._render_bundle_list()
+
+    def _render_hardware(self) -> None:
+        snap = self.snapshot or TuiSnapshot()
+        ollama = "[ok]running[/]" if snap.ollama_running else "[warn]not running[/]"
+        lines = [
+            f"[k]Project[/] [v]{snap.project_path}[/]",
+            f"[k]RAM[/]    [v]{snap.ram_gb:.0f} GB[/]  "
+            f"[k]GPU[/] [v]{snap.gpu_name or 'CPU'}[/]  "
+            f"[k]Ollama[/] {ollama}  "
+            f"[k]models[/] [v]{len(snap.ollama_models)}[/]",
+        ]
+        try:
+            self.query_one("#setup-hw", Static).update("\n".join(lines))
+        except Exception:
+            pass
+
+    def _classified_bundles(self) -> list:
+        try:
+            from .bundles import classify_registry, load_registry
+            from .hardware import detect_hardware
+            from .onboarding import check_ollama
+            return classify_registry(
+                load_registry(), detect_hardware(), check_ollama().models,
+            )
+        except Exception:
+            return []
+
+    def _render_bundle_list(self) -> None:
+        scroll = self.query_one("#setup-bundle-scroll", VerticalScroll)
+        try:
+            for child in list(scroll.children):
+                child.remove()
+        except Exception:
+            pass
+        classified = self._classified_bundles()
+        if not classified:
+            scroll.mount(Static("[dim]No bundles found.[/]", markup=True))
+            return
+        rec_id = next((c.bundle.id for c in classified if c.status == "recommended"), None)
+        if self._selected_id is None and rec_id:
+            self._selected_id = rec_id
+        for c in classified[:12]:
+            if c.bundle.is_add_on:
+                continue
+            item = BundleListItem(
+                c.bundle.id,
+                c.bundle.name,
+                c.status,
+                recommended=(c.bundle.id == rec_id),
+            )
+            item.set_selected(c.bundle.id == self._selected_id)
+            scroll.mount(item)
+        self._render_models_panel()
+
+    def select_bundle(self, bundle_id: str) -> None:
+        self._selected_id = bundle_id
+        scroll = self.query_one("#setup-bundle-scroll", VerticalScroll)
+        for child in scroll.children:
+            if isinstance(child, BundleListItem):
+                child.set_selected(child.bundle_id == bundle_id)
+        self._render_models_panel()
+        self._set_status(f"Selected [gold]{bundle_id}[/]")
+
+    def _render_models_panel(self) -> None:
+        widget = self.query_one("#setup-models", Static)
+        if not self._selected_id:
+            widget.update("[dim]Select a bundle to see required models.[/]")
+            return
+        try:
+            from .first_run import build_pull_info_for_bundle
+            from .onboarding import check_ollama
+            infos = build_pull_info_for_bundle(self._selected_id, check_ollama().models)
+        except Exception:
+            infos = []
+        if not infos:
+            widget.update(f"[dim]No model info for {self._selected_id}.[/]")
+            return
+        lines = [f"[section]Models for {self._selected_id}[/]", ""]
+        for info in infos:
+            st = "[ok]installed[/]" if info.already_installed else "[warn]missing[/]"
+            req = "required" if info.required else "optional"
+            lines.append(
+                f"  [v]{info.model_id}[/] ({info.role}) ~{info.download_size_gb:.1f} GB — {st} [{req}]"
+            )
+        widget.update("\n".join(lines))
+
+    def _set_status(self, text: str) -> None:
+        try:
+            self.query_one("#setup-status", Static).update(text)
+        except Exception:
+            pass
+
+    def _set_busy(self, busy: bool) -> None:
+        self._busy = busy
+        for bid in ("btn-select", "btn-pull", "btn-verify", "btn-all"):
+            try:
+                self.query_one(f"#{bid}", Button).disabled = busy
+            except Exception:
+                pass
+
+    def _emit_app_log(self, line: str) -> None:
+        app = self._app_ref
+        if app is not None and hasattr(app, "_log"):
+            try:
+                app.call_from_thread(app._log, line)  # type: ignore[attr-defined]
+            except Exception:
+                pass
+
+    def _confirm_large_download(self, prompt: str) -> bool:
+        self._confirm_large = prompt
+        self._set_status(
+            f"[warn]{prompt}[/] — click [gold]Download models[/] or [gold]All-in-one[/] again to confirm."
+        )
+        return False
+
+    def on_button_pressed(self, event: Button.Pressed) -> None:
+        if self._busy:
+            return
+        bid = event.button.id or ""
+        if bid == "btn-close":
+            self.action_close()
+        elif bid == "btn-select":
+            self.run_worker(self._worker_select)
+        elif bid == "btn-pull":
+            self.run_worker(self._worker_pull)
+        elif bid == "btn-verify":
+            self.run_worker(self._worker_verify)
+        elif bid == "btn-all":
+            self.run_worker(self._worker_all)
+
+    def _require_bundle(self) -> str | None:
+        if not self._selected_id:
+            self._set_status("[warn]Select a bundle first (click a row).[/]")
+            return None
+        return self._selected_id
+
+    def _worker_select(self) -> None:
+        bundle_id = self._require_bundle()
+        if not bundle_id:
+            return
+        self.call_from_thread(self._set_busy, True)
+        try:
+            from .tui_setup_actions import activate_bundle
+            ok, msg = activate_bundle(bundle_id)
+            styled = f"[ok]{msg}[/]" if ok else f"[err]{msg}[/]"
+            self.call_from_thread(self._set_status, styled)
+            self.call_from_thread(self._emit_app_log, styled)
+            if ok and self._app_ref is not None:
+                self.call_from_thread(self._app_ref._tick_telemetry)  # type: ignore[attr-defined]
+        finally:
+            self.call_from_thread(self._set_busy, False)
+
+    def _worker_pull(self) -> None:
+        bundle_id = self._require_bundle()
+        if not bundle_id:
+            return
+        self.call_from_thread(self._set_busy, True)
+        try:
+            from .tui_setup_actions import pull_bundle_models
+
+            def emit(line: str) -> None:
+                self.call_from_thread(self._set_status, line)
+                self.call_from_thread(self._emit_app_log, line)
+
+            yes = self._confirm_large is not None
+            ok = pull_bundle_models(
+                bundle_id,
+                yes=yes,
+                confirm_large=self._confirm_large_download if not yes else None,
+                on_status=emit,
+            )
+            if ok:
+                self._confirm_large = None
+                self.call_from_thread(self._render_models_panel)
+                if self._app_ref is not None:
+                    self.call_from_thread(self._app_ref._tick_telemetry)  # type: ignore[attr-defined]
+        finally:
+            self.call_from_thread(self._set_busy, False)
+
+    def _worker_verify(self) -> None:
+        bundle_id = self._require_bundle()
+        if not bundle_id:
+            return
+        self.call_from_thread(self._set_busy, True)
+        try:
+            from .tui_setup_actions import verify_bundle_setup
+
+            def emit(line: str) -> None:
+                self.call_from_thread(self._set_status, line)
+                self.call_from_thread(self._emit_app_log, line)
+
+            verify_bundle_setup(bundle_id, on_status=emit)
+        finally:
+            self.call_from_thread(self._set_busy, False)
+
+    def _worker_all(self) -> None:
+        bundle_id = self._require_bundle()
+        if not bundle_id:
+            return
+        self.call_from_thread(self._set_busy, True)
+        try:
+            from .tui_setup_actions import setup_bundle_end_to_end
+
+            def emit(line: str) -> None:
+                self.call_from_thread(self._set_status, line)
+                self.call_from_thread(self._emit_app_log, line)
+
+            yes = self._confirm_large is not None
+            ok = setup_bundle_end_to_end(
+                bundle_id,
+                yes=yes,
+                confirm_large=self._confirm_large_download if not yes else None,
+                on_status=emit,
+            )
+            if ok:
+                self._confirm_large = None
+                self.call_from_thread(self._render_models_panel)
+                if self._app_ref is not None:
+                    self.call_from_thread(self._app_ref._tick_telemetry)  # type: ignore[attr-defined]
+                self.call_from_thread(self._set_status, "[ok]Setup complete — ready to code.[/]")
+        finally:
+            self.call_from_thread(self._set_busy, False)
+
+    def action_close(self) -> None:
+        self.dismiss({"bundle_id": self._selected_id})
 
 
 # ---------------------------------------------------------------------------
@@ -1087,6 +1428,8 @@ __all__ = [
     "AssetsScreen",
     "AstronautScreen",
     "BundlesScreen",
+    "InteractiveSetupScreen",
+    "BundleListItem",
     "CommandPaletteScreen",
     "DiagnoseScreen",
     "DoctorScreen",

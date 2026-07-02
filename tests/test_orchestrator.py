@@ -138,3 +138,15 @@ class TestDeterministicCompletion:
             assert len(evidence) >= 1
             assert evidence[0]["kind"] == "list_files"
             store.close()
+
+    def test_stops_after_three_empty_turns(self):
+        with TemporaryDirectory() as tmp:
+            store = SessionStore(Path(tmp) / "test.db")
+            orch = Orchestrator(_settings(Path(tmp)), _bundle(),
+                                approve=lambda *_: True, session_store=store)
+            empty = json.dumps({"status": "working", "message": "", "calls": []})
+            orch.controller = FakeProvider([empty, empty, empty])
+            result = orch.run("do something", on_update=lambda _: None)
+            assert result.status == "blocked"
+            assert "empty turns" in result.message.lower()
+            store.close()

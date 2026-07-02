@@ -85,7 +85,7 @@ def detect_first_run(
     config_path = home_dir / "config.yaml"
     has_config = config_path.is_file()
 
-    settings = load_settings() if has_config else None
+    settings = load_settings(config_path) if has_config else None
     has_active_bundle = bool(settings and settings.active_bundle_id)
 
     if ollama_status is not None:

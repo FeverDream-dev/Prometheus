@@ -5,7 +5,9 @@ from unittest import mock
 
 import pytest
 
-from prometheus_cli.browser import BrowserTools, BrowserEvidence, PLAYWRIGHT_AVAILABLE
+from prometheus_cli.browser import BrowserTools, BrowserEvidence, PLAYWRIGHT_AVAILABLE, browsers_ready
+
+_BROWSER_READY = PLAYWRIGHT_AVAILABLE and browsers_ready()
 
 
 @pytest.fixture
@@ -29,7 +31,7 @@ def mock_playwright_ctx(mock_page):
     return pw_context, mock_page
 
 
-@pytest.mark.skipif(not PLAYWRIGHT_AVAILABLE, reason="Playwright not installed")
+@pytest.mark.skipif(not _BROWSER_READY, reason="Playwright browsers not ready")
 class TestBrowserNavigation:
     def test_navigate_returns_url_and_title(self, mock_playwright_ctx):
         pw_ctx, page = mock_playwright_ctx
@@ -49,7 +51,7 @@ class TestBrowserNavigation:
             assert len(tools._console_errors) == 0
 
 
-@pytest.mark.skipif(not PLAYWRIGHT_AVAILABLE, reason="Playwright not installed")
+@pytest.mark.skipif(not _BROWSER_READY, reason="Playwright browsers not ready")
 class TestBrowserInteraction:
     def test_click_calls_page_click(self, mock_playwright_ctx):
         pw_ctx, page = mock_playwright_ctx
@@ -83,7 +85,7 @@ class TestBrowserInteraction:
             assert data["result"] == 42
 
 
-@pytest.mark.skipif(not PLAYWRIGHT_AVAILABLE, reason="Playwright not installed")
+@pytest.mark.skipif(not _BROWSER_READY, reason="Playwright browsers not ready")
 class TestScreenshot:
     def test_screenshot_returns_size_info(self, mock_playwright_ctx):
         pw_ctx, page = mock_playwright_ctx
@@ -94,7 +96,7 @@ class TestScreenshot:
             page.screenshot.assert_called_once()
 
 
-@pytest.mark.skipif(not PLAYWRIGHT_AVAILABLE, reason="Playwright not installed")
+@pytest.mark.skipif(not _BROWSER_READY, reason="Playwright browsers not ready")
 class TestEvidenceCollection:
     def test_collect_evidence_captures_url_and_title(self, mock_playwright_ctx):
         pw_ctx, page = mock_playwright_ctx
@@ -142,7 +144,7 @@ class TestEvidenceCollection:
         assert "Network failures" in summary
 
 
-@pytest.mark.skipif(not PLAYWRIGHT_AVAILABLE, reason="Playwright not installed")
+@pytest.mark.skipif(not _BROWSER_READY, reason="Playwright browsers not ready")
 class TestBrowserLifecycle:
     def test_close_stops_playwright(self, mock_playwright_ctx):
         pw_ctx, page = mock_playwright_ctx

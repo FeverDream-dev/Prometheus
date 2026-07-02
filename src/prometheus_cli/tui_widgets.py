@@ -245,6 +245,86 @@ class NextAction(Static):
     """The 'next recommended action' line pinned to the bottom of main column."""
 
 
+# ---------------------------------------------------------------------------
+# Slash command autocomplete (inline, below the main input)
+# ---------------------------------------------------------------------------
+
+class SlashSuggestPanel(Static):
+    """Filtered slash-command list shown while the user types ``/`` in the input."""
+
+    DEFAULT_CSS = """
+    SlashSuggestPanel {
+        height: auto;
+        max-height: 10;
+        background: #12151c;
+        border: solid #3d3528;
+        padding: 0 1;
+        display: none;
+    }
+    SlashSuggestPanel.visible {
+        display: block;
+    }
+    """
+
+    def __init__(self, *args, **kwargs) -> None:
+        super().__init__(*args, markup=True, **kwargs)
+        self._matches: list[tuple[str, str]] = []
+        self._selected = 0
+        self.visible = False
+
+    def update_prefix(self, prefix: str) -> None:
+        from .tui_commands import SLASH_COMMANDS
+
+        if not prefix.startswith("/"):
+            self._matches = []
+            self._selected = 0
+            self.visible = False
+            self.update("")
+            return
+        needle = prefix.lower()
+        self._matches = sorted(
+            (cmd, desc)
+            for cmd, desc in SLASH_COMMANDS.items()
+            if cmd.startswith(needle) or (len(needle) == 1 and cmd.startswith("/"))
+        )
+        self._selected = min(self._selected, max(0, len(self._matches) - 1))
+        self.visible = bool(self._matches)
+        self.set_class(self.visible, "visible")
+        self._render()
+
+    def _render(self) -> None:
+        if not self._matches:
+            self.update("")
+            return
+        lines: list[str] = []
+        for i, (cmd, desc) in enumerate(self._matches[:10]):
+            marker = "[gold]▶[/]" if i == self._selected else " "
+            lines.append(f"{marker} [gold]{cmd:<14}[/] [dim]{desc}[/]")
+        if len(self._matches) > 10:
+            lines.append(f"[dim]… {len(self._matches) - 10} more — keep typing or Ctrl+P[/]")
+        self.update("\n".join(lines))
+
+    def move_selection(self, delta: int) -> None:
+        if not self._matches:
+            return
+        self._selected = (self._selected + delta) % len(self._matches)
+        self._render()
+
+    def selected_command(self) -> str | None:
+        if not self._matches:
+            return None
+        return self._matches[self._selected][0]
+
+    def completion_for(self, prefix: str) -> str | None:
+        """Return a full command to insert when Tab is pressed."""
+        cmd = self.selected_command()
+        if cmd is None:
+            return None
+        if prefix and cmd.startswith(prefix.lower()):
+            return cmd
+        return cmd
+
+
 __all__ = [
     "BrandBadges",
     "BrandHeader",
@@ -253,5 +333,6 @@ __all__ = [
     "InspectorPanel",
     "NextAction",
     "SectionTitle",
+    "SlashSuggestPanel",
     "StatusBar",
 ]

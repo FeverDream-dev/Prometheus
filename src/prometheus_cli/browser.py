@@ -11,6 +11,29 @@ except ImportError:
     PLAYWRIGHT_AVAILABLE = False
     PlaywrightError = Exception
 
+_browsers_ready: bool | None = None
+
+
+def browsers_ready() -> bool:
+    """True when Playwright is installed and Chromium binaries are present."""
+    global _browsers_ready
+    if _browsers_ready is not None:
+        return _browsers_ready
+    if not PLAYWRIGHT_AVAILABLE:
+        _browsers_ready = False
+        return False
+    try:
+        pw = sync_playwright().start()
+        try:
+            browser = pw.chromium.launch(headless=True)
+            browser.close()
+            _browsers_ready = True
+        finally:
+            pw.stop()
+    except Exception:
+        _browsers_ready = False
+    return _browsers_ready
+
 
 @dataclass
 class BrowserEvidence:

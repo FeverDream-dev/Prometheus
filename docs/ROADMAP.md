@@ -44,3 +44,22 @@ read-only status. Gate: multi-day fault-injection run resumes without duplicatin
 Local web UI and Tauri/Electron shell using the daemon API. Gate: feature parity for primary TUI
 flows, signed packages, accessibility, and auto-update rollback.
 
+## Phase 8 — remote bridges (planned)
+
+Telegram and mobile status for the coding agent (Hermes-class reach, agent semantics).
+
+- `prometheus daemon` exposes session events over a local authenticated socket (Phase 6 dependency).
+- `prometheus bridge telegram` (deferred): bot receives `/objective`, `/pause`, `/status`; pushes
+  checkpoint summaries, weighted completion %, critical-criteria pass/fail, and git SHA — not
+  open-ended assistant chat.
+- Phone: Telegram client first; optional read-only PWA on daemon HTTP.
+- Security: Copilot/Pilot approval gates apply to bridge commands; secrets never in messages.
+- Log: track in `docs/BRIDGES.md` when implementation starts.
+
+## Efficiency — Ponytail (integrated)
+
+Built-in minimal-code ladder (`ponytail_mode`: off | lite | full | ultra) injects into controller
+and Forge seat prompts. Inspired by [Ponytail](https://github.com/DietrichGebert/ponytail) (MIT).
+Default `full` in `config/default.yaml`. Pairs with Cavecrew-style compressed investigator output
+in future arena seats.
+

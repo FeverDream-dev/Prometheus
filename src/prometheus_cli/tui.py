@@ -22,7 +22,7 @@ from pathlib import Path
 
 from textual.app import App, ComposeResult
 from textual.binding import Binding
-from textual.containers import Horizontal, VerticalScroll
+from textual.containers import Horizontal, Vertical, VerticalScroll
 from textual.reactive import reactive
 from textual.widgets import Footer, Input, RichLog, Static
 
@@ -40,6 +40,7 @@ from .tui_widgets import (
     InspectorPanel,
     NextAction,
     SectionTitle,
+    SlashSuggestPanel,
     StatusBar,
 )
 
@@ -163,12 +164,14 @@ class PrometheusApp(App):
                     yield Static("", id="command-content", markup=True)
             yield InspectorPanel(id="inspector", markup=True)
 
-        # Bottom: input + status + footer
-        yield Input(
-            placeholder="Ask PROMETHEUS to build, fix, test, explain, or inspect this project…  (/"
-            " for commands, Ctrl+P for palette)",
-            id="cmd-input",
-        )
+        # Bottom: slash suggest + input + status + footer
+        with Vertical(id="input-column"):
+            yield SlashSuggestPanel(id="slash-suggest")
+            yield Input(
+                placeholder="Ask PROMETHEUS to build, fix, test, explain, or inspect this project…  (/"
+                " for commands, Ctrl+P for palette)",
+                id="cmd-input",
+            )
         yield StatusBar(id="status-bar", markup=True)
         yield Footer()
 
@@ -356,6 +359,39 @@ class PrometheusApp(App):
     # Input handling
     # ------------------------------------------------------------------
 
+    def on_input_changed(self, event: Input.Changed) -> None:
+        if event.input.id != "cmd-input":
+            return
+        try:
+            panel = self.query_one("#slash-suggest", SlashSuggestPanel)
+            panel.update_prefix(event.value)
+        except Exception:
+            pass
+
+    def on_key(self, event) -> None:
+        try:
+            panel = self.query_one("#slash-suggest", SlashSuggestPanel)
+        except Exception:
+            return
+        if not panel.visible:
+            return
+        inp = self.query_one("#cmd-input", Input)
+        if event.key == "down":
+            panel.move_selection(1)
+            event.prevent_default()
+            event.stop()
+        elif event.key == "up":
+            panel.move_selection(-1)
+            event.prevent_default()
+            event.stop()
+        elif event.key == "tab":
+            completion = panel.completion_for(inp.value)
+            if completion:
+                inp.value = completion
+                panel.update_prefix(completion)
+            event.prevent_default()
+            event.stop()
+
     def on_input_submitted(self, event: Input.Submitted) -> None:
         text = (event.value or "").strip()
         if not text:
@@ -374,6 +410,14 @@ class PrometheusApp(App):
             return
 
         if text.startswith("/"):
+            try:
+                panel = self.query_one("#slash-suggest", SlashSuggestPanel)
+                selected = panel.selected_command()
+                if selected and (text == "/" or text == selected or not text[1:].strip()):
+                    text = selected
+                panel.update_prefix("")
+            except Exception:
+                pass
             event.input.value = ""
             self._dispatch_slash_text(text)
             return
@@ -643,7 +687,7 @@ class PrometheusApp(App):
         self._log(f"[err]│[/]  Recommended:  [gold]{rec}[/]")
         self._log("[err]│[/]                                                          [err]│[/]")
         self._log("[err]│[/]  Next steps:                                              [err]│[/]")
-        self._log("[err]│[/]    [gold]/setup[/]     — run the 7-step setup wizard       [err]│[/]")
+        self._log("[err]│[/]    [gold]/setup[/]     — run the 9-step setup wizard       [err]│[/]")
         self._log("[err]│[/]    [gold]/bundles[/]   — browse available bundles         [err]│[/]")
         self._log(f"[err]│[/]    [gold]/use {rec}[/] — select the recommended bundle   [err]│[/]")
         self._log("[err]└──────────────────────────────────────────────────────────┘[/]")
@@ -829,7 +873,10 @@ class PrometheusApp(App):
     def action_command_palette(self) -> None:
         """Open the rich command palette (overrides builtin)."""
         from .tui_screens import CommandPaletteScreen
-        self.push_screen(CommandPaletteScreen(self._snapshot))
+        def _run(cmd: str | None) -> None:
+            if cmd:
+                self._dispatch_slash_text(cmd)
+        self.push_screen(CommandPaletteScreen(self._snapshot), _run)
 
     def action_toggle_sidebar(self) -> None:
         try:

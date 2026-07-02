@@ -8,6 +8,15 @@ from ..memory import FailureSignature, ProjectMemoryStore
 from ..memory.context import build_context_packet
 from ..models import AgentTurn, Risk, Settings, ToolCall
 from ..policy import requires_approval
+from ..agent_efficiency import (
+    FORGE_TOOL_RETRY_HINT,
+    build_seat_contract,
+    effective_arena_char_budget,
+    narrates_tools_without_calls,
+)
+from ..cavecrew import compress_text
+from ..errors_decode import decode_and_format
+from ..verify import self_check_write, verify_workspace_progress
 
 TOOL_RISK: dict[str, Risk] = {
     "read_file": Risk.READ,
@@ -37,15 +46,25 @@ class MicroStepEngine:
     approve: Callable[[ToolCall, Risk], bool] = lambda _c, _r: False
     char_budget: int = 24000
 
-    def run_seat(self, seat: Seat, provider) -> StepOutcome:
+    def run_seat(self, seat: Seat, provider, *, extra_user_hint: str = "") -> StepOutcome:
         active = self.store.active_micro_step()
-        packet = build_context_packet(self.store, seat, active, char_budget=self.char_budget)
+        budget = effective_arena_char_budget(self.settings)
+        packet = build_context_packet(self.store, seat, active, char_budget=budget)
+        if extra_user_hint:
+            from ..memory.context import ContextSection
+
+            packet.sections.append(
+                ContextSection(name="Retry hint", content=extra_user_hint, provenance="deterministic retry")
+            )
         schema = AgentTurn.model_json_schema()
-        raw = provider.complete(packet.to_messages(seat.system_contract), schema=schema)
+        contract = build_seat_contract(seat.system_contract, self.settings, seat=seat.name)
+        raw = provider.complete(packet.to_messages(contract), schema=schema)
         try:
             turn = AgentTurn.model_validate_json(raw)
         except Exception as exc:
             return StepOutcome(seat=seat.name, turn=None, error=f"invalid AgentTurn: {exc}", packet_chars=packet.chars)
+        if seat.name == "forge" and narrates_tools_without_calls(turn.message, turn.calls) and not extra_user_hint:
+            return self.run_seat(seat, provider, extra_user_hint=FORGE_TOOL_RETRY_HINT)
         self._sync_ledger(turn)
         outputs = self._execute_calls(turn)
         return StepOutcome(seat=seat.name, turn=turn, tool_outputs=outputs, packet_chars=packet.chars)
@@ -80,7 +99,10 @@ class MicroStepEngine:
         if name == "list_files":
             return self.tools.list_files(a.get("pattern", "*"))
         if name == "write_file":
-            return self.tools.write_file(a.get("path", ""), a.get("content", ""))
+            path = a.get("path", "")
+            msg = self.tools.write_file(path, a.get("content", ""))
+            check = self_check_write(self.tools, path)
+            return f"{msg}\n{check}"
         if name == "run_command":
             return self.tools.run_command(list(a.get("command", [])), int(a.get("timeout", 120)))
         if name == "git_checkpoint":
@@ -131,8 +153,15 @@ class ArenaLoop:
             if forge_out.error:
                 self._record_failure("invalid-agent-turn", forge_out.error)
                 continue
+            if not _forge_wrote_real_files(forge_out.tool_outputs):
+                self._record_failure("no-tool-writes", "forge did not execute successful write_file")
+                on_update("Verification: FAIL — no successful write_file in tool outputs")
+                sig = "no tool writes"
+                seen_signatures[sig] = seen_signatures.get(sig, 0) + 1
+                result.failure_signatures.append(sig)
+                continue
             passed, evidence = verify(self.store, self.tools)
-            on_update(f"Verification: {'PASS' if passed else 'FAIL'} — {evidence[:80]}")
+            on_update(f"Verification: {'PASS' if passed else 'FAIL'} — {decode_and_format(compress_text(evidence[:240]))}")
             if passed and argus is not None:
                 review = self.engine.run_seat(SEATS["argus"], argus)
                 on_update(f"Argus: {review.turn.message if review.turn else review.error}")
@@ -171,6 +200,13 @@ def _normalize_signature(evidence: str) -> str:
     return text[:80] or "unknown-failure"
 
 
+def _forge_wrote_real_files(tool_outputs: list[str]) -> bool:
+    for line in tool_outputs:
+        if line.startswith("write_file:") and "SELF-CHECK OK" in line:
+            return True
+    return False
+
+
 def detect_test_command(workspace) -> list[str] | None:
     import shutil
     import sys
@@ -185,19 +221,8 @@ def detect_test_command(workspace) -> list[str] | None:
 
 
 def make_default_verify(workspace):
-    from pathlib import Path
-
-    root = Path(workspace)
-    test_cmd = detect_test_command(root)
-
     def verify(store, tools):
-        if test_cmd:
-            out = tools.run_command(test_cmd, timeout=180)
-            passed = "passed" in out and ("failed" not in out.lower() or " failed" not in out.lower())
-            return passed, _meaningful_pytest_line(out)
-        diff = tools.git_diff() if hasattr(tools, "git_diff") else ""
-        changed = bool(diff and diff.strip() and "fatal" not in diff.lower())
-        return changed, ("patch applied (no test suite to verify)" if changed else "no change made")
+        return verify_workspace_progress(tools)
 
     return verify
 
