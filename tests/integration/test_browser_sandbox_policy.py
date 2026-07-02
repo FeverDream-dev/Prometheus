@@ -5,13 +5,16 @@ from pathlib import Path
 import pytest
 
 try:
-    from prometheus_cli.browser import PLAYWRIGHT_AVAILABLE
+    from prometheus_cli.browser import PLAYWRIGHT_AVAILABLE, browsers_ready
 except ImportError:
     PLAYWRIGHT_AVAILABLE = False
 
+    def browsers_ready() -> bool:
+        return False
+
 pytestmark = pytest.mark.skipif(
-    not PLAYWRIGHT_AVAILABLE,
-    reason="playwright not installed; run: pip install 'prometheus-local-agent[browser]' && playwright install chromium",
+    not PLAYWRIGHT_AVAILABLE or not browsers_ready(),
+    reason="playwright browsers not ready; run: pip install 'prometheus-local-agent[browser]' && playwright install chromium",
 )
 
 FIXTURE = Path(__file__).resolve().parents[2] / "tests" / "fixtures" / "sandbox_target" / "public" / "index.html"

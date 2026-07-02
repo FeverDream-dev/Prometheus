@@ -79,6 +79,16 @@ def doctor(json_output: bool = typer.Option(False, "--json")) -> None:
         console.print("Ollama: installed, service NOT running (start with: ollama serve)")
     else:
         console.print("Ollama: not installed")
+    try:
+        from .onboarding import check_ollama as _check_ollama_health
+        ollama_health = _check_ollama_health()
+        if ollama_health.duplicate_servers:
+            console.print(
+                f"[yellow]Warning: {ollama_health.serve_process_count} ollama serve "
+                "processes — stop duplicates to avoid empty model lists[/yellow]"
+            )
+    except Exception:
+        pass
     console.print(f"Docker: {'ready' if report.docker_installed else 'not installed'}")
     v2_recommended = None
     try:
@@ -339,6 +349,7 @@ def run(
 
 def _run_arena(objective, bundle_path, workspace, settings, session_store, approve_fn) -> None:
     from .agent import ArenaLoop, MicroStepEngine, make_default_verify
+    from .errors_decode import decode_and_format
     from .memory import Intent, ProjectMemoryStore
     from .providers import create_provider
     from .tools.workspace import WorkspaceTools
@@ -361,7 +372,11 @@ def _run_arena(objective, bundle_path, workspace, settings, session_store, appro
     verify = make_default_verify(workspace)
     providers = {"envoy": envoy, "forge": forge, "argus": argus}
     console.print(Panel.fit(f"PROMETHEUS Arena — bounded memory + micro-steps\nBundle: {bundle.name} · Mode: {settings.mode.value}"))
-    result = arena.run(providers, verify, on_update=lambda line: console.print(f"[cyan]{line}[/cyan]"))
+
+    def _log(line: str) -> None:
+        console.print(f"[cyan]{decode_and_format(line)}[/cyan]")
+
+    result = arena.run(providers, verify, on_update=_log)
     mem.set_working_memory(f"# Session result\n\nobjective: {objective}\nstatus: {result.final_status}\nattempts: {result.attempts}\naccepted: {result.accepted}\n")
     session_store.close()
     verdict = "[green]COMPLETE[/green]" if result.accepted else f"[yellow]{result.final_status.upper()}[/yellow]"
@@ -432,6 +447,21 @@ def telemetry(
             console.print(stripped)
         else:
             console.print(line)
+
+
+@app.command()
+def decode_error(
+    text: str = typer.Argument(..., help="Error line or log excerpt to decode"),
+) -> None:
+    """Decode agent/runtime errors into likely cause and fix."""
+    from .errors_decode import decode_and_format, decode_error as _decode
+
+    decoded = _decode(text)
+    if decoded is None:
+        console.print("[dim]No known pattern. Raw:[/dim]")
+        console.print(text)
+        raise typer.Exit(code=1)
+    console.print(decode_and_format(text))
 
 
 @app.command()

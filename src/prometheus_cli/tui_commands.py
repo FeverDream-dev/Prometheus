@@ -3,7 +3,8 @@ from __future__ import annotations
 
 SLASH_COMMANDS = {
     "/help": "show grouped command help",
-    "/setup": "first-run setup guide (hardware, bundle, configure)",
+    "/setup": "first-run setup wizard (hardware, bundle, configure)",
+    "/setup-wizard": "interactive setup — pick bundle, download models, verify",
     "/settings": "show all editable settings and their current values",
     "/bundles": "show model packages and active config",
     "/models": "show installed Ollama models",
@@ -32,7 +33,7 @@ SLASH_COMMANDS = {
 
 
 _COMMAND_GROUPS: list[tuple[str, list[str]]] = [
-    ("Setup", ["/setup", "/use", "/bundles", "/provider", "/models", "/doctor"]),
+    ("Setup", ["/setup", "/setup-wizard", "/use", "/bundles", "/provider", "/models", "/doctor"]),
     ("Models & Coding", ["/mode", "/modes", "/qualify", "/sessions", "/resume", "/memory"]),
     ("Safety", ["/sandbox", "/permissions", "/tools", "/mcp"]),
     ("Browser & Vision", ["/vision", "/astronaut", "/assets"]),
@@ -82,11 +83,21 @@ def unknown_command_lines(typed: str) -> list[str]:
 
 def doctor_lines(report, ollama) -> list[str]:
     ollama_state = "running" if ollama.running else "installed, service NOT running"
-    return [
+    out = [
         f"OS: {report.os} {report.architecture} | RAM: {report.ram_gb:.0f} GB | "
         f"VRAM: {report.vram_gb:.0f} GB | disk: {report.disk_free_gb:.0f} GB",
         f"Ollama: {ollama_state} ({len(ollama.models)} models)",
     ]
+    if getattr(ollama, "duplicate_servers", False):
+        count = getattr(ollama, "serve_process_count", 0)
+        out.append(
+            f"[yellow]Warning: {count} ollama serve processes detected. "
+            "Stop duplicates (pkill -f 'ollama serve'; ollama serve) — "
+            "empty model lists and hangs are common.[/yellow]"
+        )
+    elif ollama.installed and not ollama.running:
+        out.append("[yellow]Start Ollama: ollama serve[/yellow]")
+    return out
 
 
 def models_lines(ollama) -> list[str]:
@@ -170,7 +181,7 @@ def providers_lines(settings) -> list[str]:
 
 _STATUS_TAG = {
     "recommended": "[green]recommended[/green]",
-    "installed": "[bold green]installed[/bold]",
+    "installed": "[bold green]installed[/bold green]",
     "available": "available",
     "experimental": "[yellow]experimental[/yellow]",
     "incompatible": "[red]incompatible[/red]",

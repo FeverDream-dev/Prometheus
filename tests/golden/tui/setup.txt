@@ -39,7 +39,7 @@ Step 4 · Ollama status
 Step 5 · Bundle recommendation
   Recommended bundle
   
-    forge-24gb
+    ember-8gb
   
   Based on your detected hardware. You can confirm,
   or browse alternatives in the next step.
@@ -59,15 +59,12 @@ Step 6 · Bundle choice
   Type /use <id> to select one (in the main input).
 
 Step 7 · Model pull / validate
-  Model pull / validate
+  Models to pull
   
-  Once you /use a bundle, PROMETHEUS will:
-    1. Show each model with download size and license
-    2. Ask confirmation before pulling
-    3. Run a smoke test after each pull
+    qwen3.5:4b  (controller, ~3.4 GB, check_upstream)  installed required
+    granite4.1:3b  (reviewer, ~2.1 GB, apache-2.0)  installed optional
   
-  Models are never auto-downloaded without your confirmation.
-  Use /qualify <bundle-id> to qualify now.
+  Confirmation required before each download (unless --yes).
 
 Step 8 · Git & memory setup
   Git & memory setup

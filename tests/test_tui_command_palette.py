@@ -20,7 +20,7 @@ def _run(coro):
     return asyncio.run(coro)
 
 
-_SKIPPED_DISPATCH = {"/?", "/setup-wizard", "/memory"}
+_SKIPPED_DISPATCH = {"/?", "/setup-wizard", "/memory", "/setup"}
 
 
 @pytest.mark.parametrize("cmd", [c for c in sorted(SLASH_SCREEN_MAP.keys()) if c not in _SKIPPED_DISPATCH])

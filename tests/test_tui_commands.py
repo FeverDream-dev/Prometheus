@@ -237,11 +237,15 @@ def test_every_slash_command_has_tui_dispatch_handler():
     inline_source = inspect.getsource(PrometheusApp._dispatch_slash_text)
     screen_map_keys = set(tui_screens.SLASH_SCREEN_MAP.keys())
 
+    dispatch_source = inspect.getsource(tui_screens.dispatch_slash)
+    modal_commands = {"/setup-wizard"}
+
     missing = []
     for cmd in tui_commands.SLASH_COMMANDS:
         handled = (
             cmd in inline_source
             or cmd in screen_map_keys
+            or cmd in modal_commands and f'"{cmd}"' in dispatch_source
             or (cmd == "/help" and "/?" in screen_map_keys)
         )
         if not handled:

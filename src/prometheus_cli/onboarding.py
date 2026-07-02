@@ -45,6 +45,27 @@ class OllamaStatus:
     running: bool
     models: list[str]
     install_hint: str
+    serve_process_count: int = 0
+
+    @property
+    def duplicate_servers(self) -> bool:
+        return self.serve_process_count > 1
+
+
+def _count_ollama_serve_processes() -> int:
+    """Return how many ``ollama serve`` processes are running (duplicate = broken API)."""
+    try:
+        result = subprocess.run(
+            ["pgrep", "-f", "ollama serve"],
+            capture_output=True,
+            text=True,
+            timeout=3.0,
+        )
+        if result.returncode != 0:
+            return 0
+        return len([line for line in result.stdout.splitlines() if line.strip()])
+    except (OSError, subprocess.SubprocessError):
+        return 0
 
 
 OLLAMA_INSTALL_HINTS = {
@@ -129,6 +150,7 @@ def pick_default_bundle(options: list[BundleOption], report: HardwareReport) -> 
 def check_ollama(base_url: str = "http://127.0.0.1:11434") -> OllamaStatus:
     installed = shutil.which("ollama") is not None
     hint = OLLAMA_INSTALL_HINTS.get(platform.system(), "See https://ollama.com/download")
+    serve_count = _count_ollama_serve_processes() if installed else 0
     if not installed:
         return OllamaStatus(installed=False, running=False, models=[], install_hint=hint)
     try:
@@ -136,9 +158,15 @@ def check_ollama(base_url: str = "http://127.0.0.1:11434") -> OllamaStatus:
         response.raise_for_status()
         data = response.json()
         models = [m.get("name", "") for m in data.get("models", [])]
-        return OllamaStatus(installed=True, running=True, models=models, install_hint=hint)
+        return OllamaStatus(
+            installed=True, running=True, models=models, install_hint=hint,
+            serve_process_count=serve_count,
+        )
     except (httpx.HTTPError, ValueError):
-        return OllamaStatus(installed=True, running=False, models=[], install_hint=hint)
+        return OllamaStatus(
+            installed=True, running=False, models=[], install_hint=hint,
+            serve_process_count=serve_count,
+        )
 
 
 @dataclass

@@ -60,6 +60,10 @@ class WorkspaceTools:
         return self._resolve(path).read_text(encoding="utf-8")[:max_chars]
 
     def write_file(self, path: str, content: str) -> str:
+        if content is None or not str(content).strip():
+            raise ValueError(
+                "write_file rejected: content is empty. Write real file body, not a placeholder path."
+            )
         target = self._resolve(path)
         target.parent.mkdir(parents=True, exist_ok=True)
         fd, tmp = tempfile.mkstemp(dir=str(target.parent), prefix=".prometheus_write_")
@@ -164,6 +168,10 @@ class WorkspaceTools:
             args.extend(["--", path])
         result = self._git(args)
         return result.stdout[:100_000]
+
+    def git_status_porcelain(self) -> str:
+        result = self._git(["status", "--porcelain"])
+        return result.stdout[:50_000] if result.returncode == 0 else ""
 
     def git_rollback(self, commit_sha: str) -> str:
         if not commit_sha or not all(c in "0123456789abcdef" for c in commit_sha.lower()):

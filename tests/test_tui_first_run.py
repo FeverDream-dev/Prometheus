@@ -1,7 +1,7 @@
 """TUI 2.0 first-run / setup wizard tests.
 
 Verifies the first-run UX: demo ribbon visibility, setup wizard reachable via
-``/setup``, all 7 wizard steps rendered, and the wizard screen is a
+``/setup``, all 9 wizard steps rendered, and the wizard screen is a
 RichCommandScreen so it renders under both interactive and headless paths.
 """
 from __future__ import annotations

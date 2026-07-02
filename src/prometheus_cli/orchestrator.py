@@ -7,10 +7,13 @@ from collections.abc import Callable
 from .escalation import FailureTracker
 from .models import AgentTurn, ModelBundle, Risk, Settings, ToolCall
 from .policy import requires_approval
+from .agent_efficiency import build_controller_system, compress_results
+from .errors_decode import decode_and_format
 from .providers import create_provider
 from .redaction import redact
 from .session import SessionStore
 from .tools.workspace import WorkspaceTools
+from .verify import self_check_write, verify_workspace_progress
 
 
 SYSTEM_PROMPT = """You are the controller of PROMETHEUS, a coding agent.
@@ -31,6 +34,8 @@ Browser tools (when available): browser_navigate(url), browser_screenshot(),
 browser_click(selector), browser_fill(selector, value), browser_text(selector),
 browser_evaluate(expression), browser_evidence().
 git_rollback is destructive and always requires user approval.
+After every write_file you MUST read_file the same path and confirm non-empty content.
+SELF-CHECK lines in tool results tell you if the write failed — fix before claiming complete.
 Do not put shell syntax in command arrays. Do not escape the workspace.
 Placeholders are allowed only for explicit prototypes, must be labeled PLACEHOLDER,
 and must appear in the remaining-work report.
@@ -93,20 +98,24 @@ class Orchestrator:
         risk = TOOL_RISK[call.tool]
         if requires_approval(self.settings, risk) and not self.approve(call, risk):
             return "DENIED: user approval required"
-        if call.tool.startswith("browser_"):
-            browser = self._get_browser()
-            if browser is None:
-                return "ERROR: Playwright not installed. Install with: pip install 'prometheus-local-agent[browser]'"
-            method_name = call.tool.replace("browser_", "")
-            method = getattr(browser, method_name, None)
-            if method_name == "evidence":
-                return browser.collect_evidence().summary()
-            if method is None:
-                return f"ERROR: unknown browser tool {call.tool}"
-        else:
-            method = getattr(self.workspace, call.tool)
         try:
-            return str(method(**call.arguments))
+            if call.tool.startswith("browser_"):
+                browser = self._get_browser()
+                if browser is None:
+                    return "ERROR: Playwright not installed. Install with: pip install 'prometheus-local-agent[browser]'"
+                method_name = call.tool.replace("browser_", "")
+                if method_name == "evidence":
+                    return browser.collect_evidence().summary()
+                method = getattr(browser, method_name, None)
+                if method is None:
+                    return f"ERROR: unknown browser tool {call.tool}"
+                return str(method(**call.arguments))
+            method = getattr(self.workspace, call.tool)
+            result = str(method(**call.arguments))
+            if call.tool == "write_file":
+                path = call.arguments.get("path", "")
+                result = f"{result}\n{self_check_write(self.workspace, path)}"
+            return result
         except Exception as exc:
             return f"ERROR {type(exc).__name__}: {exc}"
 
@@ -140,12 +149,14 @@ class Orchestrator:
             )
 
         messages = [
-            {"role": "system", "content": SYSTEM_PROMPT},
+            {"role": "system", "content": build_controller_system(SYSTEM_PROMPT, self.settings)},
             {"role": "user", "content": objective},
         ]
         failures = FailureTracker(self.settings.attempts_before_escalation)
         last_turn = AgentTurn(message="Not started")
         schema = AgentTurn.model_json_schema()
+        consecutive_stalls = 0
+        had_writes = False
 
         step_limit = self.settings.step_limit()
         step_ceiling = step_limit if step_limit is not None else 500
@@ -171,11 +182,42 @@ class Orchestrator:
             evaluated = self._evaluated_completion(session_id, turn.completion_percent)
             turn.completion_percent = evaluated
             last_turn = turn
-            on_update(f"step {step}: {turn.message} ({evaluated}%)")
+            on_update(f"step {step}: {decode_and_format(turn.message) or '(empty)'} ({evaluated}%)")
+
+            if not turn.calls and not (turn.message or "").strip():
+                consecutive_stalls += 1
+                if consecutive_stalls >= 3:
+                    if session_id:
+                        self.store.set_status(session_id, "blocked")
+                    return AgentTurn(
+                        status="blocked",
+                        message="Stopped: model returned 3 empty turns in a row",
+                        completion_percent=evaluated,
+                    )
+                messages.append({
+                    "role": "user",
+                    "content": (
+                        "Empty turn. Propose acceptance criteria or call tools "
+                        "(write_file with full content, then read_file to verify)."
+                    ),
+                })
+                continue
+            consecutive_stalls = 0
 
             terminal = turn.status in {"complete", "needs_user", "blocked"} and not turn.calls
             if terminal:
                 if turn.status == "complete" and session_id:
+                    if had_writes:
+                        ok, evidence = verify_workspace_progress(self.workspace)
+                        if not ok:
+                            messages.append({
+                                "role": "user",
+                                "content": (
+                                    f"Cannot mark complete: verification failed ({evidence}). "
+                                    "Write real files with write_file, read_file to confirm, then retry."
+                                ),
+                            })
+                            continue
                     if not self.store.meets_target(session_id, self.settings.target_completion):
                         messages.append({
                             "role": "user",
@@ -194,6 +236,8 @@ class Orchestrator:
             results = []
             escalated_sig: str | None = None
             for call in turn.calls:
+                if call.tool == "write_file":
+                    had_writes = True
                 result = self._execute(call)
                 result = redact(result)
                 results.append({"tool": call.tool, "result": result})
@@ -207,7 +251,9 @@ class Orchestrator:
             messages.extend(
                 [
                     {"role": "assistant", "content": raw},
-                    {"role": "user", "content": "TOOL RESULTS:\n" + json.dumps(results)},
+                    {"role": "user", "content": "TOOL RESULTS:\n" + json.dumps(
+                        compress_results(results, self.settings)
+                    )},
                 ]
             )
             if escalated_sig and self.reviewer:

@@ -366,6 +366,39 @@ Footer {{
 }}
 #wizard-buttons Button {{ margin: 0 1; }}
 
+/* ---- Interactive setup (modal) ---- */
+#setup-card {{
+    width: 92;
+    max-width: 100;
+    height: auto;
+    max-height: 85;
+    background: {BG_PANEL};
+    border: solid {BORDER_BRONZE};
+    padding: 1 2;
+}}
+#setup-title {{ color: {ACCENT_GOLD_BRIGHT}; text-align: center; }}
+#setup-bundle-scroll {{
+    height: 14;
+    border: solid {BORDER_DIM};
+    background: {BG_OBSIDIAN};
+    margin: 1 0;
+}}
+#setup-buttons {{
+    height: 3;
+    layout: horizontal;
+    padding: 1 0 0 0;
+}}
+#setup-buttons Button {{ margin: 0 1; }}
+#setup-status {{ color: {TEXT_SECONDARY}; padding: 1 0; }}
+
+/* ---- Slash suggest (above input) ---- */
+#input-column {{
+    height: auto;
+}}
+#slash-suggest {{
+    margin: 0 1;
+}}
+
 /* ---- Command palette (modal) ---- */
 /* ModalScreen provides its own dimmed background; we only style its children. */
 #palette-card {{

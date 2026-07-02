@@ -10,4 +10,8 @@ target_completion: 95
 attempts_before_escalation: 5
 max_steps: 50
 max_runtime_minutes: 240
+ponytail_mode: full
+cavecrew_mode: lite
+caveman_mode: full
+arena_char_budget: 0
 

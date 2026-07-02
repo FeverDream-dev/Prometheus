@@ -17,13 +17,26 @@ def _run(coro):
 
 
 class TestSetupScreenRendering:
-    def test_setup_screen_dispatches_in_tui(self):
+    def test_setup_wizard_dispatches_interactive_modal(self):
+        async def go():
+            from prometheus_cli.tui_screens import InteractiveSetupScreen
+
+            app = PrometheusApp(demo=True, workspace=Path("/tmp"))
+            async with app.run_test(size=(120, 36)) as pilot:
+                await pilot.pause(0.12)
+                app._dispatch_slash_text("/setup-wizard")
+                await pilot.pause(0.15)
+                assert isinstance(app.screen, InteractiveSetupScreen)
+        _run(go())
+
+    def test_setup_slash_dispatches_command_view(self):
         async def go():
             app = PrometheusApp(demo=True, workspace=Path("/tmp"))
             async with app.run_test(size=(120, 36)) as pilot:
                 await pilot.pause(0.12)
                 app._dispatch_slash_text("/setup")
                 await pilot.pause(0.15)
+                assert app._current_view == "command"
         _run(go())
 
     def test_setup_screen_text_has_all_9_steps(self):

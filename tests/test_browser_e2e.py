@@ -7,7 +7,7 @@ from pathlib import Path
 
 import pytest
 
-from prometheus_cli.browser import PLAYWRIGHT_AVAILABLE, BrowserTools
+from prometheus_cli.browser import PLAYWRIGHT_AVAILABLE, BrowserTools, browsers_ready
 
 FIXTURE_DIR = Path(__file__).parent / "fixtures" / "web"
 
@@ -38,12 +38,17 @@ def server_url():
 def browser():
     if not PLAYWRIGHT_AVAILABLE:
         pytest.skip("playwright not installed")
+    if not browsers_ready():
+        pytest.skip("playwright browsers not installed; run: playwright install chromium")
     bt = BrowserTools(headless=True)
     yield bt
     bt.close()
 
 
-pytestmark = pytest.mark.skipif(not PLAYWRIGHT_AVAILABLE, reason="playwright not installed")
+pytestmark = pytest.mark.skipif(
+    not PLAYWRIGHT_AVAILABLE or not browsers_ready(),
+    reason="playwright browsers not ready; run: pip install 'prometheus-local-agent[browser]' && playwright install chromium",
+)
 
 
 def test_navigate_and_read_title(server_url, browser):

@@ -1,7 +1,8 @@
 PROMETHEUS command palette
 
 Setup
-  /setup        first-run setup guide (hardware, bundle, configure)
+  /setup        first-run setup wizard (hardware, bundle, configure)
+  /setup-wizard interactive setup — pick bundle, download models, verify
   /use          select the active package (/use <id>, e.g. /use spark-cpu-8gb)
   /bundles      show model packages and active config
   /provider     show configured providers
